@@ -1,11 +1,21 @@
 # Please specify folders and files, which are not important to upload...
 
+
+
 # folder
+
 __pycache__/
+
 tflog/
+.idea/
+
 
 # files
+
 *sandbox.py
+
 .directory
+
 *~
+
 *.[oa]
