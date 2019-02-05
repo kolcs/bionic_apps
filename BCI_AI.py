@@ -21,18 +21,6 @@ class SpatialTransformLayer(keras.layers.Layer):
         self._split_data_by_timepoints = keras.layers.Lambda(
             lambda x: [x[:, :, i] for i in range(keras.backend.int_shape(x)[-1])])
 
-        # self._transform_base = keras.layers.Lambda(  # problem with batch size!
-        #     lambda x: keras.backend.zeros_like(
-        #         keras.backend.placeholder((keras.backend.int_shape(x)[0], self.output_dim[0] * self.output_dim[1]))))
-
-        # def _transform(tens):
-        #     y = self._transform_base(tens)
-        #     for i, ind in enumerate(CHANNEL_TRANSFORMATION):
-        #         y[:, ind] = tens[:, i]  # assign error... --> tf.py_func
-        #     return y
-
-        # self._spatial_transformation = keras.layers.Lambda(_transform)
-
         def _transform(tens):
             y = np.zeros_like(tens)
             for i, ind in enumerate(CHANNEL_TRANSFORMATION):
@@ -153,7 +141,7 @@ class NeuralNetwork(object):
         window = int(self._window * self._fs)  # in data points
         step = int(self._step * self._fs)  # in data points
 
-        def _cut_to_data_epochs(data, label):  # todo: think...
+        def _cut_to_data_epochs(data, label):  # todo: One label!
             channel, n = data.shape
             num = int((n - window) // step)
 
