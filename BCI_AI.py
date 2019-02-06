@@ -143,7 +143,7 @@ class NeuralNetwork(object):
 
         def _cut_to_data_epochs(data, label):  # todo: One label!
             channel, n = data.shape
-            num = int((n - window) // step)
+            num = int((n - window) // step) + 1
 
             # one hot encode:
             assert len(label) == len(
