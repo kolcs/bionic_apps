@@ -1,6 +1,6 @@
 {
     "isServer": false,
-    "networkAddress": "localhost",
+    "networkAddress": "10.220.255.211",
     "networkPort": 7777,
     "controlAddressP1": "any",
     "controlAddressP2": "any",

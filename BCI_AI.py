@@ -30,7 +30,7 @@ class SpatialTransformLayer(keras.layers.Layer):
             return y
 
         self._spatial_transformation = keras.layers.Lambda(
-            lambda x: tf.py_func(func=_transform, inp=[x], Tout=tf.float32))
+            lambda x: tf.py_function(func=_transform, inp=[x], Tout=tf.float32))
         self._reshape = keras.layers.Reshape((self.output_dim[0], self.output_dim[1]))
         self._expand_dim = keras.layers.Lambda(lambda x: tf.keras.backend.expand_dims(x))
         self._concat = tf.keras.layers.Concatenate()
@@ -165,7 +165,7 @@ class NeuralNetwork(object):
             # return np.array(wind_data, dtype=np.float32), tuple(output)
 
         dataset = dataset.map(
-            map_func=lambda input, label: tf.py_func(func=_cut_to_data_epochs, inp=[input, label],
+            map_func=lambda input, label: tf.py_function(func=_cut_to_data_epochs, inp=[input, label],
                                                      Tout=[tf.float32, tf.float32, tf.float32]))
         # dataset = dataset.flat_map(lambda data, labels: tf.data.Dataset().zip((
         #     tf.data.Dataset().from_tensor_slices(data),
@@ -263,10 +263,10 @@ class NeuralNetwork(object):
 
 
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
 
     from BCISystem import BCISystem
 
