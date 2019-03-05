@@ -22,7 +22,9 @@ class SpatialTransformLayer(keras.layers.Layer):
             lambda x: [x[:, :, i] for i in range(keras.backend.int_shape(x)[-1])])
 
         def _transform(tens):
-            y = np.zeros_like(tens)
+            batch, channel = tens.shape
+            assert channel == 64, "Spatial transformation was designed for 64 channels. Got {} instead".format(channel)
+            y = np.zeros((batch, 10 * 11))
             for i, ind in enumerate(CHANNEL_TRANSFORMATION):
                 y[:, ind] = tens[:, i]
             return y
