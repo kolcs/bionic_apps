@@ -1,0 +1,10 @@
+{
+    "isServer": false,
+    "networkAddress": "localhost",
+    "networkPort": 7777,
+    "controlAddressP1": "any",
+    "controlAddressP2": "any",
+    "controlAddressP3": "any",
+    "controlAddressP4": "any",
+    "activPlayerIndex": 1
+}
