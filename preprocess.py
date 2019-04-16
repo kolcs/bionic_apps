@@ -1,6 +1,7 @@
 import pyedflib
 import numpy as np
 import pickle
+import mne
 from config import *
 
 
@@ -25,7 +26,7 @@ class EDFHandler:
         """
         if self._filename:
             if not self._file_handler:
-                self._file_handler = pyedflib.EdfReader(self._filename)
+                self._file_handler = mne.io.read_raw_edf(self._filename, preload=True)
         else:
             raise FileNotFoundError('Filename was not specified for edf file - can not open')
 
@@ -33,7 +34,7 @@ class EDFHandler:
         """
         Resets self._file_handler to None
         """
-        self._file_handler._close()
+        self._file_handler.close()
         self._file_handler = None
 
     def is_used(self):
@@ -41,11 +42,11 @@ class EDFHandler:
 
     def get_frequency(self):
         self._load_file_to_memory()
-        return self._file_handler.getSampleFrequency(0)
+        return self._file_handler.info['sfreq']
 
     def get_channels(self):
         self._load_file_to_memory()
-        return self._file_handler.getSignalLabels()
+        return self._file_handler.info['ch_names']
 
     def get_basic_infos(self):
         f = self.get_frequency()
@@ -116,11 +117,11 @@ class EDFHandler:
         :return:  list of trigger start, list of trigger duration, trigger ID
         """
         self._load_file_to_memory()
-        annotation = self._file_handler.readAnnotations()
+        annotation = np.transpose(self._file_handler.find_edf_evenst())
         self.close_file()
         return annotation
 
-    def get_data(self, start_after=0, end_before=0):
+    def get_data(self, start_after=0, end_before=0):  # TODO: continue...
         """
         Loads the specified data in the given window.
 
