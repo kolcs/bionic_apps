@@ -116,6 +116,7 @@ class OfflineEpochCreator:
 
         # TODO: filter for real and img
         # TODO: frep missmatch...
+        # TODO: drop wrong...
         for tasks in self._trigger_task_list:
             files = self._find_filenames(tasks, files)
             raw = self._get_concatenated_raw_file(files)
