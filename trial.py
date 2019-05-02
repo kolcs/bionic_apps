@@ -1,4 +1,5 @@
 import mne
+import numpy as np
 
 
 def use_mne_edf(filename):
@@ -15,9 +16,16 @@ def use_mne_edf(filename):
     events = mne.find_events(raw)
     print(type(np.transpose(raw.find_edf_events())[0, 0]))
 
-    # sigbufs = np.zeros((n, f.getNSamples()[0]))
-    # for i in range(n):
-    #     sigbufs[i, :] = f.readSignal(i)  # channel number, start, number of points --> channel * data points
-    # print(signal_labels)
-    # print(f.readAnnotations())
-    # print(np.shape(sigbufs))
+# TODO: https://mne-tools.github.io/stable/tutorials/philosophy.html
+"""
+- check info without preloading data
+- check epoch -> create new database
+- plot
+- filter
+- resample
+https://mne-tools.github.io/stable/auto_tutorials/plot_info.html#tut-info-objects
+
+"""
+
+if __name__ == '__main__':
+    pass

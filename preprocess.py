@@ -117,11 +117,12 @@ class EDFHandler:
         :return:  list of trigger start, list of trigger duration, trigger ID
         """
         self._load_file_to_memory()
-        annotation = np.transpose(self._file_handler.find_edf_evenst())
+        annotation = np.transpose(self._file_handler.find_edf_events())
+        annotation = (annotation[0, :].astype(np.float), annotation[1, :].astype(np.float), annotation[2, :])
         self.close_file()
         return annotation
 
-    def get_data(self, start_after=0, end_before=0):  # TODO: continue...
+    def get_data(self, start_after=0, end_before=0):  # TODO: missing data....
         """
         Loads the specified data in the given window.
 
@@ -130,9 +131,10 @@ class EDFHandler:
         :return: data matrix: row-time column-channels
         """
         self._load_file_to_memory()
-
-        channel_num = self._file_handler.signals_in_file  # number of channels
-        n_all_samples = self._file_handler.getNSamples()[0]
+        n = self._file_handler.info['nchan']  # trigger channel!
+        data, time = self._file_handler[:n, :]
+        # channel_num = self._file_handler.signals_in_file  # number of channels
+        n_all_samples = np.size(data, 1)
         fs = self.get_frequency()
 
         shift_beginning = int(start_after * fs)
@@ -146,10 +148,7 @@ class EDFHandler:
 
         assert 0 < n_samples, "The dropping values are bigger than the whole data window."
 
-        sigbufs = np.zeros((channel_num, n_samples))  # self._file_handler.getNSamples()[0]))
-        for i in range(channel_num):
-            # channel number, start, number of points --> channel * data points
-            sigbufs[i, :] = self._file_handler.readSignal(i, from_, n_samples)  # channel, from, n_sig_to_read!
+        sigbufs = data[:, from_:n_samples]
         self._used = True
 
         self.close_file()
@@ -442,6 +441,9 @@ class DBProcessor:
                         print("{}: {} records".format(task, len(self._data_base.get_trigger_list_subject(record_type,
                                                                                                          subject,
                                                                                                          task))))
+                        print(self._data_base.get_trigger_list_subject(record_type,
+                                                                       subject,
+                                                                       task)[0].get_data())
                 print()
 
     def check_db_no_subject(self):
@@ -542,18 +544,18 @@ class DBProcessor:
 
 
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
 
     proc = DBProcessor(base_dir, fast_load=True).use_physionet()
     proc.run()
-    # proc.check_db_subject()
+    proc.check_db_subject()
     # proc.check_db_no_subject()
 
     # proc.convert_data_to_tfRecords_no_subject()
-    proc.convert_data_to_tfRecords()
+    # proc.convert_data_to_tfRecords()
 
     # filename = "/home/csabi/databases/physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf"
     # edf = EDFHandler(filename)
