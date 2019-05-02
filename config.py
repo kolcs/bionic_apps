@@ -58,6 +58,7 @@ class Physionet:
     DIR = "physionet.org/"
     CHANNEL_NUM = 64
     FS = 160
+    DB_EXT = '.edf'
 
     TASK_12 = {
         'T0': REST,
@@ -104,6 +105,11 @@ class Physionet:
         13: TASK_34,
         14: TASK_34
     }
+
+    TRIGGER_TASK_LIST = [
+        (3, 4, 7, 8, 11, 12),
+        (5, 6, 9, 10, 13, 14)
+    ]
 
     MAX_DURATION = 4  # seconds --> creating strictly formatted data window
 
