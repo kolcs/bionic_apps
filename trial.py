@@ -49,25 +49,34 @@ def _get_concatenated_raw_file(filenames):
     return raw
 
 
-def mne_epochs_and_save(files):
-    raw = _get_concatenated_raw_file(files)
-    events = mne.find_events(raw, shortest_event=0, stim_channel='STI 014')
-
+def mne_epochs_and_save(file):
+    # raw = _get_concatenated_raw_file(files)
+    raw = open_raw_file(file)
+    # ann = list()
+    # ann.append(raw.annotations.description)
+    # ann.append(raw.annotations.onset * 160)
+    events = mne.find_events(raw, shortest_event=0, stim_channel='STI 014', initial_event=True, consecutive=True)
+    # print(ann)
+    # print(events)
     event_id = {
         REST: 1,
-        LEFT_HAND: 3,
-        RIGHT_HAND: 2
+        LEFT_HAND: 2,
+        RIGHT_HAND: 3
     }
     tmin = 0
     tmax = 4
     epochs = mne.Epochs(raw, events, event_id, tmin, tmax, proj=True,
                         baseline=None, preload=True)
-    epochs.save('../tmp/data.fif', fmt='double')
+
+    # for i in range(len(events)):
+    #     print(epochs[i])
+    # epochs.plot(n_epochs=2, n_channels=65, block=True)
+    # epochs.save('../tmp/data.fif', fmt='double')
 
 
 def open_epoch(filename):
     epoch = mne.read_epochs(filename)
-    # epoch.plot(n_epochs=2, n_channels=65, block=True)
+    epoch.plot(n_epochs=2, n_channels=65, block=True)
     print(epoch.info)
     print(epoch.events)
     print(epoch[REST].events)
@@ -75,8 +84,8 @@ def open_epoch(filename):
 
 
 if __name__ == '__main__':
-    files = ["/home/csabi/databases/physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
-             "/home/csabi/databases/physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
+    files = ["D:/BCI_stuff/databases/physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
+             "D:/BCI_stuff/databases/physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
     # use_mne_edf(file[0])
-    mne_epochs_and_save(files)
-    open_epoch('../tmp/data.fif')
+    mne_epochs_and_save(files[0])
+    # open_epoch('../tmp/data.fif')
