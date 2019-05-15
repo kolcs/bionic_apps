@@ -5,6 +5,43 @@ from config import *
 EPOCH_DB = 'preprocessed_database'
 
 
+def open_raw_file(filename, preload=True, stim_channel='auto'):
+    ext = filename.split('.')[-1]
+
+    switcher = {
+        'edf': mne.io.read_raw_edf,
+        'eeg': mne.io.read_raw_brainvision,  # todo: check...
+    }
+    # Get the function from switcher dictionary
+    mne_io_read_raw = switcher.get(ext, lambda: "nothing")
+    # Execute the function
+    return mne_io_read_raw(filename, preload=preload, stim_channel=stim_channel)
+
+
+class EEGFileHandler:
+
+    def __init__(self, filename):
+        self._filename = filename
+        self._file_handler = open_raw_file(filename)
+        self._tmin = 0  # beggining of raw, In seconds!!! use fs!
+        self._tmax = None
+        # self._epoch_index = None
+        # self._epoch_dict = None
+
+    def open_file(self):
+        raw = open_raw_file(self._filename)
+        self._file_handler = raw.crop(self._tmin, self._tmax)
+
+    def create_epochs(self, epoch_dict=None, tmin=0, tmax=4, preload=False):
+        # self._epoch_dict = epoch_dict
+        # self._tmin = tmin
+        # self._tmax = tmax
+        events = mne.find_events(self._file_handler, shortest_event=0, stim_channel='STI 014', initial_event=True,
+                                 consecutive=True)
+        epochs = mne.Epochs(self._file_handler, events, event_id=epoch_dict, tmin=tmin, tmax=tmax,
+                            proj=True, baseline=None, preload=preload)
+
+
 class OfflineEpochCreator:
     """
     Preprocessor for edf files. Creates a database, which has all the required information about the eeg files.
@@ -179,8 +216,6 @@ class OfflineEpochCreator:
 
             if subj_num in self._drop_subject:
                 continue
-
-
 
 
 if __name__ == '__main__':

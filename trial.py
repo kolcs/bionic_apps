@@ -68,8 +68,8 @@ def mne_epochs_and_save(file):
     epochs = mne.Epochs(raw, events, event_id, tmin, tmax, proj=True,
                         baseline=None, preload=True)
 
-    # for i in range(len(events)):
-    #     print(epochs[i])
+    for i in range(len(epochs)):
+        print(epochs[i].events, epochs[i].tmax)  # todo: use it in filehandler!!!
     # epochs.plot(n_epochs=2, n_channels=65, block=True)
     # epochs.save('../tmp/data.fif', fmt='double')
 
@@ -84,8 +84,12 @@ def open_epoch(filename):
 
 
 if __name__ == '__main__':
-    files = ["D:/BCI_stuff/databases/physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
-             "D:/BCI_stuff/databases/physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
+    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    # base_dir = 'D:/Csabi/'  # Home
+    # base_dir = "D:/Users/Csabi/data"  # ITK
+    base_dir = "/home/csabi/databases/"  # linux
+    files = [base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
+             base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
     # use_mne_edf(file[0])
     mne_epochs_and_save(files[0])
     # open_epoch('../tmp/data.fif')
