@@ -12,6 +12,7 @@ def open_raw_file(filename, preload=True, stim_channel='auto'):
         'edf': mne.io.read_raw_edf,
         'eeg': mne.io.read_raw_brainvision,  # todo: check...
     }
+
     # Get the function from switcher dictionary
     mne_io_read_raw = switcher.get(ext, lambda: "nothing")
     # Execute the function
@@ -20,26 +21,58 @@ def open_raw_file(filename, preload=True, stim_channel='auto'):
 
 class EEGFileHandler:
 
-    def __init__(self, filename):
+    def __init__(self, filename, preload=False):
         self._filename = filename
-        self._file_handler = open_raw_file(filename)
+        self._file_handler = None
         self._tmin = 0  # beggining of raw, In seconds!!! use fs!
         self._tmax = None
-        # self._epoch_index = None
-        # self._epoch_dict = None
 
-    def open_file(self):
-        raw = open_raw_file(self._filename)
-        self._file_handler = raw.crop(self._tmin, self._tmax)
+        if preload:
+            self._file_handler = open_raw_file(filename)
+
+        self.label = None
+
+    def _load_file(self):
+        if self._file_handler is None:
+            raw = open_raw_file(self._filename)
+            self._file_handler = raw.crop(self._tmin, self._tmax)
 
     def create_epochs(self, epoch_dict=None, tmin=0, tmax=4, preload=False):
-        # self._epoch_dict = epoch_dict
-        # self._tmin = tmin
-        # self._tmax = tmax
+        self._load_file()
         events = mne.find_events(self._file_handler, shortest_event=0, stim_channel='STI 014', initial_event=True,
                                  consecutive=True)
         epochs = mne.Epochs(self._file_handler, events, event_id=epoch_dict, tmin=tmin, tmax=tmax,
                             proj=True, baseline=None, preload=preload)
+        return epochs
+
+    def set_crop_values(self, tmin, tmax):
+        self._tmin = tmin
+        self._tmax = tmax
+
+    def get_frequency(self):
+        self._load_file()
+        return self._file_handler.info['sfreq']
+
+    def get_channels(self):
+        self._load_file()
+        return self._file_handler.info['ch_names']
+
+    def get_data(self, remove_trigger=True):
+        self._load_file()
+        data = self._file_handler.get_data()
+        if remove_trigger:
+            data = data[:-1, :]
+        return data
+
+    def get_mne_object(self):
+        self._load_file()
+        mne_obj = self._file_handler.copy()
+        self.close()
+        return mne_obj
+
+    def close(self):
+        self._file_handler.close()
+        self._file_handler = None
 
 
 class OfflineEpochCreator:

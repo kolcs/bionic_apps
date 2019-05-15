@@ -69,7 +69,7 @@ def mne_epochs_and_save(file):
                         baseline=None, preload=True)
 
     for i in range(len(epochs)):
-        print(epochs[i].events, epochs[i].tmax)  # todo: use it in filehandler!!!
+        print(epochs[i].events, epochs[i].tmax - epochs[i].tmin)  # todo: use it in filehandler!!!
     # epochs.plot(n_epochs=2, n_channels=65, block=True)
     # epochs.save('../tmp/data.fif', fmt='double')
 
