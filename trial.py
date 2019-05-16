@@ -1,6 +1,7 @@
 import mne
 import numpy as np
 from config import *
+from preprocess.ioprocess import EEGFileHandler
 
 
 def use_mne_edf(filename):
@@ -83,13 +84,20 @@ def open_epoch(filename):
     print(np.shape(epoch[REST].next()))
 
 
+def test(file):
+    handler = EEGFileHandler(file)
+    print(handler.get_frequency())
+    print(handler.get_channels())
+
+
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
     files = [base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
              base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
+    # test(files[0])
     # use_mne_edf(file[0])
     mne_epochs_and_save(files[0])
     # open_epoch('../tmp/data.fif')

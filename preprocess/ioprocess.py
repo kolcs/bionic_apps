@@ -19,6 +19,57 @@ def open_raw_file(filename, preload=True, stim_channel='auto'):
     return mne_io_read_raw(filename, preload=preload, stim_channel=stim_channel)
 
 
+def get_filenames_in(path, ext='', recursive=True):
+    """
+    Searches for files in the given path with specified extension
+
+    :param path: path where to do the search
+    :param ext: file extension to search for
+    :return: list of filenames
+    :raises FileNotFoundError if no files were found
+    """
+    import glob
+    if ext is None:
+        ext = ''
+    files = glob.glob(path + '/**/*' + ext, recursive=recursive)
+    if not files:
+        raise FileNotFoundError('Files are not available in path: {}'.format(path))
+    return files
+
+
+def find_filenames(rec_nums, filenames):
+    import re
+    files = []
+    for i in rec_nums:
+        for fname in filenames:
+            res = re.findall(r'.*R{:02d}.*'.format(i), fname)
+            if res:
+                files.append(res[0])
+    # files = [ for i in rec_nums for fname in filenames]
+    return files
+
+
+def get_num_with_predefined_char(filename, char, required_num='required'):
+    """
+    Searches for number in filename
+
+    :param char: character to search for
+    :param required_num: string to print in error message
+    :return: number after given char
+    :raises FileNotFoundError if none numbers were found
+    """
+    import re
+    num_list = re.findall(r'.*' + char + '\d+', filename)
+    if not num_list:
+        raise FileNotFoundError(
+            "Can not give back {} number: filename '{}' does not contain '{}' character.".format(required_num,
+                                                                                                 filename,
+                                                                                                 char))
+    num_str = num_list[0]
+    num_ind = num_str.rfind(char) - len(num_str) + 1
+    return int(num_str[num_ind:])
+
+
 class EEGFileHandler:
 
     def __init__(self, filename, preload=False):
@@ -124,24 +175,6 @@ class OfflineEpochCreator:
     def _conv_task(self, record_num, task_ID):
         return self._db_type.TRIGGER_TASK_CONVERTER.get(record_num).get(task_ID)
 
-    @staticmethod
-    def get_filenames_in(path, ext='', recursive=True):
-        """
-        Searches for files in the given path with specified extension
-
-        :param path: path where to do the search
-        :param ext: file extension to search for
-        :return: list of filenames
-        :raises FileNotFoundError if no files were found
-        """
-        import glob
-        if ext is None:
-            ext = ''
-        files = glob.glob(path + '/**/*' + ext, recursive=recursive)
-        if not files:
-            raise FileNotFoundError('Files are not available in path: {}'.format(path))
-        return files
-
     def run(self):
         self._create_epochs_from_db()
 
@@ -150,58 +183,7 @@ class OfflineEpochCreator:
     """
 
     def _get_filenames(self):
-        return self.get_filenames_in(self._data_path, self._db_ext)
-
-    def _open_raw_file(self, filename, preload=True, stim_channel='auto'):
-        ext = filename.split('.')[-1]
-
-        switcher = {
-            'edf': mne.io.read_raw_edf,
-            'eeg': mne.io.read_raw_brainvision,  # todo: check...
-        }
-        # Get the function from switcher dictionary
-        mne_io_read_raw = switcher.get(ext, lambda: "nothing")
-        # Execute the function
-        return mne_io_read_raw(filename, preload=preload, stim_channel=stim_channel)
-
-    def _get_concatenated_raw_file(self, filenames):
-        raw_list = [self._open_raw_file(file) for file in filenames if
-                    self.get_subject_number(file) not in self._drop_subject]
-        raw = mne.io.concatenate_raws(raw_list)
-        return raw
-
-    @staticmethod
-    def _find_filenames(rec_nums, filenames):
-        import re
-        files = []
-        for i in rec_nums:
-            for fname in filenames:
-                res = re.findall(r'.*R{:02d}.*'.format(i), fname)
-                if res:
-                    files.append(res[0])
-        # files = [ for i in rec_nums for fname in filenames]
-        return files
-
-    @staticmethod
-    def _get_num_with_predefined_char(filename, char, required_num='required'):
-        """
-        Searches for number in filename
-
-        :param char: character to search for
-        :param required_num: string to print in error message
-        :return: number after given char
-        :raises FileNotFoundError if none numbers were found
-        """
-        import re
-        num_list = re.findall(r'.*' + char + '\d+', filename)
-        if not num_list:
-            raise FileNotFoundError(
-                "Can not give back {} number: filename '{}' does not contain '{}' character.".format(required_num,
-                                                                                                     filename,
-                                                                                                     char))
-        num_str = num_list[0]
-        num_ind = num_str.rfind(char) - len(num_str) + 1
-        return int(num_str[num_ind:])
+        return get_filenames_in(self._data_path, self._db_ext)
 
     @staticmethod
     def get_record_number(filename):
@@ -211,7 +193,7 @@ class OfflineEpochCreator:
 
         :return: record number from filename
         """
-        return OfflineEpochCreator._get_num_with_predefined_char(filename, 'R', "RECORD")
+        return get_num_with_predefined_char(filename, 'R', "RECORD")
 
     @staticmethod
     def get_subject_number(filename):
@@ -221,7 +203,7 @@ class OfflineEpochCreator:
 
         :return: record number from filename
         """
-        return OfflineEpochCreator._get_num_with_predefined_char(filename, 'S', "SUBJECT")
+        return get_num_with_predefined_char(filename, 'S', "SUBJECT")
 
     def _create_epochs_from_db(self):
         filenames = self._get_filenames()
@@ -231,9 +213,9 @@ class OfflineEpochCreator:
         # TODO: frep missmatch...
         # TODO: drop wrong...
         for tasks in self._trigger_task_list:
-            files = self._find_filenames(tasks, filenames)
+            files = find_filenames(tasks, filenames)
 
-            raw = self._get_concatenated_raw_file(files)
+            raw = get_concatenated_raw_file(files)
             events = mne.find_events(raw, shortest_event=0, stim_channel='STI 014')
             print(events)
             # picks = mne.pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False,
