@@ -37,16 +37,22 @@ def get_filenames_in(path, ext='', recursive=True):
     return files
 
 
-def find_filenames(rec_nums, filenames):
-    import re
-    files = []
-    for i in rec_nums:
-        for fname in filenames:
-            res = re.findall(r'.*R{:02d}.*'.format(i), fname)
-            if res:
-                files.append(res[0])
-    # files = [ for i in rec_nums for fname in filenames]
-    return files
+def make_dir(path):
+    import os
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+
+# def find_filenames(rec_nums, filenames):
+#     import re
+#     files = []
+#     for i in rec_nums:
+#         for fname in filenames:
+#             res = re.findall(r'.*R{:02d}.*'.format(i), fname)
+#             if res:
+#                 files.append(res[0])
+#     # files = [ for i in rec_nums for fname in filenames]
+#     return files
 
 
 def get_num_with_predefined_char(filename, char, required_num='required'):
@@ -72,16 +78,18 @@ def get_num_with_predefined_char(filename, char, required_num='required'):
 
 class EEGFileHandler:
 
-    def __init__(self, filename, preload=False):
+    def __init__(self, filename, preload=False, tmin=0, tmax=None, labels=None):
         self._filename = filename
         self._file_handler = None
-        self._tmin = 0  # beggining of raw, In seconds!!! use fs!
-        self._tmax = None
+        self._tmin = tmin  # beggining of raw, In seconds!!! use fs!
+        self._tmax = tmax
 
         if preload:
             self._file_handler = open_raw_file(filename)
 
-        self.label = None
+        self.labels = labels  # type, subject, task
+        if labels is None:
+            self.labels = list()
 
     def _load_file(self):
         if self._file_handler is None:
@@ -104,9 +112,12 @@ class EEGFileHandler:
         self._load_file()
         return self._file_handler.info['sfreq']
 
-    def get_channels(self):
+    def get_channels(self, remove_trigger=True):
         self._load_file()
-        return self._file_handler.info['ch_names']
+        channels = self._file_handler.info['ch_names']
+        if remove_trigger:
+            channels = channels[:-1]
+        return channels
 
     def get_data(self, remove_trigger=True):
         self._load_file()
@@ -126,6 +137,22 @@ class EEGFileHandler:
         self._file_handler = None
 
 
+class DataBaseHandler:
+
+    def __init__(self):
+        self._db = list()
+
+    def get_filtered_db(self, labels):
+        f_res = [eeg_handler for eeg_handler in self._db if all(f_op in eeg_handler.labels for f_op in labels)]
+        return f_res
+
+    def append_element(self, eeg_handler):
+        self._db.append(eeg_handler)
+
+    def ger_db(self):
+        return self._db
+
+
 class OfflineEpochCreator:
     """
     Preprocessor for edf files. Creates a database, which has all the required information about the eeg files.
@@ -135,7 +162,8 @@ class OfflineEpochCreator:
         self._base_dir = base_dir
         self._data_path = None
         self._data_duration = 4  # seconds
-        self._db_type = None
+        self._db_type = None  # Physionet / TTK
+        self._db_handler = DataBaseHandler()
 
         # self._db_ext = None
         # self._trigger_task_list = None
@@ -176,7 +204,7 @@ class OfflineEpochCreator:
         return self._db_type.TRIGGER_TASK_CONVERTER.get(record_num).get(task_ID)
 
     def run(self):
-        self._create_epochs_from_db()
+        self._create_annotated_db()
 
     """
     Database functions
@@ -205,24 +233,6 @@ class OfflineEpochCreator:
         """
         return get_num_with_predefined_char(filename, 'S', "SUBJECT")
 
-    def _create_epochs_from_db(self):
-        filenames = self._get_filenames()
-        # TODO: sort filenames by TRIGGER_TASK_LIST + subject
-
-        # TODO: filter for real and img
-        # TODO: frep missmatch...
-        # TODO: drop wrong...
-        for tasks in self._trigger_task_list:
-            files = find_filenames(tasks, filenames)
-
-            raw = get_concatenated_raw_file(files)
-            events = mne.find_events(raw, shortest_event=0, stim_channel='STI 014')
-            print(events)
-            # picks = mne.pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False,
-            #                    exclude='bads')
-            # epochs = mne.Epochs(raw, events, event_id, tmin, tmax, proj=True, picks=picks,
-            #                 baseline=None, preload=True)
-
     def _create_annotated_db(self):
         filenames = self._get_filenames()
         for file in filenames:
@@ -231,6 +241,9 @@ class OfflineEpochCreator:
 
             if subj_num in self._drop_subject:
                 continue
+
+            eeg = EEGFileHandler(file, preload=True)
+            epochs = eeg.create_epochs() # todo: continue - give dict
 
 
 if __name__ == '__main__':

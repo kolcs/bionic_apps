@@ -40,36 +40,46 @@ DIR_TRAIN = 'train/'
 DIR_VALIDATION = 'validation/'
 DIR_TEST = 'test/'
 DIR_TF_RECORDS = 'tfRecords/'
-
 F_EXT_TF_RECORD = '.tfrecord'
 
-CHANNEL_TRANSFORMATION = [35, 36, 37, 38, 39, 40, 41, 46, 47, 48, 49, 50, 51, 52, 57, 58, 59, 60, 61, 62, 63, 4, 5,
-                          6, 14, 15, 16, 17, 18, 23, 24, 25, 26, 27, 28, 29, 30, 31, 34, 42, 45, 53, 44, 54, 56, 64,
-                          67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 92, 93, 94, 104]
+
+class SourceDB:
+    DIR = ""
+    CHANNEL_NUM = int()
+    FS = int()
+    DB_EXT = ''
+
+    TRIGGER_TYPE_CONVERTER = dict()
+    TRIGGER_TASK_CONVERTER = dict()
+
+    DROP_SUBJECTS = list()
+
+    def convert_type(self, record_number):
+        return self.TRIGGER_TYPE_CONVERTER.get(record_number)
+
+    def convert_task(self, record_number):
+        return self.TRIGGER_TASK_CONVERTER.get(record_number)
 
 
-# # source:
-# list(range(35, 42)) + list(range(46, 53)) + list(range(57, 64)) + list(range(4, 7)) + list(
-# range(14, 19)) + list(range(23, 32)) + [34, 42, 45, 53, 44, 54, 56, 64] + list(range(67, 76)) + list(
-# range(80, 85)) + list(range(92, 95)) + [104]
-
-
-class Physionet:
+class Physionet(SourceDB):
     DIR = "physionet.org/"
     CHANNEL_NUM = 64
     FS = 160
     DB_EXT = '.edf'
 
+    TASK_EYE_OPEN = {EYE_OPEN: 1}
+    TASK_EYE_CLOSED = {EYE_CLOSED: 1}
+
     TASK_12 = {
-        'T0': REST,
-        'T1': LEFT_HAND,
-        'T2': RIGHT_HAND
+        REST: 1,
+        LEFT_HAND: 2,
+        RIGHT_HAND: 3
     }
 
     TASK_34 = {
-        'T0': REST,
-        'T1': BOTH_HANDS,
-        'T2': BOTH_LEGS
+        REST: 1,
+        BOTH_HANDS: 2,
+        BOTH_LEGS: 3
     }
 
     TRIGGER_TYPE_CONVERTER = {
@@ -90,8 +100,8 @@ class Physionet:
     }
 
     TRIGGER_TASK_CONVERTER = {  # rec_num : {taskID: task}
-        1: {'T0': EYE_OPEN},
-        2: {'T0': EYE_CLOSED},
+        1: TASK_EYE_OPEN,
+        2: TASK_EYE_CLOSED,
         3: TASK_12,
         4: TASK_12,
         5: TASK_34,
@@ -121,3 +131,11 @@ class Physionet:
        88, 92, 100 - wrong intervals (1,375, 5,125) and freq 128Hz instead of 160Hz
        """
     DROP_SUBJECTS = [89, 88, 92, 100]
+
+    # # source:
+    # list(range(35, 42)) + list(range(46, 53)) + list(range(57, 64)) + list(range(4, 7)) + list(
+    # range(14, 19)) + list(range(23, 32)) + [34, 42, 45, 53, 44, 54, 56, 64] + list(range(67, 76)) + list(
+    # range(80, 85)) + list(range(92, 95)) + [104]
+    CHANNEL_TRANSFORMATION = [35, 36, 37, 38, 39, 40, 41, 46, 47, 48, 49, 50, 51, 52, 57, 58, 59, 60, 61, 62, 63, 4, 5,
+                              6, 14, 15, 16, 17, 18, 23, 24, 25, 26, 27, 28, 29, 30, 31, 34, 42, 45, 53, 44, 54, 56, 64,
+                              67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 92, 93, 94, 104]
