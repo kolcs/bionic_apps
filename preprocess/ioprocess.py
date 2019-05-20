@@ -76,6 +76,26 @@ def get_num_with_predefined_char(filename, char, required_num='required'):
     return int(num_str[num_ind:])
 
 
+def get_record_number(filename):
+    """
+    Only works if record number is stored in filename:
+        *R<record num>*
+
+    :return: record number from filename
+    """
+    return get_num_with_predefined_char(filename, 'R', "RECORD")
+
+
+def get_subject_number(filename):
+    """
+    Only works if subject number is stored in filename:
+        *S<record num>*
+
+    :return: record number from filename
+    """
+    return get_num_with_predefined_char(filename, 'S', "SUBJECT")
+
+
 class EEGFileHandler:
 
     def __init__(self, filename, preload=False, tmin=0, tmax=None, labels=None):
@@ -162,7 +182,7 @@ class OfflineEpochCreator:
         self._base_dir = base_dir
         self._data_path = None
         self._data_duration = 4  # seconds
-        self._db_type = None  # Physionet / TTK
+        self._db_type = SourceDB()  # Physionet / TTK
         self._db_handler = DataBaseHandler()
 
         # self._db_ext = None
@@ -193,9 +213,9 @@ class OfflineEpochCreator:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    @property
-    def _trigger_task_list(self):
-        return self._db_type.TRIGGER_TASK_LIST
+    # @property
+    # def _trigger_task_list(self):
+    #     return self._db_type.TRIGGER_TASK_LIST
 
     def _conv_type(self, record_num):
         return self._db_type.TRIGGER_TYPE_CONVERTER.get(record_num)
@@ -213,37 +233,26 @@ class OfflineEpochCreator:
     def _get_filenames(self):
         return get_filenames_in(self._data_path, self._db_ext)
 
-    @staticmethod
-    def get_record_number(filename):
-        """
-        Only works if record number is stored in filename:
-            *R<record num>*
+    def convert_type(self, record_number):
+        return self._db_type.TRIGGER_TYPE_CONVERTER.get(record_number)
 
-        :return: record number from filename
-        """
-        return get_num_with_predefined_char(filename, 'R', "RECORD")
-
-    @staticmethod
-    def get_subject_number(filename):
-        """
-        Only works if subject number is stored in filename:
-            *S<record num>*
-
-        :return: record number from filename
-        """
-        return get_num_with_predefined_char(filename, 'S', "SUBJECT")
+    def convert_task(self, record_number):
+        return self._db_type.TRIGGER_TASK_CONVERTER.get(record_number)
 
     def _create_annotated_db(self):
         filenames = self._get_filenames()
         for file in filenames:
-            rec_num = self.get_record_number(file)
-            subj_num = self.get_subject_number(file)
+            rec_num = get_record_number(file)
+            subj_num = get_subject_number(file)
 
             if subj_num in self._drop_subject:
                 continue
 
             eeg = EEGFileHandler(file, preload=True)
-            epochs = eeg.create_epochs() # todo: continue - give dict
+            print("valami", self.convert_task(rec_num))
+            epochs = eeg.create_epochs(self.convert_task(rec_num))
+            print(epochs)
+            break
 
 
 if __name__ == '__main__':

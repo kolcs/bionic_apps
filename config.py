@@ -43,25 +43,19 @@ DIR_TF_RECORDS = 'tfRecords/'
 F_EXT_TF_RECORD = '.tfrecord'
 
 
-class SourceDB:
-    DIR = ""
-    CHANNEL_NUM = int()
-    FS = int()
-    DB_EXT = ''
-
-    TRIGGER_TYPE_CONVERTER = dict()
-    TRIGGER_TASK_CONVERTER = dict()
-
-    DROP_SUBJECTS = list()
-
-    def convert_type(self, record_number):
-        return self.TRIGGER_TYPE_CONVERTER.get(record_number)
-
-    def convert_task(self, record_number):
-        return self.TRIGGER_TASK_CONVERTER.get(record_number)
+# class SourceDB: # JUST a template!!!
+#     DIR = ""
+#     CHANNEL_NUM = int()
+#     FS = int()
+#     DB_EXT = ''
+#
+#     TRIGGER_TYPE_CONVERTER = dict()
+#     TRIGGER_TASK_CONVERTER = dict()
+#
+#     DROP_SUBJECTS = list()
 
 
-class Physionet(SourceDB):
+class Physionet:
     DIR = "physionet.org/"
     CHANNEL_NUM = 64
     FS = 160
