@@ -7,7 +7,7 @@ from preprocess.ioprocess import EEGFileHandler
 def use_mne_edf(filename):
     raw = mne.io.read_raw_edf(filename, preload=False, stim_channel=None)
     # print(raw)
-    # print(raw.info)
+    print(raw.info)
     # print(raw.find_edf_events())
     # raw = raw.load_data()
     # print(raw.find_edf_events())
@@ -18,6 +18,8 @@ def use_mne_edf(filename):
     signal_labels = raw.info['ch_names']
     fs = raw.info['sfreq']
     print(n, signal_labels, fs)
+    ch_list = list()
+    print(raw.pick_channels(ch_list))
     # data, time = raw[:n, :]
     # print(np.shape(data))
     # events = mne.find_events(raw)
@@ -98,6 +100,6 @@ if __name__ == '__main__':
     files = [base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
              base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
     # test(files[0])
-    # use_mne_edf(file[0])
-    mne_epochs_and_save(files[0])
+    use_mne_edf(files[0])
+    # mne_epochs_and_save(files[0])
     # open_epoch('../tmp/data.fif')

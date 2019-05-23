@@ -56,6 +56,7 @@ F_EXT_TF_RECORD = '.tfrecord'
 
 
 class Physionet:
+    # Wrong labeling!!!! FP region
     DIR = "physionet.org/"
     CHANNEL_NUM = 64
     FS = 160
