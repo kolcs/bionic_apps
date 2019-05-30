@@ -3,6 +3,16 @@
 from pylsl import StreamInlet, resolve_stream
 import numpy as np
 
+
+def load_electrodes(info):
+    electrodes = []
+    ch = info.desc().child("channels").child("channel")
+    for _ in range(info.channel_count()):
+        electrodes.append(ch.child_value("label"))
+        ch = ch.next_sibling()
+    return electrodes
+
+
 EXIT = 2
 i = 0
 # first resolve an EEG stream on the lab network
@@ -22,7 +32,7 @@ data = np.transpose(np.array(data, ndmin=2))
 print(data)
 while i < EXIT:
     sample, timestamp = inlet.pull_sample()
-    #print(timestamp, sample)
+    # print(timestamp, sample)
     sample = np.array(sample, ndmin=2)
     sample = np.transpose(sample)
     data = np.append(data, sample, axis=1)
