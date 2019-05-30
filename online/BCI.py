@@ -12,40 +12,30 @@ from pylsl import StreamInlet, resolve_stream
 import numpy as np
 import threading
 import time
+from scipy.signal import butter, lfilter, lfilter_zi
 
 
 class SignalReceiver:
-    _inlet = None
-    _stop_recording = False
-    _eeg = list()
-    _timestamp = list()
-    # _index = 0
-    # _trigger = False
-    # _dir = "train/"
-    fs = None  # sampling frequency rate
-    electrodes = list()
-    # row_col = None
 
     def __init__(self):
+        self._inlet = None
+        self.fs = None  # sampling frequency rate
+        self.electrodes = list()
+        # self.n_channels = 0
         self._init_inlet()
-        self._lock = threading.Lock()
-        # self._analyser = SignalAnalyser()
 
     def _init_inlet(self):
-        def init_inlet():
-            print("looking for an EEG stream...")
-            streams = resolve_stream('type', 'EEG')
-            inlet = StreamInlet(streams[0])
-            print("OK")
-            self._inlet = inlet  # Keep it None until inlet is ready
-            self._load_init_info()
-
-        thread = threading.Thread(target=init_inlet, daemon=True)
-        thread.start()
+        print("looking for an EEG stream...")
+        streams = resolve_stream('type', 'EEG')
+        inlet = StreamInlet(streams[0])
+        print("OK")
+        self._inlet = inlet  # Keep it None until inlet is ready
+        self._load_init_info()
 
     def _load_init_info(self):
-        self._fs = self._load_sampling_frequency()
-        self._electrodes = self._load_electrodes()
+        self.fs = self._load_sampling_frequency()
+        self.electrodes = self._load_electrodes()
+        # self.n_channels = self._inlet.info.channel_count()
 
     def _load_sampling_frequency(self):
         return self._inlet.info().nominal_srate()  # Hz
@@ -59,23 +49,22 @@ class SignalReceiver:
             ch = ch.next_sibling()
         return electrodes
 
-    # def set_data_directory(self, directory):
-    #     self._dir = directory
-    #     self._reset_index()
-    #     if not os.path.exists(directory):
-    #         os.makedirs(directory)
-
-    def stream_connected(self):
-        if self._inlet:
-            return True
-        else:
-            return False
-
     def get_sample(self):
         return self._inlet.pull_sample()
 
+
+class DSP(SignalReceiver):
+
+    def __init__(self):
+        super(DSP, self).__init__()
+        self._eeg = list()
+        self._filt_eeg = list()
+        self._timestamp = list()
+        self._stop_recording = False
+        self._lock = threading.Lock()
+
     def get_eeg_window(self, wlength=1):
-        win = int(self._fs * wlength)
+        win = int(self.fs * wlength)
         self._lock.acquire()
         eeg = self._eeg[-win:]
         self._lock.release()
@@ -92,100 +81,79 @@ class SignalReceiver:
         self._reset_data()
 
         while not self._stop_recording:
-            EEG_sample, timestamp = self._inlet.pull_sample()
+            EEG_sample, timestamp = self.get_sample()
 
             self._lock.acquire()
             self._eeg.append(EEG_sample)
             self._timestamp.append(timestamp)  # + self._inlet.time_correction())
 
-            # if self._trigger:
-            #     self._trigger = False
-            #     self.marker.append(self.trigger_type)
-            # else:
-            #     self.marker.append([-1, -1])
             self._lock.release()
+
+    def process_singal(self, wlength=1):
+        self._stop_recording = False
+        win = int(self.fs * wlength)
+
+        # loading up buffer
+        while len(self._eeg) < win:
+            EEG_sample, timestamp = self.get_sample()
+            self._eeg.append(EEG_sample)
+
+        # processing signal
+        low = 5
+        high = 13
+        order = 5
+        b, a = butter(order, (low, high), btype='bandpass', fs=self.fs)
+        z_init = lfilter_zi(b, a)
+        z = [z_init for _ in range(len(self._eeg))]
+
+        while not self._stop_recording:
+            self._filt_eeg, z = lfilter(b, a, np.array(self._eeg), zi=z)  # eeg: data x channel
+
+            self._eeg.pop(0)
+            EEG_sample, timestamp = self.get_sample()
+            self._eeg.append(EEG_sample)
+
+    def use_animation(self, n_channel=24, signal='both'):
+        import matplotlib.pyplot as plt
+        import matplotlib.animation as animation
+
+        if signal == 'both':
+            signal = ['raw', 'filtered']
+        else:
+            signal = [signal]
+        fig = plt.figure()
+
+        subplts = list()
+        index = 1
+        for i in range(n_channel):
+            for j in range(len(signal)):
+                subplts.append(fig.add_subplot(n_channel, len(signal), index))
+                index += 1
+
+        def f_anim(ev, eeg, filt_eeg, n_channel, subplts):
+            print(eeg, filt_eeg)
+            if len(eeg) > 0:  # todo: get the real signals!!!!
+                eeg = np.transpose(np.array(eeg))
+                filt_eeg = np.transpose(np.array(filt_eeg))
+                for i in range(n_channel):
+                    subplts[i * 2].clear()
+                    subplts[i * 2].plot(eeg[i, :])
+                    subplts[i * 2 + 1].clear()
+                    subplts[i * 2 + 1].plot(filt_eeg[i, :])
+
+        ani = animation.FuncAnimation(fig, f_anim, fargs=(self._eeg, self._filt_eeg, n_channel, subplts),
+                                      interval=self.fs)
+        plt.show()
 
     def stop_signal_recording(self):
         self._stop_recording = True
 
-    # def trigger_signal(self, trigger_type):
-    #     self._lock.acquire()
-    #     self._trigger = True
-    #     if trigger_type[:-1] == "row":
-    #         self.trigger_type = [int(trigger_type[-1]), -1]
-    #     elif trigger_type[:-1] == "col":
-    #         self.trigger_type = [-1, int(trigger_type[-1])]
-    #     self._lock.release()
-
     def _reset_data(self):
         self._eeg = list()
-        # self.marker = list()
         self._timestamp = list()
-
-    # def _reset_index(self):
-    #     self._index = 0
-
-    # def save_session(self):
-    #     thread = threading.Thread(target=self._save_sess_in_lock)
-    #     thread.start()
-
-    # def _convert_data_to_numpy(self):
-    #     self._eeg = np.transpose(np.array(self._eeg))
-    #     self.marker = np.transpose(np.array(self.marker))
-
-    # def _save_sess_in_lock(self):
-    #     self._lock.acquire()
-    #     self._convert_data_to_numpy()
-    #     self._save_sess()
-    #     self._lock.release()
-
-    # def _save_sess(self):
-    #     with open(self._dir + 'eeg' + str(self._index) + F_EXT, 'wb') as f:
-    #         pickle.dump(self.eeg, f)
-    #     with open(self._dir + 'marker' + str(self._index) + F_EXT, 'wb') as f:
-    #         pickle.dump(self.marker, f)
-    #     with open(self._dir + 'timestamp' + str(self._index) + F_EXT, 'wb') as f:
-    #         pickle.dump(self.timestamp, f)
-    #     self._index += 1
-    #     self._reset_data()
-
-    # def _save_init_data(self):
-    #     self.save_data(self._electrodes, 'electrodes')
-    #     self.save_data(self._fs, 'FS')
-    #
-    # def save_char_dict(self, char_dict, filename):
-    #     self.save_data(char_dict, filename)
-    #     self._analyser.set_basics(self._fs, char_dict, self._electrodes)
-    #
-    # def save_data(self, data, filename):
-    #     with open(self._dir + filename + F_EXT, 'wb') as f:
-    #         pickle.dump(data, f)
-    #
-    # def set_training(self, train):
-    #     self._analyser.training = train
-    #
-    # def print_stat(self):
-    #     self._analyser.print_stat()
-    #
-    # def analyse_signal(self, char):
-    #     def analyse_signal():
-    #         self._lock.acquire()
-    #         self._convert_data_to_numpy()
-    #         eeg = self.eeg
-    #         marker = self.marker
-    #         self._save_sess()
-    #         self._lock.release()
-    #         self.row_col = self._analyser.start_online_analysis(eeg, marker, char)
-    #
-    #     thread = threading.Thread(target=analyse_signal)
-    #     thread.start()
 
 
 if __name__ == '__main__':
-    bci = SignalReceiver()
-    while not bci.stream_connected():
-        print('...')
-        time.sleep(0.1)
-    bci.start_signal_recording()
-    while True:
-        print(np.shape(bci.get_eeg_window()))
+    bci = DSP()
+    bci.use_animation()
+    bci.process_singal()
