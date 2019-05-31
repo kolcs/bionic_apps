@@ -11,6 +11,7 @@ Online BCI
 from pylsl import StreamInlet, resolve_stream
 import numpy as np
 import threading
+import matplotlib.pyplot as plt
 import time
 from scipy.signal import butter, lfilter, lfilter_zi
 
@@ -106,44 +107,79 @@ class DSP(SignalReceiver):
         z_init = lfilter_zi(b, a)
         z = [z_init for _ in range(len(self._eeg))]
 
+        graphs = list()
+
         while not self._stop_recording:
             self._filt_eeg, z = lfilter(b, a, np.array(self._eeg), zi=z)  # eeg: data x channel
-
+            self.live_plotter(graphs)
             self._eeg.pop(0)
             EEG_sample, timestamp = self.get_sample()
             self._eeg.append(EEG_sample)
 
-    def use_animation(self, n_channel=24, signal='both'):
-        import matplotlib.pyplot as plt
-        import matplotlib.animation as animation
+    def live_plotter(self, graphs, pause_time=0.01):
+        # data = insert numpy data: merge eeg with filtered
+        eeg = np.transpose(np.array(self._eeg))
+        filt_eeg = np.transpose(np.array(self._filt_eeg))
+        for i, x in enumerate(filt_eeg):
+            eeg = np.insert(eeg, 2 * i + 1, x, axis=0)
+            # eeg.insert(i * 2 + 1, self._filt_eeg[i])
 
-        if signal == 'both':
-            signal = ['raw', 'filtered']
+        data = eeg  # np.transpose(np.array(eeg))
+        labels = self.electrodes
+
+        # def thread_plot():  # graphs, pause_time, labels, data):
+        if graphs == []:
+            plt.ion()
+            fig = plt.figure()
+            for i in range(len(labels) * 2):
+                ax = fig.add_subplot(len(labels), 2, i + 1)
+                line, = ax.plot(data[i])
+                graphs.append(line)
+                plt.ylabel(labels[i // 2])
+                plt.show()
         else:
-            signal = [signal]
-        fig = plt.figure()
+            print("------")
+            for i in range(len(labels) * 2):
+                graphs[i].set_ydata(data[i])
+            plt.pause(1/self.fs)  # pause_time)
 
-        subplts = list()
-        index = 1
-        for i in range(n_channel):
-            for j in range(len(signal)):
-                subplts.append(fig.add_subplot(n_channel, len(signal), index))
-                index += 1
+        # thread = threading.Thread(target=thread_plot)  # , args=(graphs, pause_time, self.electrodes, data))
+        # thread.start()
 
-        def f_anim(ev, eeg, filt_eeg, n_channel, subplts):
-            print(eeg, filt_eeg)
-            if len(eeg) > 0:  # todo: get the real signals!!!!
-                eeg = np.transpose(np.array(eeg))
-                filt_eeg = np.transpose(np.array(filt_eeg))
-                for i in range(n_channel):
-                    subplts[i * 2].clear()
-                    subplts[i * 2].plot(eeg[i, :])
-                    subplts[i * 2 + 1].clear()
-                    subplts[i * 2 + 1].plot(filt_eeg[i, :])
-
-        ani = animation.FuncAnimation(fig, f_anim, fargs=(self._eeg, self._filt_eeg, n_channel, subplts),
-                                      interval=self.fs)
-        plt.show()
+    # def f_anim(self, ev, n_channel, subplts):
+    #     eeg = self._eeg
+    #     filt_eeg = self._filt_eeg
+    #     print(eeg, filt_eeg)
+    #     if len(eeg) > 0:  # todo: get the real signals!!!!
+    #         eeg = np.transpose(np.array(eeg))
+    #         filt_eeg = np.transpose(np.array(filt_eeg))
+    #         for i in range(n_channel):
+    #             subplts[i * 2].clear()
+    #             subplts[i * 2].plot(eeg[i, :])
+    #             if np.size(filt_eeg, 0) > 0:
+    #                 subplts[i * 2 + 1].clear()
+    #                 subplts[i * 2 + 1].plot(filt_eeg[i, :])
+    #
+    # def use_animation(self, n_channel=24, signal='both'):
+    #     import matplotlib.pyplot as plt
+    #     import matplotlib.animation as animation
+    #
+    #     if signal == 'both':
+    #         signal = ['raw', 'filtered']
+    #     else:
+    #         signal = [signal]
+    #     fig = plt.figure()
+    #
+    #     subplts = list()
+    #     index = 1
+    #     for i in range(n_channel):
+    #         for j in range(len(signal)):
+    #             subplts.append(fig.add_subplot(n_channel, len(signal), index))
+    #             index += 1
+    #
+    #     ani = animation.FuncAnimation(fig, self.f_anim, fargs=(n_channel, subplts),
+    #                                   interval=self.fs)
+    #     plt.show()
 
     def stop_signal_recording(self):
         self._stop_recording = True
@@ -155,5 +191,5 @@ class DSP(SignalReceiver):
 
 if __name__ == '__main__':
     bci = DSP()
-    bci.use_animation()
+    # bci.use_animation()
     bci.process_singal()
