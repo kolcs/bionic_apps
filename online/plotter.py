@@ -1,10 +1,8 @@
 """
-Created on 2019.06.03.
-
 Online plotter for EEG
 
 @license: PPKE ITK, MTA TTK
-@author: Köllőd Csaba
+@author: Köllőd Csaba, kollod.csaba@ikt.ppke.hu
 """
 from pyqtgraph.Qt import QtGui, QtCore
 import numpy as np
@@ -29,6 +27,7 @@ class EEGPlot:
         self.index = index
         self.parent = parent
         p = win.addPlot(title=title)
+        p.setRange(yRange=[-0.0002, 0.0002])
         self.curve = p.plot(pen='y')  # define color here
 
     def update(self, ev=None):
@@ -57,7 +56,7 @@ class EEGPlotter:
         Online EEG plotter
         :param wx: window width
         :param wy: window height
-        :param plot_size: @tuple to organise the plots. max 14 is suggested
+        :param plot_size: tuple to organise the plots. max 14 is suggested
         :param title: title of program
         :param win_title: title of window
         """

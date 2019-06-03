@@ -1,19 +1,15 @@
-# -*- coding: utf-8 -*-
-'''
-Created on 13 Apr 2018
-
+"""
 Online BCI
 
 @license: PPKE ITK, MTA TTK
-@author: Köllőd Csaba
-'''
+@author: Köllőd Csaba, kollod.csaba@ikt.ppke.hu
+"""
 
 from pylsl import StreamInlet, resolve_stream
 import numpy as np
 import threading
-import matplotlib.pyplot as plt
-import time
 from scipy.signal import butter, lfilter, lfilter_zi
+from online.plotter import EEGPlotter
 
 
 class SignalReceiver:
@@ -63,6 +59,8 @@ class DSP(SignalReceiver):
         self._timestamp = list()
         self._stop_recording = False
         self._lock = threading.Lock()
+        self._ch_list = None
+        self._plotter = None
 
     def get_eeg_window(self, wlength=1):
         win = int(self.fs * wlength)
@@ -96,90 +94,50 @@ class DSP(SignalReceiver):
 
         # loading up buffer
         while len(self._eeg) < win:
-            EEG_sample, timestamp = self.get_sample()
-            self._eeg.append(EEG_sample)
+            eeg_sample, timestamp = self.get_sample()
+            self._eeg.append(eeg_sample)
 
+        # todo: extend to more eeg bands
         # processing signal
         low = 5
         high = 13
         order = 5
         b, a = butter(order, (low, high), btype='bandpass', fs=self.fs)
         z_init = lfilter_zi(b, a)
-        z = [z_init for _ in range(len(self._eeg))]
-
-        graphs = list()
+        z = [z_init for _ in range(win)]
 
         while not self._stop_recording:
-            self._filt_eeg, z = lfilter(b, a, np.array(self._eeg), zi=z)  # eeg: data x channel
-            self.live_plotter(graphs)
+            eeg_sample, timestamp = self.get_sample()
+            self._lock.acquire()
             self._eeg.pop(0)
-            EEG_sample, timestamp = self.get_sample()
-            self._eeg.append(EEG_sample)
+            self._eeg.append(eeg_sample)
+            self._filt_eeg, z = lfilter(b, a, np.array(self._eeg), zi=z)  # eeg: data x channel
+            np.power(self._filt_eeg, 2)
+            self._lock.release()
 
-    def live_plotter(self, graphs, pause_time=0.01):
-        # data = insert numpy data: merge eeg with filtered
-        eeg = np.transpose(np.array(self._eeg))
-        filt_eeg = np.transpose(np.array(self._filt_eeg))
-        for i, x in enumerate(filt_eeg):
-            eeg = np.insert(eeg, 2 * i + 1, x, axis=0)
-            # eeg.insert(i * 2 + 1, self._filt_eeg[i])
+    def run_online_plotter(self, channels):
+        self._select_channels_for_plot(channels)
+        self._plotter = EEGPlotter(plot_size=(len(channels), 2))
+        self._plotter.add_data_source(self)
+        thread = threading.Thread(target=self.process_singal, daemon=True)
+        thread.start()
+        self._plotter.run()
 
-        data = eeg  # np.transpose(np.array(eeg))
-        labels = self.electrodes
+    def _select_channels_for_plot(self, channels=('Cpz', 'Cp1', 'Cp2', 'Cp5', 'Cp6')):
+        assert self.electrodes is not None, "missing electrode names"
+        self._ch_list = [self.electrodes.index(ch) for ch in channels]
 
-        # def thread_plot():  # graphs, pause_time, labels, data):
-        if graphs == []:
-            plt.ion()
-            fig = plt.figure()
-            for i in range(len(labels) * 2):
-                ax = fig.add_subplot(len(labels), 2, i + 1)
-                line, = ax.plot(data[i])
-                graphs.append(line)
-                plt.ylabel(labels[i // 2])
-                plt.show()
-        else:
-            print("------")
-            for i in range(len(labels) * 2):
-                graphs[i].set_ydata(data[i])
-            plt.pause(1/self.fs)  # pause_time)
-
-        # thread = threading.Thread(target=thread_plot)  # , args=(graphs, pause_time, self.electrodes, data))
-        # thread.start()
-
-    # def f_anim(self, ev, n_channel, subplts):
-    #     eeg = self._eeg
-    #     filt_eeg = self._filt_eeg
-    #     print(eeg, filt_eeg)
-    #     if len(eeg) > 0:  # todo: get the real signals!!!!
-    #         eeg = np.transpose(np.array(eeg))
-    #         filt_eeg = np.transpose(np.array(filt_eeg))
-    #         for i in range(n_channel):
-    #             subplts[i * 2].clear()
-    #             subplts[i * 2].plot(eeg[i, :])
-    #             if np.size(filt_eeg, 0) > 0:
-    #                 subplts[i * 2 + 1].clear()
-    #                 subplts[i * 2 + 1].plot(filt_eeg[i, :])
-    #
-    # def use_animation(self, n_channel=24, signal='both'):
-    #     import matplotlib.pyplot as plt
-    #     import matplotlib.animation as animation
-    #
-    #     if signal == 'both':
-    #         signal = ['raw', 'filtered']
-    #     else:
-    #         signal = [signal]
-    #     fig = plt.figure()
-    #
-    #     subplts = list()
-    #     index = 1
-    #     for i in range(n_channel):
-    #         for j in range(len(signal)):
-    #             subplts.append(fig.add_subplot(n_channel, len(signal), index))
-    #             index += 1
-    #
-    #     ani = animation.FuncAnimation(fig, self.f_anim, fargs=(n_channel, subplts),
-    #                                   interval=self.fs)
-    #     plt.show()
+    def get_data(self):
+        assert self._ch_list is not None, "Channels are not selected for online plot!"
+        eeg = list()
+        if len(self._filt_eeg) > 0:
+            self._lock.acquire()
+            eeg = np.transpose(np.array(self._eeg))[self._ch_list, :]
+            filt_eeg = np.transpose(self._filt_eeg)[self._ch_list, :]
+            self._lock.release()
+            for i, x in enumerate(filt_eeg):
+                eeg = np.insert(eeg, 2 * i + 1, x, axis=0)
+        return eeg
 
     def stop_signal_recording(self):
         self._stop_recording = True
@@ -190,6 +148,7 @@ class DSP(SignalReceiver):
 
 
 if __name__ == '__main__':
+    channels = ['Cpz', 'Cp1', 'Cp2', 'Cp5', 'Cp6']
     bci = DSP()
-    # bci.use_animation()
-    bci.process_singal()
+    bci.run_online_plotter(channels)
+    # bci.process_singal() # do not use it with bci.run_olnine_plotter!

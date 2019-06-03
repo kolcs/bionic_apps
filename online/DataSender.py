@@ -25,8 +25,8 @@ def run(filename, eeg_type=M_BRAIN_TRAIN):
                       'C3', 'C4', 'T7', 'T8', 'Cpz', 'Cp1', 'Cp2', 'Cp5',
                       'Cp6', 'T9', 'T10', 'Pz', 'P3', 'P4', 'O1', 'O2']
         raw = raw.pick_channels(electrodes)
-    else:
-        electrodes = raw.info['ch_names']
+
+    electrodes = raw.info['ch_names']
 
     info = StreamInfo('BioSemi', 'EEG', len(electrodes), FS, 'float32', 'myuid2424')
 
