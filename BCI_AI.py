@@ -25,7 +25,7 @@ class SpatialTransformLayer(keras.layers.Layer):
             batch, channel = tens.shape
             assert channel == 64, "Spatial transformation was designed for 64 channels. Got {} instead".format(channel)
             y = np.zeros((batch, 10 * 11))
-            for i, ind in enumerate(CHANNEL_TRANSFORMATION):
+            for i, ind in enumerate(Physionet.CHANNEL_TRANSFORMATION):
                 y[:, ind] = tens[:, i]
             return y
 

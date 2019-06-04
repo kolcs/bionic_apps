@@ -182,7 +182,7 @@ class OfflineEpochCreator:
         self._base_dir = base_dir
         self._data_path = None
         self._data_duration = 4  # seconds
-        self._db_type = SourceDB()  # Physionet / TTK
+        self._db_type = None  # Physionet / TTK
         self._db_handler = DataBaseHandler()
 
         # self._db_ext = None

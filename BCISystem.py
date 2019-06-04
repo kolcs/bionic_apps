@@ -42,9 +42,9 @@ class BCISystem(object):
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
-    # base_dir = "D:/Users/Csabi/data"  # ITK
+    base_dir = "D:/Users/Csabi/data/"  # ITK
     # base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
