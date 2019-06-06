@@ -99,20 +99,21 @@ class DSP(SignalReceiver):
 
         # todo: extend to more eeg bands
         # processing signal
-        low = 5
-        high = 13
+        low = 8
+        high = 12
         order = 5
         b, a = butter(order, (low, high), btype='bandpass', fs=self.fs)
         z_init = lfilter_zi(b, a)
-        z = [z_init for _ in range(win)]
+        z = [z_init for _ in range(len(self._eeg[0]))]
+        z = np.transpose(np.array(z))
 
         while not self._stop_recording:
             eeg_sample, timestamp = self.get_sample()
             self._lock.acquire()
             self._eeg.pop(0)
             self._eeg.append(eeg_sample)
-            self._filt_eeg, z = lfilter(b, a, np.array(self._eeg), zi=z)  # eeg: data x channel
-            np.power(self._filt_eeg, 2)
+            self._filt_eeg, z = lfilter(b, a, np.array(self._eeg), axis=0, zi=z)  # eeg: data x channel
+            # self._filt_eeg = np.power(self._filt_eeg, 2)
             self._lock.release()
 
     def run_online_plotter(self, channels):
@@ -149,6 +150,7 @@ class DSP(SignalReceiver):
 
 if __name__ == '__main__':
     channels = ['Cpz', 'Cp1', 'Cp2', 'Cp5', 'Cp6']
+    # channels = ['Cpz']
     bci = DSP()
     bci.run_online_plotter(channels)
     # bci.process_singal() # do not use it with bci.run_olnine_plotter!

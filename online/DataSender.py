@@ -10,7 +10,20 @@ from preprocess.ioprocess import open_raw_file
 M_BRAIN_TRAIN = 'mBrainTrain'
 
 
-def run(filename, eeg_type=M_BRAIN_TRAIN):
+def get_wave(f, t):
+    return np.sin(f * np.pi * 2 * t)
+
+
+def get_artificial_data(ch_num, length, fs, max_dif=0.01):
+    t = np.linspace(0, length, length * fs)
+    signal = get_wave(5, t) + get_wave(11, t) + get_wave(17, t) + get_wave(27, t)
+    signal = signal / np.linalg.norm(signal)
+    data = [signal for _ in range(ch_num)]
+    data = np.array(data) * max_dif
+    return data
+
+
+def run(filename, eeg_type=M_BRAIN_TRAIN, use_artificial_data=False):
     raw = open_raw_file(filename)
 
     # strip channel names of "." characters
@@ -45,7 +58,11 @@ def run(filename, eeg_type=M_BRAIN_TRAIN):
     outlet = StreamOutlet(info, 32, 360)
     print("now sending data...")
 
-    data = raw.get_data()
+    if use_artificial_data:
+        data = get_artificial_data(24, 2 * 60, FS)
+    else:
+        data = raw.get_data()
+
     for t in range(np.size(data, axis=1)):
         # make a new random 8-channel sample; this is converted into a
         # pylsl.vectorf (the data type that is expected by push_sample)
@@ -66,4 +83,4 @@ if __name__ == '__main__':
     files = [base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
              base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
 
-    run(files[0])
+    run(files[1], use_artificial_data=False)

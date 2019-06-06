@@ -123,7 +123,7 @@ class EEGPlotter:
         Run GUI
         """
         self._add_time_ev_func(self._update_data)
-        self._timer.start(16)
+        self._timer.start(20)
         QtGui.QApplication.instance().exec_()
 
 
