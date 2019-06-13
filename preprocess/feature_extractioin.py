@@ -16,8 +16,19 @@ def plot_avg(epochs):
     plt.tight_layout()
 
 
-def plot_topo_psd(epochs, layout=None, bands=None):
-    epochs.plot_psd_topomap(bands=bands, layout=layout, show=False)
+def plot_topo_psd(epochs, layout=None, bands=None, title=None, dB=True):
+    if bands is None:
+        bands = [(0, 4, 'Delta'), (4, 8, 'Theta'), (8, 12, 'Alpha'), (12, 30, 'Beta'), (30, 45, 'Gamma')]
+    if title is not None:
+        bands = [(frm, to, name + ' ' + title) for frm, to, name in bands]
+
+    epochs.plot_psd_topomap(bands=bands, layout=layout, dB=dB, show=False)
+
+
+def plot_projs_topomap(epoch, ch_type='eeg', layout=None, title=None):
+    fig = epoch.plot_projs_topomap(ch_type=ch_type, layout=layout)
+    if title:
+        fig.title(title)
 
 
 def plot_csp(epoch, layout=None, n_components=4, title=None):
@@ -50,12 +61,9 @@ def filter_on_file(filename, proc):
     epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
     epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
 
-    task = 'left hand'
-    plot_topo_psd(epoch[task], layout)
-    task = 'right hand'
-    plot_topo_psd(epoch[task], layout)
-    task = 'rest'
-    plot_topo_psd(epoch[task], layout)
+    for task in task_dict:
+        plot_topo_psd(epoch[task], layout, title=task)
+        # plot_projs_topomap(epoch[task], layout=layout, title=task)
 
     # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
 
@@ -70,17 +78,16 @@ def filter_on_file(filename, proc):
 
 
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data/"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
 
-    files = [base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",  # real hand
-             base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf",  # img hand
-             base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R05.edf",  # real hand-foot
-             base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R06.edf"]  # img hand-foot
+    subj = 2
+    rec = 6
+    file = '{}physionet.org/physiobank/database/eegmmidb/S{:03d}/S{:03d}R{:02d}.edf'.format(base_dir, subj, subj, rec)
 
     proc = OfflineEpochCreator(base_dir)
     proc.use_physionet()
 
-    filter_on_file(files[0], proc)
+    filter_on_file(file, proc)

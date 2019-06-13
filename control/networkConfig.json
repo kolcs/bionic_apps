@@ -1,6 +1,7 @@
 {
+    "_comment": "net add: 10.220.255.211",
     "isServer": false,
-    "networkAddress": "10.220.255.211",
+    "networkAddress": "localhost",
     "networkPort": 7777,
     "controlAddressP1": "any",
     "controlAddressP2": "any",
