@@ -61,9 +61,12 @@ def filter_on_file(filename, proc):
     epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
     epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
 
-    for task in task_dict:
-        plot_topo_psd(epoch[task], layout, title=task)
-        # plot_projs_topomap(epoch[task], layout=layout, title=task)
+    n_ = min([len(epoch[task]) for task in task_dict])
+    for i in range(n_):
+        for task in task_dict:
+            ep = epoch[task]
+            plot_topo_psd(ep[i], layout, title=task+str(i))
+            # plot_projs_topomap(epoch[task], layout=layout, title=task)
 
     # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
 
