@@ -40,6 +40,26 @@ def plot_csp(epoch, layout=None, n_components=4, title=None):
     csp.plot_patterns(epoch.info, layout=layout, ch_type='eeg', show=False, title=title)
 
 
+def artefact_correction(raw, lowf=1, highf=40, order=5, layout=None):
+    # sos = signal.iirfilter(order, (lowf, highf), btype='bandpass', ftype='butter', output='sos', fs=raw.info['sfreq'])
+    iir_params = dict(order=order, ftype='butter', output='sos')
+    raw.filter(l_freq=lowf, h_freq=highf, method='iir', iir_params=iir_params)
+
+    picks = mne.pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False, exclude='bads')
+
+    ica_method = 'fastica'
+    n_components = 25
+    decim = 3
+    random_state = 12
+
+    ica = mne.preprocessing.ICA(n_components=n_components, method=ica_method, random_state=random_state)
+
+    reject = dict(mag=5e-12, grad=4000e-13)  # threshold
+
+    ica.fit(raw, picks=picks, decim=decim, reject=reject)
+    ica.plot_components(layout=layout)
+
+
 def filter_on_file(filename, proc):
     raw = open_raw_file(filename)
 
@@ -61,12 +81,12 @@ def filter_on_file(filename, proc):
     epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
     epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
 
-    n_ = min([len(epoch[task]) for task in task_dict])
-    for i in range(n_):
-        for task in task_dict:
-            ep = epoch[task]
-            plot_topo_psd(ep[i], layout, title=task+str(i))
-            # plot_projs_topomap(epoch[task], layout=layout, title=task)
+    # n_ = min([len(epoch[task]) for task in task_dict])
+    # for i in range(n_):
+    #     for task in task_dict:
+    #         ep = epoch[task]
+    #         plot_topo_psd(ep[i], layout, title=task+str(i))
+    #         # plot_projs_topomap(epoch[task], layout=layout, title=task)
 
     # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
 
@@ -77,14 +97,16 @@ def filter_on_file(filename, proc):
     # plot_csp(epoch_alpha, layout, n_components=n_comp, title='alpha range')
     # plot_csp(epoch_beta, layout, n_components=n_comp, title='beta range')
 
+    artefact_correction(raw, layout=layout)
+
     plt.show()
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data/"  # ITK
-    # base_dir = "/home/csabi/databases/"  # linux
+    base_dir = "/home/csabi/databases/"  # linux
 
     subj = 2
     rec = 6
