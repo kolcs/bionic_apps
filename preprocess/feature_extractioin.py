@@ -40,10 +40,14 @@ def plot_csp(epoch, layout=None, n_components=4, title=None):
     csp.plot_patterns(epoch.info, layout=layout, ch_type='eeg', show=False, title=title)
 
 
-def artefact_correction(raw, lowf=1, highf=40, order=5, layout=None):
+def artefact_correction(raw, lowf=3, highf=40, order=5, layout=None):
     # sos = signal.iirfilter(order, (lowf, highf), btype='bandpass', ftype='butter', output='sos', fs=raw.info['sfreq'])
     iir_params = dict(order=order, ftype='butter', output='sos')
     raw.filter(l_freq=lowf, h_freq=highf, method='iir', iir_params=iir_params)
+
+    raw.plot()
+    raw.plot_psd()
+    return
 
     picks = mne.pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False, exclude='bads')
 
@@ -54,7 +58,7 @@ def artefact_correction(raw, lowf=1, highf=40, order=5, layout=None):
 
     ica = mne.preprocessing.ICA(n_components=n_components, method=ica_method, random_state=random_state)
 
-    reject = dict(mag=5e-12, grad=4000e-13)  # threshold
+    reject = dict(mag=5e-12, grad=4000e-13, eeg=40e-6)  # todo: threshold and see the res in epochs, for sale: 20e-6
 
     ica.fit(raw, picks=picks, decim=decim, reject=reject)
     ica.plot_components(layout=layout)
