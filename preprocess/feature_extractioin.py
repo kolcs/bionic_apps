@@ -1,4 +1,5 @@
 import mne
+import numpy as np
 from matplotlib import pyplot as plt
 from preprocess.ioprocess import EEGFileHandler, OfflineEpochCreator, get_record_number, open_raw_file
 
@@ -64,6 +65,16 @@ def artefact_correction(raw, lowf=3, highf=40, order=5, layout=None):
     ica.plot_components(layout=layout)
 
 
+def wavelet_time_freq(epoch, n_cycles=5, freqs=None):
+    # todo: select 1 epoch!, plot it!
+    if freqs is None:
+        freqs = np.arange(7, 30, 5)
+
+    power, itc = mne.time_frequency.tfr_morlet(epoch, freqs=freqs, n_cycles=n_cycles, return_itc=True, decim=3,
+                                               n_jobs=1)
+    print(power)
+
+
 def filter_on_file(filename, proc):
     raw = open_raw_file(filename)
 
@@ -81,7 +92,7 @@ def filter_on_file(filename, proc):
 
     events = mne.find_events(raw, shortest_event=0, stim_channel='STI 014', initial_event=True,
                              consecutive=True)
-    epoch = mne.Epochs(raw, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
+    epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
     epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
     epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
 
@@ -101,7 +112,9 @@ def filter_on_file(filename, proc):
     # plot_csp(epoch_alpha, layout, n_components=n_comp, title='alpha range')
     # plot_csp(epoch_beta, layout, n_components=n_comp, title='beta range')
 
-    artefact_correction(raw, layout=layout)
+    # artefact_correction(raw, layout=layout)  # todo: continue investigation
+
+    wavelet_time_freq(epochs)
 
     plt.show()
 
