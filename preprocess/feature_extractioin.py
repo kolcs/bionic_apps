@@ -41,10 +41,10 @@ def plot_csp(epoch, layout=None, n_components=4, title=None):
     csp.plot_patterns(epoch.info, layout=layout, ch_type='eeg', show=False, title=title)
 
 
-def artefact_correction(raw, lowf=3, highf=40, order=5, layout=None):
+def artefact_correction(raw, l_freq=3, h_freq=40, order=5, layout=None):
     # sos = signal.iirfilter(order, (lowf, highf), btype='bandpass', ftype='butter', output='sos', fs=raw.info['sfreq'])
     iir_params = dict(order=order, ftype='butter', output='sos')
-    raw.filter(l_freq=lowf, h_freq=highf, method='iir', iir_params=iir_params)
+    raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params)
 
     raw.plot()
     raw.plot_psd()
@@ -65,14 +65,23 @@ def artefact_correction(raw, lowf=3, highf=40, order=5, layout=None):
     ica.plot_components(layout=layout)
 
 
-def wavelet_time_freq(epoch, n_cycles=5, freqs=None):
-    # todo: select 1 epoch!, plot it!
-    if freqs is None:
-        freqs = np.arange(7, 30, 5)
+def wavelet_time_freq(epochs, n_cycles=5, l_freq=7, h_freq=30, f_step=0.5, average=True, channels=None, title=None):
+    freqs = np.arange(l_freq, h_freq, f_step)
 
-    power, itc = mne.time_frequency.tfr_morlet(epoch, freqs=freqs, n_cycles=n_cycles, return_itc=True, decim=3,
-                                               n_jobs=1)
-    print(power)
+    if channels is None:
+        channels = epochs.info['ch_names']
+        channels = channels[:-1]
+
+    if average:
+        power, itc = mne.time_frequency.tfr_morlet(epochs, freqs=freqs, n_cycles=n_cycles, return_itc=True, decim=3,
+                                                   n_jobs=1)
+    else:
+        power = mne.time_frequency.tfr_morlet(epochs, freqs=freqs, n_cycles=n_cycles, return_itc=False, decim=3,
+                                              n_jobs=1, average=False)
+
+    indices = [power.ch_names.index(ch_name) for ch_name in channels]
+    for i, ind in enumerate(indices):
+        power.plot(picks=[ind], show=False, title=title + ' ' + channels[i])
 
 
 def filter_on_file(filename, proc):
@@ -96,12 +105,13 @@ def filter_on_file(filename, proc):
     epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
     epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
 
-    # n_ = min([len(epoch[task]) for task in task_dict])
+    # n_ = min([len(epochs[task]) for task in task_dict])
     # for i in range(n_):
     #     for task in task_dict:
-    #         ep = epoch[task]
+    #         ep = epochs[task]
+    #         wavelet_time_freq(ep[i], channels=['Cz', 'C3', 'C4'], title=task+str(i))
     #         plot_topo_psd(ep[i], layout, title=task+str(i))
-    #         # plot_projs_topomap(epoch[task], layout=layout, title=task)
+    #         # plot_projs_topomap(epochs[task], layout=layout, title=task)
 
     # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
 
@@ -112,21 +122,19 @@ def filter_on_file(filename, proc):
     # plot_csp(epoch_alpha, layout, n_components=n_comp, title='alpha range')
     # plot_csp(epoch_beta, layout, n_components=n_comp, title='beta range')
 
-    # artefact_correction(raw, layout=layout)  # todo: continue investigation
-
-    wavelet_time_freq(epochs)
+    artefact_correction(raw, layout=layout)  # todo: continue investigation
 
     plt.show()
 
 
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data/"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
 
     subj = 2
-    rec = 6
+    rec = 8
     file = '{}physionet.org/physiobank/database/eegmmidb/S{:03d}/S{:03d}R{:02d}.edf'.format(base_dir, subj, subj, rec)
 
     proc = OfflineEpochCreator(base_dir)
