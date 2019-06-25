@@ -41,28 +41,30 @@ def plot_csp(epoch, layout=None, n_components=4, title=None):
     csp.plot_patterns(epoch.info, layout=layout, ch_type='eeg', show=False, title=title)
 
 
-def artefact_correction(raw, l_freq=3, h_freq=40, order=5, layout=None):
+def filter_raw_butter(raw, l_freq=7, h_freq=30, order=5, show=False):
     # sos = signal.iirfilter(order, (lowf, highf), btype='bandpass', ftype='butter', output='sos', fs=raw.info['sfreq'])
     iir_params = dict(order=order, ftype='butter', output='sos')
     raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params)
 
-    raw.plot()
-    raw.plot_psd()
-    return
+    if show:
+        raw.plot()
+        raw.plot_psd()
 
-    picks = mne.pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False, exclude='bads')
+
+def ica_artefact_correction(eeg, layout=None, title=None):
+    picks = mne.pick_types(eeg.info, meg=False, eeg=True, stim=False, eog=False, exclude='bads')
 
     ica_method = 'fastica'
-    n_components = 25
+    n_components = 20
     decim = 3
     random_state = 12
 
-    ica = mne.preprocessing.ICA(n_components=n_components, method=ica_method, random_state=random_state)
+    ica = mne.preprocessing.ICA(n_components=n_components, method=ica_method, random_state=random_state, max_iter=1000)
 
     reject = dict(mag=5e-12, grad=4000e-13, eeg=40e-6)  # todo: threshold and see the res in epochs, for sale: 20e-6
 
-    ica.fit(raw, picks=picks, decim=decim, reject=reject)
-    ica.plot_components(layout=layout)
+    ica.fit(eeg, picks=picks, decim=decim, reject=reject)
+    ica.plot_components(layout=layout, title=title, show=False)
 
 
 def wavelet_time_freq(epochs, n_cycles=5, l_freq=7, h_freq=30, f_step=0.5, average=True, channels=None, title=None):
@@ -82,6 +84,23 @@ def wavelet_time_freq(epochs, n_cycles=5, l_freq=7, h_freq=30, f_step=0.5, avera
     indices = [power.ch_names.index(ch_name) for ch_name in channels]
     for i, ind in enumerate(indices):
         power.plot(picks=[ind], show=False, title=title + ' ' + channels[i])
+
+
+def design_filter(fs=1000, lowf=7, highf=30, order=5):
+    """
+    Filter design and plotting.
+    """
+
+    from scipy import signal
+
+    flim = (1., fs / 2.)
+
+    freq = [0., lowf, highf, fs / 2.]
+    gain = [0., 1., 1., 0.]
+
+    sos = signal.iirfilter(order, (lowf, highf), btype='bandpass', ftype='butter', output='sos', fs=fs)
+    mne.viz.plot_filter(dict(sos=sos), fs, freq, gain, 'Butterworth: order={}, fs={}'.format(order, fs),
+                        flim=flim)
 
 
 def filter_on_file(filename, proc):
@@ -105,13 +124,16 @@ def filter_on_file(filename, proc):
     epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
     epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
 
-    # n_ = min([len(epochs[task]) for task in task_dict])
-    # for i in range(n_):
-    #     for task in task_dict:
-    #         ep = epochs[task]
-    #         wavelet_time_freq(ep[i], channels=['Cz', 'C3', 'C4'], title=task+str(i))
-    #         plot_topo_psd(ep[i], layout, title=task+str(i))
-    #         # plot_projs_topomap(epochs[task], layout=layout, title=task)
+    filter_raw_butter(raw)
+
+    n_ = min([len(epochs[task]) for task in task_dict])
+    for i in range(n_):
+        for task in task_dict:
+            ep = epochs[task]
+            # wavelet_time_freq(ep[i], channels=['Cz', 'C3', 'C4'], title=task+str(i))
+            # plot_topo_psd(ep[i], layout, title=task+str(i))
+            # plot_projs_topomap(epochs[task], layout=layout, title=task)
+            ica_artefact_correction(ep, layout=layout, title=task+str(i))  # todo: continue investigation
 
     # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
 
@@ -122,7 +144,7 @@ def filter_on_file(filename, proc):
     # plot_csp(epoch_alpha, layout, n_components=n_comp, title='alpha range')
     # plot_csp(epoch_beta, layout, n_components=n_comp, title='beta range')
 
-    artefact_correction(raw, layout=layout)  # todo: continue investigation
+
 
     plt.show()
 
