@@ -1,10 +1,14 @@
 import mne
 import numpy as np
 from matplotlib import pyplot as plt
-from preprocess.ioprocess import EEGFileHandler, OfflineEpochCreator, get_record_number, open_raw_file
+from preprocess.ioprocess import OfflineEpochCreator, get_record_number, open_raw_file
 
 
 def plot_avg(epochs):
+    """
+    Creates average plots from epochs
+    :param epochs: eeg epoch, mne class
+    """
     ev_left = epochs['left hand'].average()
     ev_right = epochs['right hand'].average()
     ev_rest = epochs['rest'].average()
@@ -18,6 +22,14 @@ def plot_avg(epochs):
 
 
 def plot_topo_psd(epochs, layout=None, bands=None, title=None, dB=True):
+    """
+    Creates topographical psd map
+    :param epochs: eeg data
+    :param layout: channels in space
+    :param bands: eeg bands with given range
+    :param title: title of plot
+    :param dB: logarithmic plot
+    """
     if bands is None:
         bands = [(0, 4, 'Delta'), (4, 8, 'Theta'), (8, 12, 'Alpha'), (12, 30, 'Beta'), (30, 45, 'Gamma')]
     if title is not None:
@@ -33,6 +45,13 @@ def plot_projs_topomap(epoch, ch_type='eeg', layout=None, title=None):
 
 
 def plot_csp(epoch, layout=None, n_components=4, title=None):
+    """
+    Common spacial patterns in topographical map
+    :param epoch: eeg data
+    :param layout: channels in space
+    :param n_components: number or CSP components
+    :param title: figure title
+    """
     labels = epoch.events[:, -1] - 1
     data = epoch.get_data()
 
@@ -42,6 +61,14 @@ def plot_csp(epoch, layout=None, n_components=4, title=None):
 
 
 def filter_raw_butter(raw, l_freq=7, h_freq=30, order=5, show=False):
+    """
+    Creating butterworth bandpass filter with MNE and visualise the power spectral density
+    :param raw: eeg file
+    :param l_freq: low freq
+    :param h_freq: high freq
+    :param order: filter order
+    :param show: to plot immediately
+    """
     # sos = signal.iirfilter(order, (lowf, highf), btype='bandpass', ftype='butter', output='sos', fs=raw.info['sfreq'])
     iir_params = dict(order=order, ftype='butter', output='sos')
     raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params)
@@ -52,6 +79,13 @@ def filter_raw_butter(raw, l_freq=7, h_freq=30, order=5, show=False):
 
 
 def ica_artefact_correction(eeg, layout=None, title=None):
+    """
+    Creating ICA components
+    todo: continue to eye artefact correction
+    :param eeg: raw or epoch
+    :param layout: channels in space
+    :param title: plot title
+    """
     picks = mne.pick_types(eeg.info, meg=False, eeg=True, stim=False, eog=False, exclude='bads')
 
     ica_method = 'fastica'
@@ -61,13 +95,24 @@ def ica_artefact_correction(eeg, layout=None, title=None):
 
     ica = mne.preprocessing.ICA(n_components=n_components, method=ica_method, random_state=random_state, max_iter=1000)
 
-    reject = dict(mag=5e-12, grad=4000e-13, eeg=40e-6)  # todo: threshold and see the res in epochs, for sale: 20e-6
+    reject = dict(mag=5e-12, grad=4000e-13, eeg=40e-6)  # todo: threshold???
 
     ica.fit(eeg, picks=picks, decim=decim, reject=reject)
     ica.plot_components(layout=layout, title=title, show=False)
 
 
 def wavelet_time_freq(epochs, n_cycles=5, l_freq=7, h_freq=30, f_step=0.5, average=True, channels=None, title=None):
+    """
+    Spatial-frequency analysis by using morlet wavelet
+    :param epochs: eeg data
+    :param n_cycles: iteration
+    :param l_freq: lowest freq
+    :param h_freq: highest freq
+    :param f_step: step between frequencies
+    :param average: to average epoch data
+    :param channels: plot for specific channels
+    :param title: plot title
+    """
     freqs = np.arange(l_freq, h_freq, f_step)
 
     if channels is None:
@@ -88,9 +133,12 @@ def wavelet_time_freq(epochs, n_cycles=5, l_freq=7, h_freq=30, f_step=0.5, avera
 
 def design_filter(fs=1000, lowf=7, highf=30, order=5):
     """
-    Filter design and plotting.
+    Bandpass filter design and plot function
+    :param fs: sampling freq
+    :param lowf: low freq
+    :param highf: high freq
+    :param order: filter order
     """
-
     from scipy import signal
 
     flim = (1., fs / 2.)
@@ -104,6 +152,9 @@ def design_filter(fs=1000, lowf=7, highf=30, order=5):
 
 
 def filter_on_file(filename, proc):
+    """
+    Make feature extraction methods on given file
+    """
     raw = open_raw_file(filename)
 
     """MUST HAVE!!! Otherwise error!"""
@@ -133,7 +184,7 @@ def filter_on_file(filename, proc):
             # wavelet_time_freq(ep[i], channels=['Cz', 'C3', 'C4'], title=task+str(i))
             # plot_topo_psd(ep[i], layout, title=task+str(i))
             # plot_projs_topomap(epochs[task], layout=layout, title=task)
-            ica_artefact_correction(ep, layout=layout, title=task+str(i))  # todo: continue investigation
+            ica_artefact_correction(ep, layout=layout, title=task + str(i))
 
     # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
 
@@ -143,8 +194,6 @@ def filter_on_file(filename, proc):
     # n_comp = 4
     # plot_csp(epoch_alpha, layout, n_components=n_comp, title='alpha range')
     # plot_csp(epoch_beta, layout, n_components=n_comp, title='beta range')
-
-
 
     plt.show()
 
