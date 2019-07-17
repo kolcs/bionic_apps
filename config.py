@@ -54,6 +54,27 @@ F_EXT_TF_RECORD = '.tfrecord'
 #
 #     DROP_SUBJECTS = list()
 
+class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
+    DIR = "Cybathlon pilot/"
+    CHANNEL_NUM = 63
+    FS = 500
+    DB_EXT = '.vhdr'
+
+    TRIGGER_TYPE_CONVERTER = dict()
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        REST: 1,
+        EYE_OPEN: 2,
+        EYE_CLOSED: 3,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        RIGHT_LEG: 9,
+        LEFT_LEG: 11
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S  {}'.format(i+1): i+1 for i in range(15)}
+
+    DROP_SUBJECTS = list()
+
 
 class Physionet:
     # Wrong labeling!!!! FP region
@@ -61,6 +82,8 @@ class Physionet:
     CHANNEL_NUM = 64
     FS = 160
     DB_EXT = '.edf'
+
+    TRIGGER_EVENT_ID = {'T{}'.format(i): i+1 for i in range(3)}
 
     TASK_EYE_OPEN = {EYE_OPEN: 1}
     TASK_EYE_CLOSED = {EYE_CLOSED: 1}

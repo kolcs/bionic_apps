@@ -151,40 +151,53 @@ def design_filter(fs=1000, lowf=7, highf=30, order=5):
                         flim=flim)
 
 
-def filter_on_file(filename, proc):
+def filter_on_file(filename, proc, tmin=0, tmax=4, ref_channels=None):
     """
-    Make feature extraction methods on given file
+    Makes feature extraction methods on given file
+    Select feature extreaction method in for cycle.
+    Only for demonstration purpose...
     """
     raw = open_raw_file(filename)
 
     """MUST HAVE!!! Otherwise error!"""
     raw.rename_channels(lambda x: x.strip('.'))
 
+    if ref_channels is not None:
+        raw.set_eeg_reference(ref_channels=ref_channels)
+
     rec_num = get_record_number(filename)
     task_dict = proc.convert_task(rec_num)
     layout = mne.channels.read_layout('EEG1005')
 
-    raw_alpha = raw.copy()
-    raw_beta = raw.copy()
-    raw_alpha = raw_alpha.filter(7, 13)
-    raw_beta = raw_beta.filter(14, 30)
+    # raw_alpha = raw.copy()
+    # raw_beta = raw.copy()
+    # raw_alpha = raw_alpha.filter(7, 13)
+    # raw_beta = raw_beta.filter(14, 30)
 
-    events = mne.find_events(raw, shortest_event=0, stim_channel='STI 014', initial_event=True,
-                             consecutive=True)
-    epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
-    epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
-    epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=0, tmax=4, preload=True)
+    events, _ = mne.events_from_annotations(raw, event_id=proc.get_trigger_event_id())
+
+    epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
+    # epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
+    # epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
 
     filter_raw_butter(raw)
+    bands = [(i, i + 2, '{}-{} Hz'.format(i, i + 2)) for i in range(0, 40, 2)]
 
-    n_ = min([len(epochs[task]) for task in task_dict])
+    from config import EYE_OPEN, EYE_CLOSED
+    n_ = min([len(epochs[task]) for task in task_dict if task != EYE_OPEN and task != EYE_CLOSED])
+    n_ = 5
+    fignum = 1
     for i in range(n_):
         for task in task_dict:
             ep = epochs[task]
-            # wavelet_time_freq(ep[i], channels=['Cz', 'C3', 'C4'], title=task+str(i))
-            # plot_topo_psd(ep[i], layout, title=task+str(i))
-            # plot_projs_topomap(epochs[task], layout=layout, title=task)
-            ica_artefact_correction(ep, layout=layout, title=task + str(i))
+            if i < len(ep):
+                # wavelet_time_freq(ep[i], channels=['Cz', 'C3', 'C4'], title=task+str(i))
+                plot_topo_psd(ep[i], layout, title=task + str(i), bands=bands)
+                # plot_projs_topomap(epochs[task], layout=layout, title=task)
+                # ica_artefact_correction(ep, layout=layout, title=task + str(i))
+
+                # plt.savefig('fig{}.png'.format(fignum), format='png')
+                fignum += 1
 
     # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
 
@@ -204,11 +217,19 @@ if __name__ == '__main__':
     # base_dir = "D:/Users/Csabi/data/"  # ITK
     # base_dir = "/home/csabi/databases/"  # linux
 
+    proc = OfflineEpochCreator(base_dir)
+
     subj = 2
     rec = 8
-    file = '{}physionet.org/physiobank/database/eegmmidb/S{:03d}/S{:03d}R{:02d}.edf'.format(base_dir, subj, subj, rec)
 
-    proc = OfflineEpochCreator(base_dir)
-    proc.use_physionet()
+    db = 'pilot'  # 'physionet
 
-    filter_on_file(file, proc)
+    if db == 'pilot':
+        file = '{}Cybathlon pilot/pilot{}/rec01.vhdr'.format(base_dir, subj)
+        proc.use_pilot()
+        filter_on_file(file, proc, ref_channels=['TP9', 'TP10'])
+    else:  # physionet
+        file = '{}physionet.org/physiobank/database/eegmmidb/S{:03d}/S{:03d}R{:02d}.edf'.format(base_dir, subj, subj,
+                                                                                                rec)
+        proc.use_physionet()
+        filter_on_file(file, proc)

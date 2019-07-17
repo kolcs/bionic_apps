@@ -5,18 +5,25 @@ from config import *
 EPOCH_DB = 'preprocessed_database'
 
 
-def open_raw_file(filename, preload=True, stim_channel='auto'):
+def open_raw_file(filename, preload=True):
+    """
+    Wrapper function to open either edf or brainvision files.
+
+    :param filename: filename of raw file
+    :param preload: load data to memory
+    :return: raw mne file
+    """
     ext = filename.split('.')[-1]
 
     switcher = {
         'edf': mne.io.read_raw_edf,
-        'eeg': mne.io.read_raw_brainvision,  # todo: check...
+        'vhdr': mne.io.read_raw_brainvision,
     }
 
     # Get the function from switcher dictionary
     mne_io_read_raw = switcher.get(ext, lambda: "nothing")
     # Execute the function
-    return mne_io_read_raw(filename, preload=preload, stim_channel=stim_channel)
+    return mne_io_read_raw(filename, preload=preload)
 
 
 def get_filenames_in(path, ext='', recursive=True):
@@ -67,10 +74,12 @@ def get_num_with_predefined_char(filename, char, required_num='required'):
     import re
     num_list = re.findall(r'.*' + char + '\d+', filename)
     if not num_list:
-        raise FileNotFoundError(
-            "Can not give back {} number: filename '{}' does not contain '{}' character.".format(required_num,
+        import warnings
+        warnings.warn("Can not give back {} number: filename '{}' does not contain '{}' character.".format(required_num,
                                                                                                  filename,
                                                                                                  char))
+        return None
+
     num_str = num_list[0]
     num_ind = num_str.rfind(char) - len(num_str) + 1
     return int(num_str[num_ind:])
@@ -209,6 +218,10 @@ class OfflineEpochCreator:
         self._use_db(Physionet)
         return self
 
+    def use_pilot(self):
+        self._use_db(PilotDB)
+        return self
+
     @property
     def _db_ext(self):
         return self._db_type.DB_EXT
@@ -236,8 +249,13 @@ class OfflineEpochCreator:
     def convert_type(self, record_number):
         return self._db_type.TRIGGER_TYPE_CONVERTER.get(record_number)
 
-    def convert_task(self, record_number):
+    def convert_task(self, record_number=None):
+        if record_number is None:
+            return self._db_type.TRIGGER_TASK_CONVERTER
         return self._db_type.TRIGGER_TASK_CONVERTER.get(record_number)
+
+    def get_trigger_event_id(self):
+        return self._db_type.TRIGGER_EVENT_ID
 
     def _create_annotated_db(self):
         filenames = self._get_filenames()
