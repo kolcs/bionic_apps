@@ -151,6 +151,41 @@ def design_filter(fs=1000, lowf=7, highf=30, order=5):
                         flim=flim)
 
 
+def test_plot_topomap(epochs, layout, ch_type='eeg', crop=True):
+    """
+    This is an example function about how to get topographically represented data from mne
+    The data is NOT a picture the data is a matrix!
+
+    Use only the required parts!!!
+    """
+    from mne.channels import _get_ch_type
+    from mne.viz.topomap import _prepare_topo_plot
+
+    # to get pos data from layout
+    ch_type = _get_ch_type(epochs, ch_type)
+    picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
+        epochs, ch_type, layout)
+
+    data = epochs.get_data()
+
+    # this only works if [:2] removed from  the return of plot_topomap. Catch interp!!!
+    im, _, interp = mne.viz.plot_topomap(data[1, :, 110], pos, show=False)
+    # getting spatially represented eeg signals aka spatial transformation.
+    spatial_data = interp()
+
+    # removing data from the border - ROUND electrode system
+    if crop:
+        r = np.size(spatial_data, axis=0) / 2
+        for i in range(int(2 * r)):
+            for j in range(int(2 * r)):
+                if np.power(i - r, 2) + np.power(j - r, 2) > np.power(r, 2):
+                    spatial_data[i, j] = 0
+
+    plt.figure()
+    plt.imshow(np.flipud(spatial_data))
+    plt.show()
+
+
 def filter_on_file(filename, proc, tmin=0, tmax=4, ref_channels=None):
     """
     Makes feature extraction methods on given file
@@ -179,6 +214,8 @@ def filter_on_file(filename, proc, tmin=0, tmax=4, ref_channels=None):
     epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
     # epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
     # epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
+
+    test_plot_topomap(epochs, layout)
 
     filter_raw_butter(raw)
     bands = [(i, i + 2, '{}-{} Hz'.format(i, i + 2)) for i in range(0, 40, 2)]

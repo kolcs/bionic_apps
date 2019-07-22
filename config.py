@@ -71,7 +71,7 @@ class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
         LEFT_LEG: 11
     }
 
-    TRIGGER_EVENT_ID = {'Stimulus/S  {}'.format(i+1): i+1 for i in range(15)}
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2-len(str(i+1))) * ' ' + str(i+1): i+1 for i in range(16)}
 
     DROP_SUBJECTS = list()
 
