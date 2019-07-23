@@ -49,8 +49,8 @@ F_EXT_TF_RECORD = '.tfrecord'
 #     FS = int()
 #     DB_EXT = ''
 #
-#     TRIGGER_TYPE_CONVERTER = dict()
-#     TRIGGER_TASK_CONVERTER = dict()
+#     TRIGGER_CONV_REC_TO_TYPE = dict()
+#     TRIGGER_CONV_REC_TO_TASK = dict()
 #
 #     DROP_SUBJECTS = list()
 
@@ -59,9 +59,10 @@ class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
+    SUBJECT_NUM = 4
 
-    TRIGGER_TYPE_CONVERTER = dict()
-    TRIGGER_TASK_CONVERTER = {  # imagined
+    TRIGGER_CONV_REC_TO_TYPE = dict()
+    TRIGGER_CONV_REC_TO_TASK = {  # imagined
         REST: 1,
         EYE_OPEN: 2,
         EYE_CLOSED: 3,
@@ -71,9 +72,9 @@ class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
         LEFT_LEG: 11
     }
 
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2-len(str(i+1))) * ' ' + str(i+1): i+1 for i in range(16)}
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = list()
+    DROP_SUBJECTS = None  # or list of elements
 
 
 class Physionet:
@@ -82,8 +83,10 @@ class Physionet:
     CHANNEL_NUM = 64
     FS = 160
     DB_EXT = '.edf'
+    SUBJECT_NUM = 109
+    FILE_PATH = 'physiobank/database/eegmmidb/S{subj}/S{subj}R{rec}.edf'
 
-    TRIGGER_EVENT_ID = {'T{}'.format(i): i+1 for i in range(3)}
+    TRIGGER_EVENT_ID = {'T{}'.format(i): i + 1 for i in range(3)}
 
     TASK_EYE_OPEN = {EYE_OPEN: 1}
     TASK_EYE_CLOSED = {EYE_CLOSED: 1}
@@ -100,7 +103,7 @@ class Physionet:
         BOTH_LEGS: 3
     }
 
-    TRIGGER_TYPE_CONVERTER = {
+    TRIGGER_CONV_REC_TO_TYPE = {
         1: BASELINE,
         2: BASELINE,
         3: REAL_MOVEMENT,
@@ -117,7 +120,13 @@ class Physionet:
         14: IMAGINED_MOVEMENT
     }
 
-    TRIGGER_TASK_CONVERTER = {  # rec_num : {taskID: task}
+    # TYPE_TO_REC = {
+    #     BASELINE: [1, 2],
+    #     REAL_MOVEMENT: [3, 4, 7, 8, 11, 12],
+    #     IMAGINED_MOVEMENT: [5, 6, 9, 10, 13, 14]
+    # }
+
+    TRIGGER_CONV_REC_TO_TASK = {  # rec_num : {taskID: task}
         1: TASK_EYE_OPEN,
         2: TASK_EYE_CLOSED,
         3: TASK_12,
@@ -134,10 +143,13 @@ class Physionet:
         14: TASK_34
     }
 
-    TRIGGER_TASK_LIST = [
-        (3, 4, 7, 8, 11, 12),
-        (5, 6, 9, 10, 13, 14)
-    ]
+    TASK_TO_REC = {
+        REST: [i for i in range(3, 15, 2)],
+        LEFT_HAND: [i for i in range(3, 15, 4)],
+        RIGHT_HAND: [i for i in range(3, 15, 4)],
+        BOTH_HANDS: [i for i in range(4, 15, 4)],
+        BOTH_LEGS: [i for i in range(4, 15, 4)]
+    }
 
     MAX_DURATION = 4  # seconds --> creating strictly formatted data window
 

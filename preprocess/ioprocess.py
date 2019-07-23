@@ -15,15 +15,14 @@ def open_raw_file(filename, preload=True):
     """
     ext = filename.split('.')[-1]
 
-    switcher = {
-        'edf': mne.io.read_raw_edf,
-        'vhdr': mne.io.read_raw_brainvision,
-    }
+    if ext == 'edf':
+        raw = mne.io.read_raw_edf(filename, preload=preload)
+    elif ext == 'vhdr':
+        raw = mne.io.read_raw_brainvision(filename, preload=preload)
+    else:
+        raw = None
 
-    # Get the function from switcher dictionary
-    mne_io_read_raw = switcher.get(ext, lambda: "nothing")
-    # Execute the function
-    return mne_io_read_raw(filename, preload=preload)
+    return raw
 
 
 def get_filenames_in(path, ext='', recursive=True):
@@ -50,16 +49,36 @@ def make_dir(path):
         os.makedirs(path)
 
 
-# def find_filenames(rec_nums, filenames):
-#     import re
-#     files = []
-#     for i in rec_nums:
-#         for fname in filenames:
-#             res = re.findall(r'.*R{:02d}.*'.format(i), fname)
-#             if res:
-#                 files.append(res[0])
-#     # files = [ for i in rec_nums for fname in filenames]
-#     return files
+def filter_filenames(files, subject, runs):
+    """
+    Filter file names for one subject and for given record numbers
+    Only for Physionet data
+
+    :param files: list of str
+    :param subject: int
+    :param runs: list of int
+    :return: list of str
+    """
+    rec = list()
+    subj = [f for f in files if subject == get_subject_number(f)]
+
+    for s in subj:
+        for i in runs:
+            if i == get_record_number(s):
+                rec.append(s)
+
+    return rec
+
+
+def generate_filenames(file_path, subject, runs):
+    rec = list()
+    for i in runs:
+        f = file_path
+        f = f.replace('{subj}', '{:03d}'.format(subject))
+        f = f.replace('{rec}', '{:02d}'.format(i))
+        rec.append(f)
+
+    return rec
 
 
 def get_num_with_predefined_char(filename, char, required_num='required'):
@@ -76,8 +95,8 @@ def get_num_with_predefined_char(filename, char, required_num='required'):
     if not num_list:
         import warnings
         warnings.warn("Can not give back {} number: filename '{}' does not contain '{}' character.".format(required_num,
-                                                                                                 filename,
-                                                                                                 char))
+                                                                                                           filename,
+                                                                                                           char))
         return None
 
     num_str = num_list[0]
@@ -105,6 +124,28 @@ def get_subject_number(filename):
     return get_num_with_predefined_char(filename, 'S', "SUBJECT")
 
 
+class SubjectKFold(object):
+    """
+    Class to split subject db to train and test
+    """
+
+    def __init__(self, k_fold_num=None, shuffle=True, random_state=None):
+        self._k_fold_num = k_fold_num
+        self._shuffle = shuffle
+        self._random_state = random_state
+
+    def split(self, subject_db):
+        ind = np.arange(len(subject_db)) + 1
+
+        if self._shuffle:
+            np.random.seed(self._random_state)
+            np.random.shuffle(ind)
+
+        for i in ind:
+            yield subject_db.get_split(i)
+
+
+"""
 class EEGFileHandler:
 
     def __init__(self, filename, preload=False, tmin=0, tmax=None, labels=None):
@@ -180,26 +221,24 @@ class DataBaseHandler:
 
     def ger_db(self):
         return self._db
+"""
 
 
 class OfflineEpochCreator:
     """
     Preprocessor for edf files. Creates a database, which has all the required information about the eeg files.
+    TODO: check what can be removed!!!
     """
 
-    def __init__(self, base_dir, use_drop_subject_list=True):
+    def __init__(self, base_dir, data_duration=3, use_drop_subject_list=True):
         self._base_dir = base_dir
         self._data_path = None
-        self._data_duration = 4  # seconds
+        self._data_duration = data_duration  # seconds
         self._db_type = None  # Physionet / TTK
-        self._db_handler = DataBaseHandler()
 
-        # self._db_ext = None
-        # self._trigger_task_list = None
-
-        self._drop_subject = set()
+        self._drop_subject = None
         if use_drop_subject_list:
-            self._drop_subject.add(-1)
+            self._drop_subject = set()
 
         if not base_dir[-1] == '/':
             self._base_dir = base_dir + '/'
@@ -212,7 +251,11 @@ class OfflineEpochCreator:
         """
         self._data_path = self._base_dir + db_type.DIR
         self._db_type = db_type
-        self._drop_subject = db_type.DROP_SUBJECTS
+
+        if self._drop_subject is not None:
+            self._drop_subject = set(db_type.DROP_SUBJECTS)
+        else:
+            self._drop_subject = set()
 
     def use_physionet(self):
         self._use_db(Physionet)
@@ -226,18 +269,14 @@ class OfflineEpochCreator:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    # @property
-    # def _trigger_task_list(self):
-    #     return self._db_type.TRIGGER_TASK_LIST
-
-    def _conv_type(self, record_num):
-        return self._db_type.TRIGGER_TYPE_CONVERTER.get(record_num)
-
-    def _conv_task(self, record_num, task_ID):
-        return self._db_type.TRIGGER_TASK_CONVERTER.get(record_num).get(task_ID)
+    # def _conv_type(self, record_num):
+    #     return self._db_type.TRIGGER_TYPE_CONVERTER.get(record_num)
+    #
+    # def _conv_task(self, record_num, task_ID):
+    #     return self._db_type.TRIGGER_TASK_CONVERTER.get(record_num).get(task_ID)
 
     def run(self):
-        self._create_annotated_db()
+        self._create_db()
 
     """
     Database functions
@@ -247,37 +286,77 @@ class OfflineEpochCreator:
         return get_filenames_in(self._data_path, self._db_ext)
 
     def convert_type(self, record_number):
-        return self._db_type.TRIGGER_TYPE_CONVERTER.get(record_number)
+        return self._db_type.TRIGGER_CONV_REC_TO_TYPE.get(record_number)
 
     def convert_task(self, record_number=None):
         if record_number is None:
             return self._db_type.TRIGGER_TASK_CONVERTER
-        return self._db_type.TRIGGER_TASK_CONVERTER.get(record_number)
+        return self._db_type.TRIGGER_CONV_REC_TO_TASK.get(record_number)
+
+    def convert_rask_to_recs(self, task):
+        return self._db_type.TASK_TO_REC.get(task)
 
     def get_trigger_event_id(self):
         return self._db_type.TRIGGER_EVENT_ID
 
-    def _create_annotated_db(self):
-        filenames = self._get_filenames()
-        for file in filenames:
-            rec_num = get_record_number(file)
-            subj_num = get_subject_number(file)
+    def _create_physionet_db(self):
 
-            if subj_num in self._drop_subject:
+        keys = self._db_type.TASK_TO_REC.keys()
+
+        for s in range(self._db_type.SUBJECT_NUM):
+            subj = s + 1
+
+            if subj in self._drop_subject:
                 continue
 
-            eeg = EEGFileHandler(file, preload=True)
-            print("valami", self.convert_task(rec_num))
-            epochs = eeg.create_epochs(self.convert_task(rec_num))
-            print(epochs)
-            break
+            for task in keys:
+                filenames = generate_filenames(self._data_path + self._db_type.FILE_PATH, subj,
+                                               self.convert_rask_to_recs(task))
+                raws = [open_raw_file(file, preload=False) for file in filenames]
+                raw = raws.pop(0)
+                for r in raws:
+                    raw.append(r)
+                del raws
+
+                # todo: make filtering here...
+
+                rec_num = get_record_number(filenames[0])
+                task_dict = self.convert_task(rec_num)
+
+                events, _ = mne.events_from_annotations(raw)
+                epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=0, tmax=3, preload=False)
+                # todo: make windowing!
+
+    def _create_db(self):
+        filenames = self._get_filenames()
+        # layout = mne.channels.read_layout('EEG1005')
+
+        if self._db_type is Physionet:
+            self._create_physionet_db()
+        else:
+            raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
+
+    # def _create_annotated_db(self):
+    #     filenames = self._get_filenames()
+    #     for file in filenames:
+    #         rec_num = get_record_number(file)
+    #         subj_num = get_subject_number(file)
+    #
+    #         if subj_num in self._drop_subject:
+    #             continue
+    #
+    #         eeg = EEGFileHandler(file, preload=True)
+    #         print("valami", self.convert_task(rec_num))
+    #         epochs = eeg.create_epochs(self.convert_task(rec_num))
+    #         print(epochs)
+    #         break
 
 
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
 
     proc = OfflineEpochCreator(base_dir).use_physionet()
     proc.run()

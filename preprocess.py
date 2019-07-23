@@ -293,11 +293,11 @@ class DBProcessor:
 
     @staticmethod
     def _conv_type_physionet(record_num):  # todo: uiform command
-        return Physionet.TRIGGER_TYPE_CONVERTER.get(record_num)
+        return Physionet.TRIGGER_CONV_REC_TO_TYPE.get(record_num)
 
     @staticmethod
     def _conv_task_physionet(record_num, task_ID):  # todo: uiform command
-        return Physionet.TRIGGER_TASK_CONVERTER.get(record_num).get(task_ID)
+        return Physionet.TRIGGER_CONV_REC_TO_TASK.get(record_num).get(task_ID)
 
     """
     Database functions

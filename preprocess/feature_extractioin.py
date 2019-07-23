@@ -166,11 +166,14 @@ def test_plot_topomap(epochs, layout, ch_type='eeg', crop=True):
     picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
         epochs, ch_type, layout)
 
-    data = epochs.get_data()
+    data3d = epochs.get_data()
 
     # this only works if [:2] removed from  the return of plot_topomap. Catch interp!!!
-    im, _, interp = mne.viz.plot_topomap(data[1, :, 110], pos, show=False)
-    # getting spatially represented eeg signals aka spatial transformation.
+    # we are setting the first data in here...
+    im, _, interp = mne.viz.plot_topomap(data3d[1, :, 110], pos, show=False)
+
+    # getting spatially represented eeg signals aka spatial transformation. res: 64 x 64 data
+    # interp.set_data(data)  # we could reuse the interpolator
     spatial_data = interp()
 
     # removing data from the border - ROUND electrode system
