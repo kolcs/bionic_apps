@@ -120,11 +120,11 @@ class Physionet:
         14: IMAGINED_MOVEMENT
     }
 
-    # TYPE_TO_REC = {
-    #     BASELINE: [1, 2],
-    #     REAL_MOVEMENT: [3, 4, 7, 8, 11, 12],
-    #     IMAGINED_MOVEMENT: [5, 6, 9, 10, 13, 14]
-    # }
+    TYPE_TO_REC = {
+        BASELINE: [1, 2],
+        REAL_MOVEMENT: [i for i in range(3, 15, 2)],
+        IMAGINED_MOVEMENT: [i for i in range(4, 15, 2)]
+    }
 
     TRIGGER_CONV_REC_TO_TASK = {  # rec_num : {taskID: task}
         1: TASK_EYE_OPEN,
@@ -143,7 +143,7 @@ class Physionet:
         14: TASK_34
     }
 
-    TASK_TO_REC = {
+    TASK_TO_REC = {  # same trigger in leg-hand and left-right
         REST: [i for i in range(4, 15, 2)],
         LEFT_HAND: [i for i in range(4, 15, 4)],
         RIGHT_HAND: [i for i in range(4, 15, 4)],

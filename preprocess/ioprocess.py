@@ -124,6 +124,19 @@ def get_subject_number(filename):
     return get_num_with_predefined_char(filename, 'S', "SUBJECT")
 
 
+def _init_interp(epochs, ch_type='eeg'):
+    from mne.channels import _get_ch_type
+    from mne.viz.topomap import _prepare_topo_plot
+
+    layout = mne.channels.read_layout('EEG1005')
+    ch_type = _get_ch_type(epochs, ch_type)
+    picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
+        epochs, ch_type, layout)
+    data = epochs.get_data()[0, :, 0]
+    im, _, interp = mne.viz.plot_topomap(data, pos, show=False)
+    return interp
+
+
 class SubjectKFold(object):
     """
     Class to split subject db to train and test
@@ -230,11 +243,19 @@ class OfflineEpochCreator:
     TODO: check what can be removed!!!
     """
 
-    def __init__(self, base_dir, data_duration=3, use_drop_subject_list=True):
+    def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
+                 window_step=0.1):
         self._base_dir = base_dir
         self._data_path = None
-        self._data_duration = data_duration  # seconds
         self._db_type = None  # Physionet / TTK
+
+        self._epoch_tmin = epoch_tmin
+        self._epoch_tmax = epoch_tmax  # seconds
+        # self._preload = preload
+        self._window_length = window_length  # seconds
+        self._window_step = window_step  # seconds
+
+        self._data_set = dict()
 
         self._drop_subject = None
         if use_drop_subject_list:
@@ -309,6 +330,9 @@ class OfflineEpochCreator:
             if subj in self._drop_subject:
                 continue
 
+            self._data_set[subj] = list()
+            suject_tasks = dict()
+
             for task in keys:
                 filenames = generate_filenames(self._data_path + self._db_type.FILE_PATH, subj,
                                                self.convert_rask_to_recs(task))
@@ -324,8 +348,23 @@ class OfflineEpochCreator:
                 task_dict = self.convert_task(rec_num)
 
                 events, _ = mne.events_from_annotations(raw)
-                epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=0, tmax=3, preload=False)
+                epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
+                                    preload=False)
+                epochs = epochs[task]
                 # todo: make windowing!
+
+                win_epochs = []
+                win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
+                for i in range(win_num):
+                    ep = epochs.copy().load_data()
+                    ep.crop(i * self._window_step, self._window_length + i * self._window_step)
+                    win_epochs.append(ep)
+                    print(ep.event_id)
+                    # df = ep.to_data_frame()
+                    # print(df)
+                    # df=df.T
+                    # print(df['rest'])
+                    exit(0)
 
     def _create_db(self):
         filenames = self._get_filenames()
