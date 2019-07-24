@@ -124,17 +124,41 @@ def get_subject_number(filename):
     return get_num_with_predefined_char(filename, 'S', "SUBJECT")
 
 
-def _init_interp(epochs, ch_type='eeg'):
-    from mne.channels import _get_ch_type
-    from mne.viz.topomap import _prepare_topo_plot
+def _init_interp(interp, epochs, ch_type='eeg'):
+    if interp is None:
+        from mne.channels import _get_ch_type
+        from mne.viz.topomap import _prepare_topo_plot
 
-    layout = mne.channels.read_layout('EEG1005')
-    ch_type = _get_ch_type(epochs, ch_type)
-    picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
-        epochs, ch_type, layout)
-    data = epochs.get_data()[0, :, 0]
-    im, _, interp = mne.viz.plot_topomap(data, pos, show=False)
+        layout = mne.channels.read_layout('EEG1005')
+        ch_type = _get_ch_type(epochs, ch_type)
+        picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
+            epochs, ch_type, layout)
+        data = epochs.get_data()[0, :, 0]
+        im, _, interp = mne.viz.plot_topomap(data, pos, show=False)
     return interp
+
+
+def _calculate_spatial_data(interp, epochs, crop=True):
+    spatial_list = list()
+    data3d = epochs.get_data()
+
+    for i in range(np.size(epochs, 0)):
+        ep = data3d[i, :, :]
+        ep = np.average(ep, axis=1)  # average time for each channel
+        interp.set_values(ep)
+        spatial_data = interp()
+
+        # removing data from the border - ROUND electrode system
+        if crop:
+            r = np.size(spatial_data, axis=0) / 2
+            for i in range(int(2 * r)):
+                for j in range(int(2 * r)):
+                    if np.power(i - r, 2) + np.power(j - r, 2) > np.power(r, 2):
+                        spatial_data[i, j] = 0
+
+        spatial_list.append(spatial_data)
+
+    return spatial_list
 
 
 class SubjectKFold(object):
@@ -323,6 +347,7 @@ class OfflineEpochCreator:
     def _create_physionet_db(self):
 
         keys = self._db_type.TASK_TO_REC.keys()
+        interp = None
 
         for s in range(self._db_type.SUBJECT_NUM):
             subj = s + 1
@@ -330,8 +355,7 @@ class OfflineEpochCreator:
             if subj in self._drop_subject:
                 continue
 
-            self._data_set[subj] = list()
-            suject_tasks = dict()
+            subject_data = list()
 
             for task in keys:
                 filenames = generate_filenames(self._data_path + self._db_type.FILE_PATH, subj,
@@ -341,6 +365,7 @@ class OfflineEpochCreator:
                 for r in raws:
                     raw.append(r)
                 del raws
+                raw.rename_channels(lambda x: x.strip('.'))
 
                 # todo: make filtering here...
 
@@ -351,6 +376,7 @@ class OfflineEpochCreator:
                 epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
                                     preload=False)
                 epochs = epochs[task]
+                interp = _init_interp(interp, epochs)
                 # todo: make windowing!
 
                 win_epochs = []
@@ -358,13 +384,11 @@ class OfflineEpochCreator:
                 for i in range(win_num):
                     ep = epochs.copy().load_data()
                     ep.crop(i * self._window_step, self._window_length + i * self._window_step)
-                    win_epochs.append(ep)
-                    print(ep.event_id)
-                    # df = ep.to_data_frame()
-                    # print(df)
-                    # df=df.T
-                    # print(df['rest'])
-                    exit(0)
+                    win_epochs.extend((_calculate_spatial_data(interp, ep), task))
+
+                subject_data.extend(win_epochs)
+
+            self._data_set[subj] = subject_data
 
     def _create_db(self):
         filenames = self._get_filenames()
@@ -392,10 +416,10 @@ class OfflineEpochCreator:
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data"  # ITK
-    # base_dir = "/home/csabi/databases/"  # linux
+    base_dir = "/home/csabi/databases/"  # linux
 
     proc = OfflineEpochCreator(base_dir).use_physionet()
     proc.run()
