@@ -144,11 +144,11 @@ class Physionet:
     }
 
     TASK_TO_REC = {
-        REST: [i for i in range(3, 15, 2)],
-        LEFT_HAND: [i for i in range(3, 15, 4)],
-        RIGHT_HAND: [i for i in range(3, 15, 4)],
-        BOTH_HANDS: [i for i in range(4, 15, 4)],
-        BOTH_LEGS: [i for i in range(4, 15, 4)]
+        REST: [i for i in range(4, 15, 2)],
+        LEFT_HAND: [i for i in range(4, 15, 4)],
+        RIGHT_HAND: [i for i in range(4, 15, 4)],
+        BOTH_HANDS: [i for i in range(6, 15, 4)],
+        BOTH_LEGS: [i for i in range(6, 15, 4)]
     }
 
     MAX_DURATION = 4  # seconds --> creating strictly formatted data window
