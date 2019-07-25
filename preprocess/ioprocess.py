@@ -1,4 +1,5 @@
 import numpy as np
+import pickle
 import mne
 from config import *
 
@@ -21,6 +22,7 @@ def open_raw_file(filename, preload=True):
         raw = mne.io.read_raw_brainvision(filename, preload=preload)
     else:
         raw = None
+        NotImplementedError('{} file reading is not implemented.'.format(ext))
 
     return raw
 
@@ -44,6 +46,12 @@ def get_filenames_in(path, ext='', recursive=True):
 
 
 def make_dir(path):
+    """
+    Creates dir if it does not exists on given path
+
+    :param path: str
+        path to new dir
+    """
     import os
     if not os.path.exists(path):
         os.makedirs(path)
@@ -71,6 +79,25 @@ def filter_filenames(files, subject, runs):
 
 
 def generate_filenames(file_path, subject, runs):
+    """Filename generator
+
+    Generating filenames from a given string with {subj} and {rec} which are will be replaced.
+
+    Parameters
+    ----------
+    file_path : str
+        special string with {subj} and {rec} substrings
+    subject : int
+        subject number
+    runs : list of int
+        list of sessions
+
+    Returns
+    -------
+    rec : list of str
+        filenames for a subject with given runs
+
+    """
     rec = list()
     for i in runs:
         f = file_path
@@ -124,7 +151,40 @@ def get_subject_number(filename):
     return get_num_with_predefined_char(filename, 'S', "SUBJECT")
 
 
+def load_pickle_data(filename):
+    import os
+    if not os.path.exists(filename):
+        return None
+
+    with open(filename, 'rb') as fin:
+        data = pickle.load(fin)
+    return data
+
+
+def save_pickle_data(data, filename):
+    with open(filename, 'wb') as f:
+        pickle.dump(data, f)
+
+
 def _init_interp(interp, epochs, ch_type='eeg'):
+    """spatial data creator initializer
+
+    This function initialize the interpreter which can be used to generate spatially distributed data
+    from eeg signal if it is None. Otherwise returns it
+
+    Parameters
+    ----------
+    interp : None | mne.viz.topomap._GridData
+        the interpreter
+    epochs : mne.Epoch
+    ch_type : str
+
+    Returns
+    -------
+    interp : mne.viz.topomap._GridData
+        interpreter for spatially distributed data creation
+
+    """
     if interp is None:
         from mne.channels import _get_ch_type
         from mne.viz.topomap import _prepare_topo_plot
@@ -139,6 +199,26 @@ def _init_interp(interp, epochs, ch_type='eeg'):
 
 
 def _calculate_spatial_data(interp, epochs, crop=True):
+    """Spatial data from epochs
+
+    Creates spatially distributed data for each epoch.
+
+    Parameters
+    ----------
+    interp : mne.viz.topomap._GridData
+        interpreter for spatially distributed data creation. Should be initialized first!
+    epochs : mne.Epoch
+        Data for spatially distributed data generation. Each epoch will have its own spatially data.
+        The time points are averaged for each eeg channel.
+    crop : bool
+        To corp the values to 0 if its out of the eeg circle.
+
+    Returns
+    -------
+    spatial_list : list of ndarray
+        Data
+
+    """
     spatial_list = list()
     data3d = epochs.get_data()
 
@@ -163,112 +243,39 @@ def _calculate_spatial_data(interp, epochs, crop=True):
 
 class SubjectKFold(object):
     """
-    Class to split subject db to train and test
+    Class to split subject databse to train and test
     """
 
-    def __init__(self, k_fold_num=None, shuffle=True, random_state=None):
+    def __init__(self, k_fold_num=None, shuffle_subjects=True, shuffle_data=True, random_state=None):
         self._k_fold_num = k_fold_num
-        self._shuffle = shuffle
+        self._shuffle_subj = shuffle_subjects
+        self._shuffle_data = shuffle_data
         self._random_state = random_state
 
     def split(self, subject_db):
-        ind = np.arange(len(subject_db)) + 1
+        subjects = subject_db.get_subjects()
 
-        if self._shuffle:
+        if self._shuffle_subj:
             np.random.seed(self._random_state)
-            np.random.shuffle(ind)
+            np.random.shuffle(subjects)
 
-        for i in ind:
-            yield subject_db.get_split(i)
+        if self._k_fold_num is not None:
+            self._k_fold_num = max(1, self._k_fold_num)
+            n = min(self._k_fold_num, len(subjects))
+            subjects = subjects[:n]
 
-
-"""
-class EEGFileHandler:
-
-    def __init__(self, filename, preload=False, tmin=0, tmax=None, labels=None):
-        self._filename = filename
-        self._file_handler = None
-        self._tmin = tmin  # beggining of raw, In seconds!!! use fs!
-        self._tmax = tmax
-
-        if preload:
-            self._file_handler = open_raw_file(filename)
-
-        self.labels = labels  # type, subject, task
-        if labels is None:
-            self.labels = list()
-
-    def _load_file(self):
-        if self._file_handler is None:
-            raw = open_raw_file(self._filename)
-            self._file_handler = raw.crop(self._tmin, self._tmax)
-
-    def create_epochs(self, epoch_dict=None, tmin=0, tmax=4, preload=False):
-        self._load_file()
-        events = mne.find_events(self._file_handler, shortest_event=0, stim_channel='STI 014', initial_event=True,
-                                 consecutive=True)
-        epochs = mne.Epochs(self._file_handler, events, event_id=epoch_dict, tmin=tmin, tmax=tmax,
-                            proj=True, baseline=None, preload=preload)
-        return epochs
-
-    def set_crop_values(self, tmin, tmax):
-        self._tmin = tmin
-        self._tmax = tmax
-
-    def get_frequency(self):
-        self._load_file()
-        return self._file_handler.info['sfreq']
-
-    def get_channels(self, remove_trigger=True):
-        self._load_file()
-        channels = self._file_handler.info['ch_names']
-        if remove_trigger:
-            channels = channels[:-1]
-        return channels
-
-    def get_data(self, remove_trigger=True):
-        self._load_file()
-        data = self._file_handler.get_data()
-        if remove_trigger:
-            data = data[:-1, :]
-        return data
-
-    def get_mne_object(self):
-        self._load_file()
-        mne_obj = self._file_handler.copy()
-        self.close()
-        return mne_obj
-
-    def close(self):
-        self._file_handler.close()
-        self._file_handler = None
+        for s in subjects:
+            yield subject_db.get_split(s, shuffle=self._shuffle_data, random_seed=self._random_state)
 
 
-class DataBaseHandler:
-
-    def __init__(self):
-        self._db = list()
-
-    def get_filtered_db(self, labels):
-        f_res = [eeg_handler for eeg_handler in self._db if all(f_op in eeg_handler.labels for f_op in labels)]
-        return f_res
-
-    def append_element(self, eeg_handler):
-        self._db.append(eeg_handler)
-
-    def ger_db(self):
-        return self._db
-"""
-
-
-class OfflineEpochCreator:
+class OfflineDataPreprocessor:
     """
     Preprocessor for edf files. Creates a database, which has all the required information about the eeg files.
     TODO: check what can be removed!!!
     """
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.1):
+                 window_step=0.25, fast_load=True):
         self._base_dir = base_dir
         self._data_path = None
         self._db_type = None  # Physionet / TTK
@@ -280,6 +287,7 @@ class OfflineEpochCreator:
         self._window_step = window_step  # seconds
 
         self._data_set = dict()
+        self._fast_load = fast_load
 
         self._drop_subject = None
         if use_drop_subject_list:
@@ -314,12 +322,6 @@ class OfflineEpochCreator:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    # def _conv_type(self, record_num):
-    #     return self._db_type.TRIGGER_TYPE_CONVERTER.get(record_num)
-    #
-    # def _conv_task(self, record_num, task_ID):
-    #     return self._db_type.TRIGGER_TASK_CONVERTER.get(record_num).get(task_ID)
-
     def run(self):
         self._create_db()
 
@@ -344,15 +346,29 @@ class OfflineEpochCreator:
     def get_trigger_event_id(self):
         return self._db_type.TRIGGER_EVENT_ID
 
-    def _create_physionet_db(self):
+    def get_subjects(self):
+        return list(self._data_set.keys())
+
+    @staticmethod
+    def _load_data_from_source(source_files):
+        data = dict()
+        for filename in source_files:
+            d = load_pickle_data(filename)
+            data.update(d)
+
+        return data
+
+    def _create_physionet_db(self, db_path, db_source):
 
         keys = self._db_type.TASK_TO_REC.keys()
         interp = None
+        db_filenames = list()
 
         for s in range(self._db_type.SUBJECT_NUM):
             subj = s + 1
 
             if subj in self._drop_subject:
+                print('Dropping subject {}'.format(subj))
                 continue
 
             subject_data = list()
@@ -368,6 +384,7 @@ class OfflineEpochCreator:
                 raw.rename_channels(lambda x: x.strip('.'))
 
                 # todo: make filtering here...
+                # todo: create multi layered picture -- rgb like -> channels
 
                 rec_num = get_record_number(filenames[0])
                 task_dict = self.convert_task(rec_num)
@@ -377,42 +394,64 @@ class OfflineEpochCreator:
                                     preload=False)
                 epochs = epochs[task]
                 interp = _init_interp(interp, epochs)
-                # todo: make windowing!
 
                 win_epochs = []
                 win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
                 for i in range(win_num):
                     ep = epochs.copy().load_data()
                     ep.crop(i * self._window_step, self._window_length + i * self._window_step)
-                    win_epochs.extend((_calculate_spatial_data(interp, ep), task))
+                    data = _calculate_spatial_data(interp, ep)
+                    data = [(d, task) for d in data]
+                    win_epochs.extend(data)
 
                 subject_data.extend(win_epochs)
 
             self._data_set[subj] = subject_data
 
+            db_file = '{}subject{}.data'.format(db_path, subj)
+            save_pickle_data({subj: subject_data}, db_file)
+            db_filenames.append(db_file)
+            save_pickle_data(db_filenames, db_path + db_source)
+
     def _create_db(self):
-        filenames = self._get_filenames()
-        # layout = mne.channels.read_layout('EEG1005')
+        # filenames = self._get_filenames()
 
         if self._db_type is Physionet:
-            self._create_physionet_db()
+            db_path, db_source = SPATIAL
+            db_path = self._base_dir + db_path
+            make_dir(db_path)
+
+            data_source = load_pickle_data(db_path + db_source)
+            if data_source is not None and self._fast_load:
+                self._data_set = self._load_data_from_source(data_source)
+
+            else:
+                print('{} file is not found. Creating database.'.format(db_path + db_source))
+                self._create_physionet_db(db_path, db_source)
+
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
 
-    # def _create_annotated_db(self):
-    #     filenames = self._get_filenames()
-    #     for file in filenames:
-    #         rec_num = get_record_number(file)
-    #         subj_num = get_subject_number(file)
-    #
-    #         if subj_num in self._drop_subject:
-    #             continue
-    #
-    #         eeg = EEGFileHandler(file, preload=True)
-    #         print("valami", self.convert_task(rec_num))
-    #         epochs = eeg.create_epochs(self.convert_task(rec_num))
-    #         print(epochs)
-    #         break
+    def get_split(self, subject, shuffle=True, random_seed=None):
+        subjects = list(self._data_set.keys())
+        subjects.remove(subject)
+
+        train = list()
+        test = self._data_set.get(subject)
+
+        for s in subjects:
+            train.extend(self._data_set.get(s))
+
+        if shuffle:
+            np.random.seed(random_seed)
+            np.random.shuffle(train)
+            np.random.seed(random_seed)
+            np.random.shuffle(test)
+
+        train_x, train_y = zip(*train)
+        test_x, test_y = zip(*train)
+
+        return list(train_x), list(train_y), list(test_x), list(test_y)
 
 
 if __name__ == '__main__':
@@ -421,5 +460,12 @@ if __name__ == '__main__':
     # base_dir = "D:/Users/Csabi/data"  # ITK
     base_dir = "/home/csabi/databases/"  # linux
 
-    proc = OfflineEpochCreator(base_dir).use_physionet()
+    proc = OfflineDataPreprocessor(base_dir).use_physionet()
     proc.run()
+
+    # this is how SubjectKFold works:
+    subj_k_fold = SubjectKFold(10)
+    for train_x, train_y, test_x, test_y in subj_k_fold.split(proc):
+        print(train_x[0], train_y[0], test_x[0], test_y[0])
+
+    # todo: continue with svm

@@ -1,7 +1,7 @@
 import mne
 import numpy as np
 from matplotlib import pyplot as plt
-from preprocess.ioprocess import OfflineEpochCreator, get_record_number, open_raw_file
+from preprocess.ioprocess import OfflineDataPreprocessor, get_record_number, open_raw_file
 
 
 def plot_avg(epochs):
@@ -257,7 +257,7 @@ if __name__ == '__main__':
     # base_dir = "D:/Users/Csabi/data/"  # ITK
     # base_dir = "/home/csabi/databases/"  # linux
 
-    proc = OfflineEpochCreator(base_dir)
+    proc = OfflineDataPreprocessor(base_dir)
 
     subj = 2
     rec = 8

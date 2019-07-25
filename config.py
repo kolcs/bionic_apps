@@ -42,6 +42,8 @@ DIR_TEST = 'test/'
 DIR_TF_RECORDS = 'tfRecords/'
 F_EXT_TF_RECORD = '.tfrecord'
 
+SPATIAL = ('tmp/', 'spatial.db')
+
 
 # class SourceDB: # JUST a template!!!
 #     DIR = ""
