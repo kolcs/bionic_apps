@@ -385,6 +385,8 @@ class OfflineDataPreprocessor:
 
                 # todo: make filtering here...
                 # todo: create multi layered picture -- rgb like -> channels
+                # todo: for svm use only channels, do not create pictures! SVM oly see vectors...
+                # todo: create function parameter, where data type (vector, picture) can be selected!
 
                 rec_num = get_record_number(filenames[0])
                 task_dict = self.convert_task(rec_num)
