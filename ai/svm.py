@@ -39,6 +39,15 @@ class SVM(svm.SVC):
                                   random_state=random_state)
 
     def set_labels(self, labels):
+        """ Label settings for one-hot encoder.
+
+        Set labels here, which should be converted to one-hot vectors.
+
+        Parameters
+        ----------
+        labels : list
+            List of individual labels.
+        """
         labels = np.array(labels)
 
         if len(np.shape(labels)) == 1:
@@ -46,29 +55,38 @@ class SVM(svm.SVC):
 
         self._enc.fit(labels)
 
-    def one_hot_encode(self, y):
-        return self._enc.transform(y).toarray()
-
-    def one_hot_decode(self, y):
-        return self._enc.inverse_transform(y)
+    # def one_hot_encode(self, y):
+    #     return self._enc.transform(y).toarray()
+    #
+    # def one_hot_decode(self, y):
+    #     return self._enc.inverse_transform(y)
 
     def fit(self, X, y, sample_weight=None):
-        """
+        """Fit the model according to the given training data.
+
+        This function overrides the base function: It converts the labels to one-hot encoded vector.
+        Then it calls the super fit method.
 
         Parameters
         ----------
-        X:
-        y
-        sample_weight
+        X : {array-like, sparse matrix}, shape = [n_samples, n_features]
+            Training vector, where n_samples in the number of samples and
+            n_features is the number of features.
 
-        Returns
-        -------
+        y : array-like, shape = [n_samples] | list of sting
+            Target vector relative to X. Can be list of list of strings.
 
+        sample_weight : array-like, shape = [n_samples], optional
+            Array of weights that are assigned to individual
+            samples. If not provided,
+            then each sample is given unit weight.
         """
-        # todo: continue development
-        # X : (n_samples, n_features)
-        y = self.one_hot_decode(y)
+        y = self._enc.transform(y).toarray()  # one hot encode
         super().fit(X, y, sample_weight=sample_weight)
+
+    def predict(self, X):
+        y = super().predict(X)
+        return self._enc.inverse_transform(y)  # one hot decode
 
 
 if __name__ == '__main__':

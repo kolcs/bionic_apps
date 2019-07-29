@@ -9,6 +9,9 @@ HEADLIGHT = 2
 GAME_CONTROL_PORT = 5555
 
 
+# todo: check from where to load data... networkConfig.json or CONST PARAMS?
+
+
 class GameControl(object):
 
     def __init__(self, path=''):

@@ -1,6 +1,6 @@
 from config import *
-from preprocess import DBProcessor
-from BCI_AI import NeuralNetwork
+from preprocess import OfflineDataPreprocessor
+from ai.neural_network import NeuralNetwork
 
 
 # TODO: build NN
@@ -30,9 +30,9 @@ class BCISystem(object):
         directory = self._base_dir + DIR_TF_RECORDS
 
         filenames = dict()
-        filenames[TRAIN] = DBProcessor.get_filenames_in(directory + DIR_TRAIN, ext=F_EXT_TF_RECORD)
-        filenames[VALIDATION] = DBProcessor.get_filenames_in(directory + DIR_VALIDATION, ext=F_EXT_TF_RECORD)
-        filenames[TEST] = DBProcessor.get_filenames_in(directory + DIR_TEST, ext=F_EXT_TF_RECORD)
+        filenames[TRAIN] = OfflineDataPreprocessor.get_filenames_in(directory + DIR_TRAIN, ext=F_EXT_TF_RECORD)
+        filenames[VALIDATION] = OfflineDataPreprocessor.get_filenames_in(directory + DIR_VALIDATION, ext=F_EXT_TF_RECORD)
+        filenames[TEST] = OfflineDataPreprocessor.get_filenames_in(directory + DIR_TEST, ext=F_EXT_TF_RECORD)
 
         nn = NeuralNetwork()
         nn.offline_training(filenames)
