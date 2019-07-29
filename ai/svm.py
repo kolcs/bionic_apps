@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn import svm
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder, normalize
 
 
 def _one_hot_encode_example():
@@ -64,7 +64,8 @@ class SVM(svm.SVC):
     def fit(self, X, y, sample_weight=None):
         """Fit the model according to the given training data.
 
-        This function overrides the base function: It converts the labels to one-hot encoded vector.
+        This function overrides the base function: It normalize the given
+        data and converts the labels to one-hot encoded vector.
         Then it calls the super fit method.
 
         Parameters
@@ -81,11 +82,13 @@ class SVM(svm.SVC):
             samples. If not provided,
             then each sample is given unit weight.
         """
+        X_normalized = normalize(X, norm='l2')
         y = self._enc.transform(y).toarray()  # one hot encode
-        super().fit(X, y, sample_weight=sample_weight)
+        super().fit(X_normalized, y, sample_weight=sample_weight)
 
     def predict(self, X):
-        y = super().predict(X)
+        X_normalized = normalize(X, norm='l2')
+        y = super().predict(X_normalized)
         return self._enc.inverse_transform(y)  # one hot decode
 
 

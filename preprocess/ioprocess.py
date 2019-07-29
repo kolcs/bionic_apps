@@ -435,13 +435,13 @@ class OfflineDataPreprocessor:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
 
     def get_split(self, subject, shuffle=True, random_seed=None):
-        subjects = list(self._data_set.keys())
-        subjects.remove(subject)
+        subject_list = list(self._data_set.keys())
+        subject_list.remove(subject)
 
         train = list()
         test = self._data_set.get(subject)
 
-        for s in subjects:
+        for s in subject_list:
             train.extend(self._data_set.get(s))
 
         if shuffle:

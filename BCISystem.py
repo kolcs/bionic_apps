@@ -1,41 +1,47 @@
+import ai
+
 from config import *
-from preprocess import OfflineDataPreprocessor
-from ai.neural_network import NeuralNetwork
+from preprocess import OfflineDataPreprocessor, SubjectKFold
 
-
-# TODO: build NN
 
 class BCISystem(object):
 
-    def __init__(self, base_dir="", window=0.0625, step=0.03125, fs=160): # TODO: check base dir
-        """
-        Constructor for BCI system
+    def __init__(self, base_dir="", window_length=0.5, window_step=0.25):
+        """ Constructor for BCI system
 
-        :param base_dir: base directory of databases
-            in case of offline process - source folder of database
-            in case of online process - where to save database
-        :param window: eeg window length in seconds
-        :param step: window shift parameter in seconds
-        :param fs: sampling fequency
+        Parameters
+        ----------
+        base_dir: str
+            absolute path to base dir of database
+        window_length: float
+            length of eeg processor window in seconds
+        window_step: float
+            window shift in seconds
         """
         self._base_dir = base_dir
-        self._window = window  # in seconds
-        self._step = step  # in seconds
-        self._fs = fs
+        self._window_length = window_length
+        self._window_step = window_step
+        self._proc = None
 
-    def offline_processing(self):
-        """
-        This is the main function which starts the offline processing
-        """
-        directory = self._base_dir + DIR_TF_RECORDS
+    def offline_processing(self, db_name='physionet', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
+                           fast_load=True, subj_n_fold_num=None):
+        self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
+                                             self._window_length, self._window_step, fast_load)
+        if db_name == 'physionet':
+            self._proc.use_physionet()
+            labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
+        else:
+            raise NotImplementedError('Processor for {} is not implemented'.format(db_name))
 
-        filenames = dict()
-        filenames[TRAIN] = OfflineDataPreprocessor.get_filenames_in(directory + DIR_TRAIN, ext=F_EXT_TF_RECORD)
-        filenames[VALIDATION] = OfflineDataPreprocessor.get_filenames_in(directory + DIR_VALIDATION, ext=F_EXT_TF_RECORD)
-        filenames[TEST] = OfflineDataPreprocessor.get_filenames_in(directory + DIR_TEST, ext=F_EXT_TF_RECORD)
-
-        nn = NeuralNetwork()
-        nn.offline_training(filenames)
+        self._proc.run()
+        kfold = SubjectKFold(subj_n_fold_num)
+        for train_x, train_y, test_x, test_y in kfold.split(self._proc):
+            svm = ai.SVM(C=.7, cache_size=1000, random_state=12)
+            svm.set_labels(labels)
+            svm.fit(train_x, train_y)
+            y_pred = svm.predict(test_x)
+            # todo: continue with metrics and accuracy calculation
+            # todo: recalculate features in preprocess
 
     def online_processing(self):
         raise NotImplementedError("Online processing is not implemented...")
@@ -44,8 +50,8 @@ class BCISystem(object):
 if __name__ == '__main__':
     # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
-    base_dir = "D:/Users/Csabi/data/"  # ITK
-    # base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "D:/Users/Csabi/data/"  # ITK
+    base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
     bci.offline_processing()
