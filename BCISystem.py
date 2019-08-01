@@ -1,5 +1,6 @@
-import ai
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
+import ai
 from config import *
 from preprocess import OfflineDataPreprocessor, SubjectKFold
 
@@ -35,13 +36,22 @@ class BCISystem(object):
 
         self._proc.run()
         kfold = SubjectKFold(subj_n_fold_num)
-        for train_x, train_y, test_x, test_y in kfold.split(self._proc):
+
+        for train_x, train_y, test_x, test_y, subject in kfold.split(self._proc):
             svm = ai.SVM(C=.7, cache_size=1000, random_state=12)
             svm.set_labels(labels)
             svm.fit(train_x, train_y)
             y_pred = svm.predict(test_x)
+
             # todo: continue with metrics and accuracy calculation
             # todo: recalculate features in preprocess
+            class_report = classification_report(test_y, y_pred)
+            conf_martix = confusion_matrix(test_y, y_pred)
+
+            print("Classification report for subject {}:".format(subject))
+            print("classifier %s:\n%s\n"
+                  % (self, class_report))
+            print("Confusion matrix:\n%s\n" % conf_martix)
 
     def online_processing(self):
         raise NotImplementedError("Online processing is not implemented...")

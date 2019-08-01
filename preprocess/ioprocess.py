@@ -289,6 +289,8 @@ class OfflineDataPreprocessor:
         self._data_set = dict()
         self._fast_load = fast_load
 
+        self._interp = None
+
         self._drop_subject = None
         if use_drop_subject_list:
             self._drop_subject = set()
@@ -328,6 +330,9 @@ class OfflineDataPreprocessor:
     """
     Database functions
     """
+
+    def _init_interp(self, epochs, ch_type='eeg'):
+        self._interp = _init_interp(self._interp, epochs, ch_type)
 
     def _get_filenames(self):
         return get_filenames_in(self._data_path, self._db_ext)
@@ -415,6 +420,28 @@ class OfflineDataPreprocessor:
             db_filenames.append(db_file)
             save_pickle_data(db_filenames, db_path + db_source)
 
+    def _get_windowed_features(self, epochs, task, feature='spatial'):
+        # todo: put it to upper code
+        epochs = epochs[task]
+
+        win_epochs = []
+        win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
+
+        for i in range(win_num):
+            ep = epochs.copy().load_data()
+            ep.crop(i * self._window_step, self._window_length + i * self._window_step)
+
+            if feature == 'spatial':
+                self._init_interp(epochs)
+                data = _calculate_spatial_data(self._interp, ep)
+            else:
+                raise NotImplementedError('{} feature creation is not implemented'.format(feature))
+
+            data = [(d, task) for d in data]
+            win_epochs.extend(data)
+
+        return win_epochs
+
     def _create_db(self):
         # filenames = self._get_filenames()
 
@@ -453,7 +480,7 @@ class OfflineDataPreprocessor:
         train_x, train_y = zip(*train)
         test_x, test_y = zip(*train)
 
-        return list(train_x), list(train_y), list(test_x), list(test_y)
+        return list(train_x), list(train_y), list(test_x), list(test_y), subject
 
 
 if __name__ == '__main__':
@@ -467,7 +494,7 @@ if __name__ == '__main__':
 
     # this is how SubjectKFold works:
     subj_k_fold = SubjectKFold(10)
-    for train_x, train_y, test_x, test_y in subj_k_fold.split(proc):
-        print(train_x[0], train_y[0], test_x[0], test_y[0])
+    for train_x, train_y, test_x, test_y, subject in subj_k_fold.split(proc):
+        print(train_x[0], train_y[0], test_x[0], test_y[0], subject)
 
     # todo: continue with svm
