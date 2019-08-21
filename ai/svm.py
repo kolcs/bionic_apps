@@ -24,6 +24,15 @@ def _one_hot_encode_example():
     print(enc.inverse_transform(one_hot))
 
 
+def _correct_shape(y):
+    y = np.array(y)
+
+    if len(np.shape(y)) == 1:
+        y = y.reshape((-1, 1))
+
+    return y
+
+
 class SVM(svm.SVC):
 
     def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='scale',
@@ -48,11 +57,7 @@ class SVM(svm.SVC):
         labels : list
             List of individual labels.
         """
-        labels = np.array(labels)
-
-        if len(np.shape(labels)) == 1:
-            labels = labels.reshape((-1, 1))
-
+        labels = _correct_shape(labels)
         self._enc.fit(labels)
 
     # def one_hot_encode(self, y):
@@ -83,7 +88,9 @@ class SVM(svm.SVC):
             then each sample is given unit weight.
         """
         X_normalized = normalize(X, norm='l2')
-        y = self._enc.transform(y).toarray()  # one hot encode
+        # y = _correct_shape(y)
+        # y = self._enc.transform(y).toarray()  # one hot encode
+        # print(y, np.shape(X_normalized), np.shape(y))
         super().fit(X_normalized, y, sample_weight=sample_weight)
 
     def predict(self, X):

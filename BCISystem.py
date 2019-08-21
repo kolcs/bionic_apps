@@ -34,11 +34,11 @@ class BCISystem(object):
         else:
             raise NotImplementedError('Processor for {} is not implemented'.format(db_name))
 
-        self._proc.run()
+        self._proc.run(feature='avg_column')
         kfold = SubjectKFold(subj_n_fold_num)
 
         for train_x, train_y, test_x, test_y, subject in kfold.split(self._proc):
-            svm = ai.SVM(C=.7, cache_size=1000, random_state=12)
+            svm = ai.SVM(C=.7, cache_size=2000, random_state=12)
             svm.set_labels(labels)
             svm.fit(train_x, train_y)
             y_pred = svm.predict(test_x)
@@ -58,10 +58,10 @@ class BCISystem(object):
 
 
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data/"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
     bci.offline_processing()

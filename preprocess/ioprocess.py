@@ -194,7 +194,10 @@ def _init_interp(interp, epochs, ch_type='eeg'):
         picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
             epochs, ch_type, layout)
         data = epochs.get_data()[0, :, 0]
+
+        # remove [:2] from the end of the return in plot_topomap()
         im, _, interp = mne.viz.plot_topomap(data, pos, show=False)
+
     return interp
 
 
@@ -301,8 +304,6 @@ class OfflineDataPreprocessor:
     def _use_db(self, db_type):
         """
         Loads a specified database.
-
-        :param path: where the database is available
         """
         self._data_path = self._base_dir + db_type.DIR
         self._db_type = db_type
@@ -324,8 +325,16 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self):
-        self._create_db()
+    def run(self, feature='spatial'):
+        """Runs the Database preprocessor with the given features.
+
+        Parameters
+        ----------
+        feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
+            The feature which will be created.
+
+        """
+        self._create_db(feature)
 
     """
     Database functions
@@ -363,7 +372,20 @@ class OfflineDataPreprocessor:
 
         return data
 
-    def _create_physionet_db(self, db_path, db_source):
+    def _create_physionet_db(self, db_path, db_filename, feature='spatial'):
+        """Physionet feature db creator function
+
+        This function creates a feature database from Physionet data. The feature type can be selected.
+
+        Parameters
+        ----------
+        db_path: str
+            absolute path to Physionet data files
+        db_filename: str
+            name of the save file
+        feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
+            The feature which will be created.
+        """
 
         keys = self._db_type.TASK_TO_REC.keys()
         interp = None
@@ -390,8 +412,6 @@ class OfflineDataPreprocessor:
 
                 # todo: make filtering here...
                 # todo: create multi layered picture -- rgb like -> channels
-                # todo: for svm use only channels, do not create pictures! SVM oly see vectors...
-                # todo: create function parameter, where data type (vector, picture) can be selected!
 
                 rec_num = get_record_number(filenames[0])
                 task_dict = self.convert_task(rec_num)
@@ -399,17 +419,19 @@ class OfflineDataPreprocessor:
                 events, _ = mne.events_from_annotations(raw)
                 epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
                                     preload=False)
-                epochs = epochs[task]
-                interp = _init_interp(interp, epochs)
+                # epochs = epochs[task]
+                # interp = _init_interp(interp, epochs)
+                #
+                # win_epochs = []
+                # win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
+                # for i in range(win_num):
+                #     ep = epochs.copy().load_data()
+                #     ep.crop(i * self._window_step, self._window_length + i * self._window_step)
+                #     data = _calculate_spatial_data(interp, ep)
+                #     data = [(d, task) for d in data]
+                #     win_epochs.extend(data)
 
-                win_epochs = []
-                win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
-                for i in range(win_num):
-                    ep = epochs.copy().load_data()
-                    ep.crop(i * self._window_step, self._window_length + i * self._window_step)
-                    data = _calculate_spatial_data(interp, ep)
-                    data = [(d, task) for d in data]
-                    win_epochs.extend(data)
+                win_epochs = self._get_windowed_features(epochs, task, feature=feature)
 
                 subject_data.extend(win_epochs)
 
@@ -418,10 +440,26 @@ class OfflineDataPreprocessor:
             db_file = '{}subject{}.data'.format(db_path, subj)
             save_pickle_data({subj: subject_data}, db_file)
             db_filenames.append(db_file)
-            save_pickle_data(db_filenames, db_path + db_source)
+            save_pickle_data(db_filenames, db_path + db_filename)
 
     def _get_windowed_features(self, epochs, task, feature='spatial'):
-        # todo: put it to upper code
+        """Feature creation from windowed data.
+
+        Parameters
+        ----------
+        epochs : mne.Epochs
+            Mne epochs from which the feature will be created.
+        task : str
+            Selected from epochs.
+        feature : {'spatial', 'avg_column', 'column'}, optional
+            The feature which will be created.
+
+        Returns
+        -------
+        list
+            Windowed feature data.
+
+        """
         epochs = epochs[task]
 
         win_epochs = []
@@ -434,6 +472,13 @@ class OfflineDataPreprocessor:
             if feature == 'spatial':
                 self._init_interp(epochs)
                 data = _calculate_spatial_data(self._interp, ep)
+            elif feature == 'avg_column':
+                data = ep.get_data()
+                data = np.average(data, axis=2)  # average window
+            elif feature == 'column':
+                data = ep.get_data()
+                (epoch, channel, time) = np.shape(data)
+                data = np.reshape(data, (epoch, channel * time))
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(feature))
 
@@ -442,21 +487,29 @@ class OfflineDataPreprocessor:
 
         return win_epochs
 
-    def _create_db(self):
+    def _create_db(self, feature='spatial'):
+        """Base db creator function.
+
+        Parameters
+        ----------
+        feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
+            The feature which will be created.
+
+        """
         # filenames = self._get_filenames()
 
         if self._db_type is Physionet:
-            db_path, db_source = SPATIAL
+            db_path, db_filename = "{}{}/".format(DIR_FEATURE_DB, feature), feature + '.db'
             db_path = self._base_dir + db_path
             make_dir(db_path)
 
-            data_source = load_pickle_data(db_path + db_source)
+            data_source = load_pickle_data(db_path + db_filename)
             if data_source is not None and self._fast_load:
                 self._data_set = self._load_data_from_source(data_source)
 
             else:
-                print('{} file is not found. Creating database.'.format(db_path + db_source))
-                self._create_physionet_db(db_path, db_source)
+                print('{} file is not found. Creating database.'.format(db_path + db_filename))
+                self._create_physionet_db(db_path, db_filename, feature)
 
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
