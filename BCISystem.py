@@ -1,3 +1,4 @@
+import time
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 import ai
@@ -24,7 +25,7 @@ class BCISystem(object):
         self._window_step = window_step
         self._proc = None
 
-    def offline_processing(self, db_name='physionet', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
+    def offline_processing(self, db_name='physionet', feature='avg_column', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
                            fast_load=True, subj_n_fold_num=None):
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                              self._window_length, self._window_step, fast_load)
@@ -34,24 +35,29 @@ class BCISystem(object):
         else:
             raise NotImplementedError('Processor for {} is not implemented'.format(db_name))
 
-        self._proc.run(feature='avg_column')
+        self._proc.run(feature=feature)
         kfold = SubjectKFold(subj_n_fold_num)
 
         for train_x, train_y, test_x, test_y, subject in kfold.split(self._proc):
-            svm = ai.SVM(C=.7, cache_size=2000, random_state=12)
+            t = time.time()
+            # svm = ai.SVM(C=.7, cache_size=2000, random_state=12)
+            svm = ai.LinearSVM(C=1, random_state=12, max_iter=10000)
             svm.set_labels(labels)
-            svm.fit(train_x, train_y)
+            svm.fit(train_x, train_y, 'shrink rest')
+            t = time.time() - t
+            print("Training elapsed {} seconds.".format(t))
+
             y_pred = svm.predict(test_x)
 
-            # todo: continue with metrics and accuracy calculation
-            # todo: recalculate features in preprocess
             class_report = classification_report(test_y, y_pred)
             conf_martix = confusion_matrix(test_y, y_pred)
+            acc = accuracy_score(test_y, y_pred)
 
-            print("Classification report for subject {}:".format(subject))
+            print("Classification report for subject{}:".format(subject))
             print("classifier %s:\n%s\n"
                   % (self, class_report))
             print("Confusion matrix:\n%s\n" % conf_martix)
+            print("Accuracy score: {}\n".format(acc))
 
     def online_processing(self):
         raise NotImplementedError("Online processing is not implemented...")
@@ -64,4 +70,4 @@ if __name__ == '__main__':
     # base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
-    bci.offline_processing()
+    bci.offline_processing(feature='avg_column')

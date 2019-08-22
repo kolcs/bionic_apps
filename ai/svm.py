@@ -33,6 +33,18 @@ def _correct_shape(y):
     return y
 
 
+def calculate_sample_weight(labels):
+    ind_label = set(labels)
+    label_dict = {label: len([i for i, x in enumerate(labels) if x == label]) for label in ind_label}
+    a = [v for k, v in label_dict.items()]
+    s = np.sum(a)
+    div = max(s / a)
+    for key in label_dict:
+        label_dict[key] = s / label_dict[key] / div
+    sample_weight = [label_dict[l] for l in labels]
+    return sample_weight
+
+
 class SVM(svm.SVC):
 
     def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='scale',
@@ -96,7 +108,34 @@ class SVM(svm.SVC):
     def predict(self, X):
         X_normalized = normalize(X, norm='l2')
         y = super().predict(X_normalized)
-        return self._enc.inverse_transform(y)  # one hot decode
+        # return self._enc.inverse_transform(y)  # one hot decode
+        return y
+
+
+class LinearSVM(svm.LinearSVC):
+
+    def __init__(self, penalty='l2', loss='squared_hinge', dual=True, tol=1e-4,
+                 C=1.0, multi_class='ovr', fit_intercept=True,
+                 intercept_scaling=1, class_weight=None, verbose=0,
+                 random_state=None, max_iter=1000):
+        super().__init__(penalty, loss, dual, tol, C, multi_class, fit_intercept, intercept_scaling,
+                         class_weight, verbose, random_state, max_iter)
+
+    def set_labels(self, labels):
+        pass
+
+    def fit(self, X, y, sample_weight=None):
+        X_normalized = normalize(X, norm='l2')
+        if sample_weight is None:
+            sample_weight = calculate_sample_weight(y)
+        elif sample_weight == 'shrink rest':
+            sample_weight = [.25 if label == 'rest' else 1 for label in y]
+        super().fit(X_normalized, y, sample_weight=sample_weight)
+
+    def predict(self, X):
+        X_normalized = normalize(X, norm='l2')
+        y = super().predict(X_normalized)
+        return y
 
 
 if __name__ == '__main__':
