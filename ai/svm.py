@@ -1,6 +1,8 @@
 import numpy as np
 from sklearn import svm
 from sklearn.preprocessing import OneHotEncoder, normalize
+from sklearn.utils import compute_class_weight
+from svmutil import *
 
 
 def _one_hot_encode_example():
@@ -136,6 +138,77 @@ class LinearSVM(svm.LinearSVC):
         X_normalized = normalize(X, norm='l2')
         y = super().predict(X_normalized)
         return y
+
+
+class libsvm_SVC(object):
+
+    def __init__(self, C=1, kernel='rbf', degree=3, gamma=None, coef0=0.0, cache_size=2000, tol=1e-3, shrinking=True,
+                 probability=False, class_weight=None, quiet_mode=True):
+        self.C = C
+        self.kernel = kernel
+        self.degree = degree
+        self.gamma = gamma
+        self.coef0 = coef0
+        self.cache_size = cache_size
+        self.tol = tol
+        self.shrinking = shrinking
+        self.probability = probability
+        self.class_weight = class_weight
+        self.quiet_mode = quiet_mode
+
+        self._labels = None
+        self._model = None
+
+    def set_labels(self, labels):
+        self._labels = labels
+
+    def _set_svm_options(self, class_weight, gamma):
+        params = '-s 0'
+        if self.kernel == 'rbf':
+            kernel = 2
+        elif self.kernel == 'linear':
+            kernel = 0
+        elif self.kernel == 'poly':
+            kernel = 1
+        elif self.kernel == 'sigmoid':
+            kernel = 3
+        else:  # precomputed
+            kernel = 4
+        params += ' -t {}'.format(kernel)
+        params += ' -d {}'.format(self.degree)
+        params += ' -g {}'.format(gamma)
+        params += ' -r {}'.format(self.coef0)
+        params += ' -c {}'.format(self.C)
+        params += ' -m {}'.format(self.cache_size)
+        params += ' -e {}'.format(self.tol)
+        params += ' -h {}'.format(self.shrinking)
+        params += ' -b {}'.format(self.probability)
+        if class_weight is not None:
+            for i, weight in enumerate(class_weight):
+                params += ' -w{} {}'.format(i, weight)
+        if self.quiet_mode:
+            params += ' -q'
+
+        return params
+
+    def fit(self, X, y):
+        class_weight = self.class_weight
+        gamma = self.gamma
+        if self.class_weight is not None:
+            class_weight = compute_class_weight(self.class_weight, self._labels, y)
+        if self.gamma is None:
+            gamma = 1 / len(set(y))
+
+        options = self._set_svm_options(class_weight, gamma)
+        self._model = svm_train(y, X, options)
+
+    def predict(self, X):
+        options = '-b {}'.format(self.probability)
+        if self.quiet_mode:
+            options += ' -q'
+
+        pred_labels, _, pred_values = svm_predict([], X, self._model, options)
+        return pred_labels, pred_values
 
 
 if __name__ == '__main__':
