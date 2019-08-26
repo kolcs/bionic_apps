@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn import svm
 from sklearn.preprocessing import OneHotEncoder, normalize
-from sklearn.utils import compute_class_weight
+# from sklearn.utils import compute_class_weight
 from svmutil import *
 
 
@@ -45,7 +45,6 @@ def _correct_shape(y):
 #         label_dict[key] = s / label_dict[key] / div
 #     sample_weight = [label_dict[l] for l in labels]
 #     return sample_weight
-
 
 class SVM(svm.SVC):
 
@@ -162,7 +161,7 @@ class libsvm_SVC(object):
         self._model = None
 
     def set_labels(self, labels):
-        self._labels = labels
+        self._labels = np.array(labels)
         self._label_to_int = {label: i for i, label in enumerate(self._labels)}
         self._int_to_label = {i: label for i, label in enumerate(self._labels)}
 
@@ -202,11 +201,17 @@ class libsvm_SVC(object):
     def _decode_y(self, y):
         return [self._int_to_label[i] for i in y]
 
+    def _compute_class_weight(self, y):
+        class_weight = np.ones(np.shape(self._labels))
+        for key in self.class_weight:
+            class_weight[self._label_to_int[key]] = self.class_weight[key]
+        return class_weight
+
     def fit(self, X, y):
         class_weight = self.class_weight
         gamma = self.gamma
         if self.class_weight is not None:
-            class_weight = compute_class_weight(self.class_weight, self._labels, y)
+            class_weight = self._compute_class_weight(y)
         if self.gamma is None:
             gamma = 1 / len(set(y))
 
