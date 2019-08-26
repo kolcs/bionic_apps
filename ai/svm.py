@@ -35,16 +35,16 @@ def _correct_shape(y):
     return y
 
 
-def calculate_sample_weight(labels):
-    ind_label = set(labels)
-    label_dict = {label: len([i for i, x in enumerate(labels) if x == label]) for label in ind_label}
-    a = [v for k, v in label_dict.items()]
-    s = np.sum(a)
-    div = max(s / a)
-    for key in label_dict:
-        label_dict[key] = s / label_dict[key] / div
-    sample_weight = [label_dict[l] for l in labels]
-    return sample_weight
+# def calculate_sample_weight(labels):
+#     ind_label = set(labels)
+#     label_dict = {label: len([i for i, x in enumerate(labels) if x == label]) for label in ind_label}
+#     a = [v for k, v in label_dict.items()]
+#     s = np.sum(a)
+#     div = max(s / a)
+#     for key in label_dict:
+#         label_dict[key] = s / label_dict[key] / div
+#     sample_weight = [label_dict[l] for l in labels]
+#     return sample_weight
 
 
 class SVM(svm.SVC):
@@ -128,10 +128,10 @@ class LinearSVM(svm.LinearSVC):
 
     def fit(self, X, y, sample_weight=None):
         X_normalized = normalize(X, norm='l2')
-        if sample_weight is None:
-            sample_weight = calculate_sample_weight(y)
-        elif sample_weight == 'shrink rest':
-            sample_weight = [.25 if label == 'rest' else 1 for label in y]
+        # if sample_weight is None:
+        #     sample_weight = calculate_sample_weight(y)
+        # elif sample_weight == 'shrink rest':
+        #     sample_weight = [.25 if label == 'rest' else 1 for label in y]
         super().fit(X_normalized, y, sample_weight=sample_weight)
 
     def predict(self, X):
@@ -142,7 +142,7 @@ class LinearSVM(svm.LinearSVC):
 
 class libsvm_SVC(object):
 
-    def __init__(self, C=1, kernel='rbf', degree=3, gamma=None, coef0=0.0, cache_size=2000, tol=1e-3, shrinking=True,
+    def __init__(self, C=1, kernel='rbf', degree=3, gamma=None, coef0=0.0, cache_size=200, tol=1e-3, shrinking=True,
                  probability=False, class_weight=None, quiet_mode=True):
         self.C = C
         self.kernel = kernel
@@ -151,16 +151,20 @@ class libsvm_SVC(object):
         self.coef0 = coef0
         self.cache_size = cache_size
         self.tol = tol
-        self.shrinking = shrinking
-        self.probability = probability
+        self.shrinking = int(shrinking)
+        self.probability = int(probability)
         self.class_weight = class_weight
         self.quiet_mode = quiet_mode
 
         self._labels = None
+        self._label_to_int = None
+        self._int_to_label = None
         self._model = None
 
     def set_labels(self, labels):
         self._labels = labels
+        self._label_to_int = {label: i for i, label in enumerate(self._labels)}
+        self._int_to_label = {i: label for i, label in enumerate(self._labels)}
 
     def _set_svm_options(self, class_weight, gamma):
         params = '-s 0'
@@ -191,6 +195,13 @@ class libsvm_SVC(object):
 
         return params
 
+    def _encode_y(self, y):
+        conv_y = [self._label_to_int[el] for el in y]
+        return conv_y
+
+    def _decode_y(self, y):
+        return [self._int_to_label[i] for i in y]
+
     def fit(self, X, y):
         class_weight = self.class_weight
         gamma = self.gamma
@@ -200,6 +211,7 @@ class libsvm_SVC(object):
             gamma = 1 / len(set(y))
 
         options = self._set_svm_options(class_weight, gamma)
+        y = self._encode_y(y)
         self._model = svm_train(y, X, options)
 
     def predict(self, X):
@@ -208,6 +220,7 @@ class libsvm_SVC(object):
             options += ' -q'
 
         pred_labels, _, pred_values = svm_predict([], X, self._model, options)
+        pred_labels = self._decode_y(pred_labels)
         return pred_labels, pred_values
 
 

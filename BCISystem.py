@@ -41,9 +41,10 @@ class BCISystem(object):
         for train_x, train_y, test_x, test_y, subject in kfold.split(self._proc):
             t = time.time()
             # svm = ai.SVM(C=.7, cache_size=2000, random_state=12)
-            svm = ai.LinearSVM(C=1, random_state=12, max_iter=10000)
+            # svm = ai.LinearSVM(C=1, random_state=12, max_iter=10000, class_weight=dict(rest=.25))
+            svm = ai.libsvm_SVC(C=1, cache_size=2000)
             svm.set_labels(labels)
-            svm.fit(train_x, train_y, 'shrink rest')
+            svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(t))
 
