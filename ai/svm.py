@@ -351,7 +351,7 @@ class libsvm_cuda(object):
             gamma = 1 / len(set(y))
 
         options = self._set_svm_options(class_weight, gamma)
-        # y = self._encode_y(y)
+        y = self._encode_y(y)
 
         # scale
         file = self._train_file
@@ -383,7 +383,7 @@ class libsvm_cuda(object):
                 x = np.array([s.split() for s in f.readlines()][1:]).astype(np.float)  # leaving the firs line
                 pred_labels = x[:, 0].astype(np.int)
                 pred_values = x[:, 1:]
-        # pred_labels = self._decode_y(pred_labels)
+        pred_labels = self._decode_y(pred_labels)
         return pred_labels
 
 
