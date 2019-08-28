@@ -380,7 +380,7 @@ class OfflineDataPreprocessor:
         Parameters
         ----------
         db_path: str
-            absolute path to Physionet data files
+            Absolute path to Physionet data files, where it will be stored.
         db_filename: str
             name of the save file
         feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
@@ -419,17 +419,6 @@ class OfflineDataPreprocessor:
                 events, _ = mne.events_from_annotations(raw)
                 epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
                                     preload=False)
-                # epochs = epochs[task]
-                # interp = _init_interp(interp, epochs)
-                #
-                # win_epochs = []
-                # win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
-                # for i in range(win_num):
-                #     ep = epochs.copy().load_data()
-                #     ep.crop(i * self._window_step, self._window_length + i * self._window_step)
-                #     data = _calculate_spatial_data(interp, ep)
-                #     data = [(d, task) for d in data]
-                #     win_epochs.extend(data)
 
                 win_epochs = self._get_windowed_features(epochs, task, feature=feature)
 
@@ -441,6 +430,22 @@ class OfflineDataPreprocessor:
             save_pickle_data({subj: subject_data}, db_file)
             db_filenames.append(db_file)
             save_pickle_data(db_filenames, db_path + db_filename)
+
+    def _create_pilot_db(self, db_path, db_filename, feature='spatial'):
+        """Pilot feature db creator function
+
+                This function creates a feature database from Physionet data. The feature type can be selected.
+
+                Parameters
+                ----------
+                db_path: str
+                    Absolute path to Physionet data files, where it will be stored.
+                db_filename: str
+                    name of the save file
+                feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
+                    The feature which will be created.
+                """
+        pass # todo: continue
 
     def _get_windowed_features(self, epochs, task, feature='spatial'):
         """Feature creation from windowed data.
@@ -496,20 +501,25 @@ class OfflineDataPreprocessor:
             The feature which will be created.
 
         """
-        # filenames = self._get_filenames()
+        db_path, db_filename = "{}{}/{}/".format(DIR_FEATURE_DB, self._db_type.DIR, feature), feature + '.db'
+        db_path = self._base_dir + db_path
+        make_dir(db_path)
 
-        if self._db_type is Physionet:
-            db_path, db_filename = "{}{}/".format(DIR_FEATURE_DB, feature), feature + '.db'
-            db_path = self._base_dir + db_path
-            make_dir(db_path)
+        def print_creation_message():
+            print('{} file is not found. Creating database.'.format(file))
 
-            data_source = load_pickle_data(db_path + db_filename)
-            if data_source is not None and self._fast_load:
-                self._data_set = self._load_data_from_source(data_source)
+        file = db_path + db_filename
+        data_source = load_pickle_data(file)
+        if data_source is not None and self._fast_load:
+            self._data_set = self._load_data_from_source(data_source)
 
-            else:
-                print('{} file is not found. Creating database.'.format(db_path + db_filename))
-                self._create_physionet_db(db_path, db_filename, feature)
+        elif self._db_type is Physionet:
+            print_creation_message()
+            self._create_physionet_db(db_path, db_filename, feature)
+
+        elif self._db_type is PilotDB:
+            print_creation_message()
+            self._create_pilot_db(db_path, db_filename, feature)
 
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))

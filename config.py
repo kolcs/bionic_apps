@@ -57,7 +57,7 @@ DIR_FEATURE_DB = 'tmp/'
 #     DROP_SUBJECTS = list()
 
 class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
-    DIR = "Cybathlon pilot/"
+    DIR = "Cybathlon_pilot/"
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
@@ -76,7 +76,7 @@ class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = None  # or list of elements
+    DROP_SUBJECTS = []  # list of elements
 
 
 class Physionet:

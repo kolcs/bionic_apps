@@ -33,8 +33,11 @@ class BCISystem(object):
         if db_name == 'physionet':
             self._proc.use_physionet()
             labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
+        elif db_name == 'pilot':
+            self._proc.use_pilot()
+            labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
         else:
-            raise NotImplementedError('Processor for {} is not implemented'.format(db_name))
+            raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
         self._proc.run(feature=feature)
         kfold = SubjectKFold(subj_n_fold_num)
@@ -73,4 +76,4 @@ if __name__ == '__main__':
     # base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
-    bci.offline_processing(feature='avg_column')
+    bci.offline_processing(db_name='pilot', feature='avg_column')
