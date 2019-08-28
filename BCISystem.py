@@ -25,7 +25,8 @@ class BCISystem(object):
         self._window_step = window_step
         self._proc = None
 
-    def offline_processing(self, db_name='physionet', feature='avg_column', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
+    def offline_processing(self, db_name='physionet', feature='avg_column', epoch_tmin=0, epoch_tmax=3,
+                           use_drop_subject_list=True,
                            fast_load=True, subj_n_fold_num=None):
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                              self._window_length, self._window_step, fast_load)

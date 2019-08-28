@@ -234,7 +234,7 @@ class libsvm_SVC(object):
 
         pred_labels, _, pred_values = svm_predict([], X_normalized, self._model, options)
         pred_labels = self._decode_y(pred_labels)
-        return pred_labels, pred_values
+        return pred_labels
 
 
 class libsvm_cuda(object):
@@ -351,7 +351,7 @@ class libsvm_cuda(object):
             gamma = 1 / len(set(y))
 
         options = self._set_svm_options(class_weight, gamma)
-        y = self._encode_y(y)
+        # y = self._encode_y(y)
 
         # scale
         file = self._train_file
@@ -363,7 +363,7 @@ class libsvm_cuda(object):
         cmd = '{} {} "{}" "{}"'.format(self._svmtrain_exe, options, file, self._model_file)
         Popen(cmd, shell=True, stdout=PIPE).communicate()
 
-    def predict(self, X):
+    def predict(self, X):  # todo: continue!
         options = '-b {}'.format(self.probability)
         if self.quiet_mode:
             options += ' -q'
@@ -375,10 +375,16 @@ class libsvm_cuda(object):
         file = self._scaled_file
         cmd = f'{self._svmpredict_exe} {options} "{file}" "{self._model_file}" "{self._predict_file}"'
         Popen(cmd, shell=True).communicate()
-        print('done!')
-        exit(0)
+        with open(self._predict_file, 'r') as f:
+            if self.probability == 0:
+                pred_labels = [int(s) for s in f.readlines()]
+                pred_values = []
+            else:
+                x = np.array([s.split() for s in f.readlines()][1:]).astype(np.float)  # leaving the firs line
+                pred_labels = x[:, 0].astype(np.int)
+                pred_values = x[:, 1:]
         # pred_labels = self._decode_y(pred_labels)
-        # return pred_labels, pred_values
+        return pred_labels
 
 
 if __name__ == '__main__':
