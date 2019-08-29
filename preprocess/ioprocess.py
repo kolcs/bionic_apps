@@ -600,6 +600,7 @@ class OfflineDataPreprocessor:
         data_source = load_pickle_data(file)
         if data_source is not None and self._fast_load:
             self._data_set = self._load_data_from_source(data_source)
+            # todo: load data from next to .db extended data source file.
 
         elif self._db_type is Physionet:
             print_creation_message()
