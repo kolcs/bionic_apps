@@ -53,6 +53,8 @@ DIR_FEATURE_DB = 'tmp/'
 #
 #     TRIGGER_CONV_REC_TO_TYPE = dict()
 #     TRIGGER_CONV_REC_TO_TASK = dict()
+#     or
+#     TRIGGER_TASK_CONVERTER
 #
 #     DROP_SUBJECTS = list()
 
@@ -62,9 +64,9 @@ class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
     FS = 500
     DB_EXT = '.vhdr'
     SUBJECT_NUM = 4
+    FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
-    TRIGGER_CONV_REC_TO_TYPE = dict()
-    TRIGGER_CONV_REC_TO_TASK = {  # imagined
+    TRIGGER_TASK_CONVERTER = {  # imagined
         REST: 1,
         EYE_OPEN: 2,
         EYE_CLOSED: 3,

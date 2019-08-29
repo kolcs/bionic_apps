@@ -78,8 +78,45 @@ def filter_filenames(files, subject, runs):
     return rec
 
 
-def generate_filenames(file_path, subject, runs):
-    """Filename generator
+def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs, run_format_str):
+    """Filename generator for one subject
+
+    Generating filenames from a given string with {subj} and {rec} which will be replaced.
+
+    Parameters
+    ----------
+    file_path : str
+        special string with {subj} and {rec} substrings
+    subject : int
+        subject number
+    subject_format_str : str
+        The string which will be formatted.
+    runs : int or list of int
+        list of sessions
+    run_format_str : str
+        The string which will be formatted.
+
+    Returns
+    -------
+    rec : list of str
+        filenames for a subject with given runs
+
+    """
+    if type(runs) is not list:
+        runs = list(runs)
+
+    rec = list()
+    for i in runs:
+        f = file_path
+        f = f.replace('{subj}', subject_format_str.format(subject))
+        f = f.replace('{rec}', run_format_str.format(i))
+        rec.append(f)
+
+    return rec
+
+
+def generate_physionet_filenames(file_path, subject, runs):
+    """Filename generator for pyhsionet db
 
     Generating filenames from a given string with {subj} and {rec} which are will be replaced.
 
@@ -89,7 +126,7 @@ def generate_filenames(file_path, subject, runs):
         special string with {subj} and {rec} substrings
     subject : int
         subject number
-    runs : list of int
+    runs : int or list of int
         list of sessions
 
     Returns
@@ -98,14 +135,30 @@ def generate_filenames(file_path, subject, runs):
         filenames for a subject with given runs
 
     """
-    rec = list()
-    for i in runs:
-        f = file_path
-        f = f.replace('{subj}', '{:03d}'.format(subject))
-        f = f.replace('{rec}', '{:02d}'.format(i))
-        rec.append(f)
+    return _generate_filenames_for_subject(file_path, subject, '{:03d}', runs, '{:02d}')
 
-    return rec
+
+def generate_pilot_filenames(file_path, subject, runs):
+    """Filename generator for pilot db
+
+        Generating filenames from a given string with {subj} and {rec} which are will be replaced.
+
+        Parameters
+        ----------
+        file_path : str
+            special string with {subj} and {rec} substrings
+        subject : int
+            subject number
+        runs : int or list of int
+            list of sessions
+
+        Returns
+        -------
+        rec : list of str
+            filenames for a subject with given runs
+
+        """
+    return _generate_filenames_for_subject(file_path, subject, '{}', runs, '{:02d}')
 
 
 def get_num_with_predefined_char(filename, char, required_num='required'):
@@ -401,8 +454,8 @@ class OfflineDataPreprocessor:
             subject_data = list()
 
             for task in keys:
-                filenames = generate_filenames(self._data_path + self._db_type.FILE_PATH, subj,
-                                               self.convert_rask_to_recs(task))
+                filenames = generate_physionet_filenames(self._data_path + self._db_type.FILE_PATH, subj,
+                                                         self.convert_rask_to_recs(task))
                 raws = [open_raw_file(file, preload=False) for file in filenames]
                 raw = raws.pop(0)
                 for r in raws:
@@ -431,7 +484,7 @@ class OfflineDataPreprocessor:
             db_filenames.append(db_file)
             save_pickle_data(db_filenames, db_path + db_filename)
 
-    def _create_pilot_db(self, db_path, db_filename, feature='spatial'):
+    def _create_ttk_db(self, db_path, db_filename, feature='spatial'):
         """Pilot feature db creator function
 
                 This function creates a feature database from Physionet data. The feature type can be selected.
@@ -445,7 +498,42 @@ class OfflineDataPreprocessor:
                 feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
                     The feature which will be created.
                 """
-        pass # todo: continue
+        task_dict = self.convert_task()
+        interp = None
+        db_filenames = list()
+
+        for s in range(self._db_type.SUBJECT_NUM):
+            subj = s + 1
+            if subj in self._drop_subject:
+                print('Dropping subject {}'.format(subj))
+                continue
+
+            subject_data = list()
+
+            filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj, 1)
+            raws = [open_raw_file(file, preload=False) for file in filenames]
+            raw = raws.pop(0)
+            for r in raws:
+                raw.append(r)
+            del raws
+            raw.rename_channels(lambda x: x.strip('.'))
+
+            # todo: make filtering here...
+
+            events, _ = mne.events_from_annotations(raw)
+            epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
+                                preload=False)
+
+            for task in task_dict.keys():
+                win_epochs = self._get_windowed_features(epochs, task, feature=feature)
+                subject_data.extend(win_epochs)
+
+            self._data_set[subj] = subject_data
+
+            db_file = '{}subject{}.data'.format(db_path, subj)
+            save_pickle_data({subj: subject_data}, db_file)
+            db_filenames.append(db_file)
+            save_pickle_data(db_filenames, db_path + db_filename)
 
     def _get_windowed_features(self, epochs, task, feature='spatial'):
         """Feature creation from windowed data.
@@ -519,7 +607,7 @@ class OfflineDataPreprocessor:
 
         elif self._db_type is PilotDB:
             print_creation_message()
-            self._create_pilot_db(db_path, db_filename, feature)
+            self._create_ttk_db(db_path, db_filename, feature)
 
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
