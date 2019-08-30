@@ -103,7 +103,7 @@ def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs
 
     """
     if type(runs) is not list:
-        runs = list(runs)
+        runs = [runs]
 
     rec = list()
     for i in runs:
@@ -347,6 +347,10 @@ class OfflineDataPreprocessor:
 
         self._interp = None
 
+        self._proc_db_filenames = list()
+        self._proc_db_path = ''
+        self._proc_db_source = ''
+
         self._drop_subject = None
         if use_drop_subject_list:
             self._drop_subject = set()
@@ -416,33 +420,88 @@ class OfflineDataPreprocessor:
     def get_subjects(self):
         return list(self._data_set.keys())
 
-    @staticmethod
-    def _load_data_from_source(source_files):
+    def _load_data_from_source(self, source_files):
+        """Loads preprocessed feature data form source files.
+
+        Parameters
+        ----------
+        source_files : list of str
+            List of source file names without path.
+
+        Returns
+        -------
+        dict
+            Preprocessed data dictionary, where the keys are the subjects in the database and
+            the values are the list of preprocessed feature data.
+
+        """
         data = dict()
         for filename in source_files:
-            d = load_pickle_data(filename)
+            d = load_pickle_data(self._proc_db_path + filename)
             data.update(d)
 
         return data
 
-    def _create_physionet_db(self, db_path, db_filename, feature='spatial'):
+    def _get_epochs_from_files(self, filenames, task_dict):
+        """Generate epochs from files.
+
+        Parameters
+        ----------
+        filenames : list of str
+            List of file names from where epochs will be generated.
+        task_dict : dict
+            Used for creating mne.Epochs.
+
+        Returns
+        -------
+        mne.Epochs
+            Created epochs from files.
+
+        """
+        raws = [open_raw_file(file, preload=False) for file in filenames]
+        raw = raws.pop(0)
+        for r in raws:
+            raw.append(r)
+        del raws
+        raw.rename_channels(lambda x: x.strip('.'))
+
+        # todo: make filtering here...
+        # todo: create multi layered picture -- rgb like -> channels
+
+        events, _ = mne.events_from_annotations(raw)
+        epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
+                            preload=False)
+        return epochs
+
+    def _save_preprocessed_subject_data(self, subject_data, subj):
+        """Saving preprocessed feature data for a given subject.
+
+        Parameters
+        ----------
+        subject_data : list
+            Featured and preprocessed data.
+        subj : int
+            Subject number
+        """
+        self._data_set[subj] = subject_data
+
+        db_file = 'subject{}.data'.format(subj)
+        save_pickle_data({subj: subject_data}, self._proc_db_path + db_file)
+        self._proc_db_filenames.append(db_file)
+        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
+
+    def _create_physionet_db(self, feature='spatial'):
         """Physionet feature db creator function
 
         This function creates a feature database from Physionet data. The feature type can be selected.
 
         Parameters
         ----------
-        db_path: str
-            Absolute path to Physionet data files, where it will be stored.
-        db_filename: str
-            name of the save file
         feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
             The feature which will be created.
         """
 
         keys = self._db_type.TASK_TO_REC.keys()
-        interp = None
-        db_filenames = list()
 
         for s in range(self._db_type.SUBJECT_NUM):
             subj = s + 1
@@ -454,53 +513,28 @@ class OfflineDataPreprocessor:
             subject_data = list()
 
             for task in keys:
+                recs = self.convert_rask_to_recs(task)
+                task_dict = self.convert_task(recs[0])
                 filenames = generate_physionet_filenames(self._data_path + self._db_type.FILE_PATH, subj,
-                                                         self.convert_rask_to_recs(task))
-                raws = [open_raw_file(file, preload=False) for file in filenames]
-                raw = raws.pop(0)
-                for r in raws:
-                    raw.append(r)
-                del raws
-                raw.rename_channels(lambda x: x.strip('.'))
-
-                # todo: make filtering here...
-                # todo: create multi layered picture -- rgb like -> channels
-
-                rec_num = get_record_number(filenames[0])
-                task_dict = self.convert_task(rec_num)
-
-                events, _ = mne.events_from_annotations(raw)
-                epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
-                                    preload=False)
-
+                                                         recs)
+                epochs = self._get_epochs_from_files(filenames, task_dict)
                 win_epochs = self._get_windowed_features(epochs, task, feature=feature)
 
                 subject_data.extend(win_epochs)
 
-            self._data_set[subj] = subject_data
+            self._save_preprocessed_subject_data(subject_data, subj)
 
-            db_file = '{}subject{}.data'.format(db_path, subj)
-            save_pickle_data({subj: subject_data}, db_file)
-            db_filenames.append(db_file)
-            save_pickle_data(db_filenames, db_path + db_filename)
-
-    def _create_ttk_db(self, db_path, db_filename, feature='spatial'):
+    def _create_ttk_db(self, feature='spatial'):
         """Pilot feature db creator function
 
-                This function creates a feature database from Physionet data. The feature type can be selected.
+        This function creates a feature database from Physionet data. The feature type can be selected.
 
-                Parameters
-                ----------
-                db_path: str
-                    Absolute path to Physionet data files, where it will be stored.
-                db_filename: str
-                    name of the save file
-                feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
-                    The feature which will be created.
-                """
+        Parameters
+        ----------
+        feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
+            The feature which will be created.
+        """
         task_dict = self.convert_task()
-        interp = None
-        db_filenames = list()
 
         for s in range(self._db_type.SUBJECT_NUM):
             subj = s + 1
@@ -509,31 +543,14 @@ class OfflineDataPreprocessor:
                 continue
 
             subject_data = list()
-
             filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj, 1)
-            raws = [open_raw_file(file, preload=False) for file in filenames]
-            raw = raws.pop(0)
-            for r in raws:
-                raw.append(r)
-            del raws
-            raw.rename_channels(lambda x: x.strip('.'))
-
-            # todo: make filtering here...
-
-            events, _ = mne.events_from_annotations(raw)
-            epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
-                                preload=False)
+            epochs = self._get_epochs_from_files(filenames, task_dict)
 
             for task in task_dict.keys():
                 win_epochs = self._get_windowed_features(epochs, task, feature=feature)
                 subject_data.extend(win_epochs)
 
-            self._data_set[subj] = subject_data
-
-            db_file = '{}subject{}.data'.format(db_path, subj)
-            save_pickle_data({subj: subject_data}, db_file)
-            db_filenames.append(db_file)
-            save_pickle_data(db_filenames, db_path + db_filename)
+            self._save_preprocessed_subject_data(subject_data, subj)
 
     def _get_windowed_features(self, epochs, task, feature='spatial'):
         """Feature creation from windowed data.
@@ -589,38 +606,63 @@ class OfflineDataPreprocessor:
             The feature which will be created.
 
         """
-        db_path, db_filename = "{}{}/{}/".format(DIR_FEATURE_DB, self._db_type.DIR, feature), feature + '.db'
-        db_path = self._base_dir + db_path
-        make_dir(db_path)
+        self._proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, feature)
+        self._proc_db_source = self._proc_db_path + feature + '.db'
+        make_dir(self._proc_db_path)
 
         def print_creation_message():
             print('{} file is not found. Creating database.'.format(file))
 
-        file = db_path + db_filename
+        file = self._proc_db_source
         data_source = load_pickle_data(file)
+
         if data_source is not None and self._fast_load:
             self._data_set = self._load_data_from_source(data_source)
-            # todo: load data from next to .db extended data source file.
 
         elif self._db_type is Physionet:
             print_creation_message()
-            self._create_physionet_db(db_path, db_filename, feature)
+            self._create_physionet_db(feature)
 
         elif self._db_type is PilotDB:
             print_creation_message()
-            self._create_ttk_db(db_path, db_filename, feature)
+            self._create_ttk_db(feature)
 
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
 
-    def get_split(self, subject, shuffle=True, random_seed=None):
-        subject_list = list(self._data_set.keys())
-        subject_list.remove(subject)
+    def get_split(self, test_subject, shuffle=True, random_seed=None):
+        """Splits the whole database to train and test sets.
+
+        This is a helper function for :class:`SubjectKFold` to make a split from the whole database.
+        This function creates a train and test set. The test set is the data of the given subject
+        and the train set is the rest of the database.
+
+        Parameters
+        ----------
+        test_subject : int
+            Subject to put into the train set.
+        shuffle : bool, optional
+            Shuffle the train set if True
+        random_seed : int optional
+            Random seed for shuffle.
+
+        Returns
+        -------
+
+        """
+        train_subjects = list(self._data_set.keys())
+        # if type(test_subject) is int:
+        #     test_subject = [test_subject]
+        train_subjects.remove(test_subject)
+        # train_subjects = [subj for subj in train_subjects if subj not in test_subject]
 
         train = list()
-        test = self._data_set.get(subject)
+        test = self._data_set.get(test_subject)
 
-        for s in subject_list:
+        # for s in test_subject:
+        #     test.extend(self._data_set.get(s))
+
+        for s in train_subjects:
             train.extend(self._data_set.get(s))
 
         if shuffle:
@@ -632,21 +674,20 @@ class OfflineDataPreprocessor:
         train_x, train_y = zip(*train)
         test_x, test_y = zip(*train)
 
-        return list(train_x), list(train_y), list(test_x), list(test_y), subject
+        return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
 
 
 if __name__ == '__main__':
-    # base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
+    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
     # base_dir = "D:/Users/Csabi/data"  # ITK
-    base_dir = "/home/csabi/databases/"  # linux
+    # base_dir = "/home/csabi/databases/"  # linux
 
-    proc = OfflineDataPreprocessor(base_dir).use_physionet()
-    proc.run()
+    proc = OfflineDataPreprocessor(base_dir).use_pilot()
+    proc.run(feature='avg_column')
 
     # this is how SubjectKFold works:
     subj_k_fold = SubjectKFold(10)
     for train_x, train_y, test_x, test_y, subject in subj_k_fold.split(proc):
         print(train_x[0], train_y[0], test_x[0], test_y[0], subject)
-
-    # todo: continue with svm
+        break
