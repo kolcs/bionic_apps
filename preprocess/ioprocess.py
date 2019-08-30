@@ -606,6 +606,8 @@ class OfflineDataPreprocessor:
             The feature which will be created.
 
         """
+        assert self._db_type is not None, \
+            'Define a database with .use_<db_name>() function before creating the database!'
         self._proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, feature)
         self._proc_db_source = self._proc_db_path + feature + '.db'
         make_dir(self._proc_db_path)
