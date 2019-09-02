@@ -71,7 +71,7 @@ class DSP(SignalReceiver):
         return eeg
 
     def start_signal_recording(self):
-        thread = threading.Thread(target=self._record_signal)
+        thread = threading.Thread(target=self._record_signal, daemon=True)
         thread.start()
 
     def _record_signal(self):

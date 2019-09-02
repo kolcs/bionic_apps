@@ -78,7 +78,7 @@ class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = []  # list of elements
+    DROP_SUBJECTS = [2, 3]  # [] or [1, 4] or [2, 3]
 
 
 class Physionet:

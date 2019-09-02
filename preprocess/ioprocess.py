@@ -347,8 +347,8 @@ class OfflineDataPreprocessor:
 
         self._interp = None
 
+        self.proc_db_path = ''
         self._proc_db_filenames = list()
-        self._proc_db_path = ''
         self._proc_db_source = ''
 
         self._drop_subject = None
@@ -437,7 +437,7 @@ class OfflineDataPreprocessor:
         """
         data = dict()
         for filename in source_files:
-            d = load_pickle_data(self._proc_db_path + filename)
+            d = load_pickle_data(self.proc_db_path + filename)
             data.update(d)
 
         return data
@@ -486,7 +486,7 @@ class OfflineDataPreprocessor:
         self._data_set[subj] = subject_data
 
         db_file = 'subject{}.data'.format(subj)
-        save_pickle_data({subj: subject_data}, self._proc_db_path + db_file)
+        save_pickle_data({subj: subject_data}, self.proc_db_path + db_file)
         self._proc_db_filenames.append(db_file)
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
@@ -608,9 +608,9 @@ class OfflineDataPreprocessor:
         """
         assert self._db_type is not None, \
             'Define a database with .use_<db_name>() function before creating the database!'
-        self._proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, feature)
-        self._proc_db_source = self._proc_db_path + feature + '.db'
-        make_dir(self._proc_db_path)
+        self.proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, feature)
+        self._proc_db_source = self.proc_db_path + feature + '.db'
+        make_dir(self.proc_db_path)
 
         def print_creation_message():
             print('{} file is not found. Creating database.'.format(file))
@@ -620,6 +620,8 @@ class OfflineDataPreprocessor:
 
         if data_source is not None and self._fast_load:
             self._data_set = self._load_data_from_source(data_source)
+            for subj in self._drop_subject:
+                self._data_set.pop(subj, 'No error!')
 
         elif self._db_type is Physionet:
             print_creation_message()
@@ -685,7 +687,7 @@ if __name__ == '__main__':
     # base_dir = "D:/Users/Csabi/data"  # ITK
     # base_dir = "/home/csabi/databases/"  # linux
 
-    proc = OfflineDataPreprocessor(base_dir).use_pilot()
+    proc = OfflineDataPreprocessor(base_dir, fast_load=False).use_pilot()
     proc.run(feature='avg_column')
 
     # this is how SubjectKFold works:
