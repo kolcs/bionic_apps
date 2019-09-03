@@ -25,7 +25,7 @@ class SignalReceiver:
         print("looking for an EEG stream...")
         streams = resolve_stream('type', 'EEG')
         inlet = StreamInlet(streams[0])
-        print("OK")
+        print("EEG stream found!")
         self._inlet = inlet  # Keep it None until inlet is ready
         self._load_init_info()
 
@@ -62,13 +62,12 @@ class DSP(SignalReceiver):
         self._ch_list = None
         self._plotter = None
 
-    def get_eeg_window(self, wlength=1):
+    def get_eeg_window(self, wlength=1.0):
         win = int(self.fs * wlength)
         self._lock.acquire()
         eeg = self._eeg[-win:]
         self._lock.release()
-        eeg = np.transpose(np.array(eeg))
-        return eeg
+        return np.transpose(eeg)
 
     def start_signal_recording(self):
         thread = threading.Thread(target=self._record_signal, daemon=True)

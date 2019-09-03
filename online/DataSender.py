@@ -23,7 +23,7 @@ def get_artificial_data(ch_num, length, fs, max_dif=0.01):
     return data
 
 
-def run(filename, eeg_type=M_BRAIN_TRAIN, use_artificial_data=False):
+def run(filename, eeg_type='', use_artificial_data=False):
     raw = open_raw_file(filename)
 
     # strip channel names of "." characters
@@ -83,4 +83,4 @@ if __name__ == '__main__':
     files = [base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
              base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
 
-    run(files[1], use_artificial_data=False)
+    run(files[1], eeg_type=M_BRAIN_TRAIN, use_artificial_data=False)

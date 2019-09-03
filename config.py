@@ -68,8 +68,8 @@ class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         REST: 1,
-        EYE_OPEN: 2,
-        EYE_CLOSED: 3,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
         RIGHT_HAND: 5,
         LEFT_HAND: 7,
         RIGHT_LEG: 9,

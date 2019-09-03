@@ -40,18 +40,6 @@ def _correct_shape(y):
     return y
 
 
-# def calculate_sample_weight(labels):
-#     ind_label = set(labels)
-#     label_dict = {label: len([i for i, x in enumerate(labels) if x == label]) for label in ind_label}
-#     a = [v for k, v in label_dict.items()]
-#     s = np.sum(a)
-#     div = max(s / a)
-#     for key in label_dict:
-#         label_dict[key] = s / label_dict[key] / div
-#     sample_weight = [label_dict[l] for l in labels]
-#     return sample_weight
-
-
 class SVM(svm.SVC):
 
     def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='scale',
@@ -65,25 +53,6 @@ class SVM(svm.SVC):
                                   probability=probability, tol=tol, cache_size=cache_size, class_weight=class_weight,
                                   verbose=verbose, max_iter=max_iter, decision_function_shape=decision_function_shape,
                                   random_state=random_state)
-
-    def set_labels(self, labels):
-        """ Label settings for one-hot encoder.
-
-        Set labels here, which should be converted to one-hot vectors.
-
-        Parameters
-        ----------
-        labels : list
-            List of individual labels.
-        """
-        labels = _correct_shape(labels)
-        self._enc.fit(labels)
-
-    # def one_hot_encode(self, y):
-    #     return self._enc.transform(y).toarray()
-    #
-    # def one_hot_decode(self, y):
-    #     return self._enc.inverse_transform(y)
 
     def fit(self, X, y, sample_weight=None):
         """Fit the model according to the given training data.
@@ -107,15 +76,11 @@ class SVM(svm.SVC):
             then each sample is given unit weight.
         """
         X_normalized = normalize(X, norm='l2')
-        # y = _correct_shape(y)
-        # y = self._enc.transform(y).toarray()  # one hot encode
-        # print(y, np.shape(X_normalized), np.shape(y))
         super().fit(X_normalized, y, sample_weight=sample_weight)
 
     def predict(self, X):
         X_normalized = normalize(X, norm='l2')
         y = super().predict(X_normalized)
-        # return self._enc.inverse_transform(y)  # one hot decode
         return y
 
 
@@ -128,15 +93,8 @@ class LinearSVM(svm.LinearSVC):
         super().__init__(penalty, loss, dual, tol, C, multi_class, fit_intercept, intercept_scaling,
                          class_weight, verbose, random_state, max_iter)
 
-    def set_labels(self, labels):
-        pass
-
     def fit(self, X, y, sample_weight=None):
         X_normalized = normalize(X, norm='l2')
-        # if sample_weight is None:
-        #     sample_weight = calculate_sample_weight(y)
-        # elif sample_weight == 'shrink rest':
-        #     sample_weight = [.25 if label == 'rest' else 1 for label in y]
         super().fit(X_normalized, y, sample_weight=sample_weight)
 
     def predict(self, X):

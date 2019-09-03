@@ -597,6 +597,9 @@ class OfflineDataPreprocessor:
 
         return win_epochs
 
+    def init_processed_db_path(self, feature):
+        self.proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, feature)
+
     def _create_db(self, feature='spatial'):
         """Base db creator function.
 
@@ -608,7 +611,7 @@ class OfflineDataPreprocessor:
         """
         assert self._db_type is not None, \
             'Define a database with .use_<db_name>() function before creating the database!'
-        self.proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, feature)
+        self.init_processed_db_path(feature)
         self._proc_db_source = self.proc_db_path + feature + '.db'
         make_dir(self.proc_db_path)
 
