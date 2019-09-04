@@ -141,6 +141,41 @@ class BCISystem(object):
         plt.show()
 
 
+def online_cut_test(filename):
+    from preprocess import open_raw_file
+    from mne import events_from_annotations
+    from pylsl import local_clock
+    import matplotlib.pyplot as plt
+
+    raw = open_raw_file(filename)
+    raw.rename_channels(lambda x: x.strip('.'))
+    raw.plot()
+    plt.show()
+
+    fs = raw.info['sfreq']
+    events, event_id = events_from_annotations(raw)
+
+    stim12 = [i for i, el in enumerate(events[:, 2]) if el == 12][3:]
+    resp = [i for i, el in enumerate(events[:, 2]) if el == 1001][3:]
+    # print(events[stim12, 0])
+    # print(events[resp, 0])
+    # print(np.array(events[stim12, 0])-np.array(events[resp, 0]))
+    raws = list()
+    for i in range(len(resp)):
+        r = raw.copy().crop(resp[i] / fs, stim12[i] / fs)
+        # r.add_event()
+        raws.append(r)
+    raw = raws.pop(0)
+    for r in raws:
+        raw.append(r)
+    del raws
+    raw.plot()
+    plt.show()
+    # print(events, event_id)
+    events, event_id = events_from_annotations(raw)
+    print(events, event_id)
+
+
 if __name__ == '__main__':
     base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
     # base_dir = 'D:/Csabi/'  # Home
