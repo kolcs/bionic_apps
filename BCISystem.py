@@ -89,7 +89,8 @@ class BCISystem(object):
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
-    def online_processing(self, db_name, subject, feature='avg_column'):
+    def online_processing(self, db_name, subject, feature='avg_column', get_real_labels=False, data_sender=None):
+        from pylsl import LostError
         self._init_db_processor(db_name)
         self._proc.init_processed_db_path(feature)
         ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
@@ -99,81 +100,49 @@ class BCISystem(object):
         sleep_time = 1 / dsp.fs
 
         y_preds = list()
-        timestamps = list()
+        y_real = list()
 
-        try:
-            while True:
-                t = time.time()
+        while data_sender is None or data_sender.is_alive():
+            t = time.time()
+
+            if get_real_labels:
+                data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
+                y_real.append(label)
+            else:
                 data = dsp.get_eeg_window(self._window_length)
-                sh = np.shape(data)
-                if len(sh) < 2 or sh[1] / dsp.fs < self._window_length:
-                    # The data is still not big enough for window.
-                    continue
 
-                # todo: generalize, similar function in preprocessor _get_windowed_features()
-                if feature == 'avg_column':
-                    data = np.average(data, axis=1)
-                    data = data.reshape((1, -1))
-                else:
-                    raise NotImplementedError('{} feature creation is not implemented'.format(feature))
+            sh = np.shape(data)
+            if len(sh) < 2 or sh[1] / dsp.fs < self._window_length:
+                # The data is still not big enough for window.
+                continue
 
-                y_pred = svm.predict(data)
+            # todo: generalize, similar function in preprocessor _get_windowed_features()
+            if feature == 'avg_column':
+                data = np.average(data, axis=1)
+                data = data.reshape((1, -1))
+            else:
+                raise NotImplementedError('{} feature creation is not implemented'.format(feature))
 
-                y_preds.append(y_pred)
+            y_pred = svm.predict(data)
 
-                time.sleep(max(0, sleep_time - (time.time() - t)))
-        except KeyboardInterrupt:
-            pass
+            y_preds.append(y_pred)
 
-        return y_preds
+            time.sleep(max(0, sleep_time - (time.time() - t)))
 
-    def check_online_accuracy(self, filename):
-        from preprocess import open_raw_file
-        from mne import events_from_annotations
-        from pylsl import local_clock
-        import matplotlib.pyplot as plt
-
-        raw = open_raw_file(filename)
-        raw.rename_channels(lambda x: x.strip('.'))
-        raw.plot()
-        events, _ = events_from_annotations(raw)
-        print(events, local_clock())
-        plt.show()
+        return y_preds, y_real
 
 
-def online_cut_test(filename):
-    from preprocess import open_raw_file
-    from mne import events_from_annotations
-    from pylsl import local_clock
-    import matplotlib.pyplot as plt
+def calc_online_acc(y_pred, y_real):
+    from config import PilotDB
+    conv = {val: key for key, val in PilotDB.TRIGGER_TASK_CONVERTER.items()}
+    y_real = [conv.get(y, REST) for y in y_real]
+    class_report = classification_report(y_real, y_pred)
+    conf_martix = confusion_matrix(y_real, y_pred)
+    acc = accuracy_score(y_real, y_pred)
 
-    raw = open_raw_file(filename)
-    raw.rename_channels(lambda x: x.strip('.'))
-    raw.plot()
-    plt.show()
-
-    fs = raw.info['sfreq']
-    events, event_id = events_from_annotations(raw)
-
-    stim12 = [i for i, el in enumerate(events[:, 2]) if el == 12][3:]
-    resp = [i for i, el in enumerate(events[:, 2]) if el == 1001][3:]
-    # print(events[stim12, 0])
-    # print(events[resp, 0])
-    # print(np.array(events[stim12, 0])-np.array(events[resp, 0]))
-    raws = list()
-    for i in range(len(resp)):
-        r = raw.copy().crop(resp[i] / fs, stim12[i] / fs)
-        # r.add_event()
-        raws.append(r)
-    raw = raws.pop(0)
-    for r in raws:
-        raw.append(r)
-    del raws
-    raw.plot()
-    plt.show()
-    # print(events, event_id)
-    events, event_id = events_from_annotations(raw)
-    print(events, event_id)
+    print("%s\n" % class_report)
+    print("Confusion matrix:\n%s\n" % conf_martix)
+    print("Accuracy score: {}\n".format(acc))
 
 
 if __name__ == '__main__':
@@ -189,7 +158,10 @@ if __name__ == '__main__':
     train_subj = 1
     test_subj = 4
     file = '{}Cybathlon_pilot/pilot{}/rec01.vhdr'.format(base_dir, test_subj)
-    bci.check_online_accuracy(file)
-    # thread = threading.Thread(target=online.DataSender.run, args=(file,), daemon=True)
-    # thread.start()
-    # y_preds, timestamps = bci.online_processing(db_name=db_name, subject=train_subj)
+    get_real_labels = True
+    thread = threading.Thread(target=online.DataSender.run, args=(file, get_real_labels), daemon=True)
+    thread.start()
+    y_preds, y_real = bci.online_processing(db_name=db_name, subject=train_subj, get_real_labels=get_real_labels,
+                                            data_sender=thread)
+    print(len(y_preds), len(y_real))
+    calc_online_acc(y_preds, y_real)

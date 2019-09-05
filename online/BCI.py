@@ -46,8 +46,8 @@ class SignalReceiver:
             ch = ch.next_sibling()
         return electrodes
 
-    def get_sample(self):
-        return self._inlet.pull_sample()
+    def get_sample(self, timeout=32000000.0):
+        return self._inlet.pull_sample(timeout=timeout)
 
 
 class DSP(SignalReceiver):
@@ -62,11 +62,15 @@ class DSP(SignalReceiver):
         self._ch_list = None
         self._plotter = None
 
-    def get_eeg_window(self, wlength=1.0):
+    def get_eeg_window(self, wlength=1.0, return_label=False):
         win = int(self.fs * wlength)
         self._lock.acquire()
         eeg = self._eeg[-win:]
         self._lock.release()
+        if return_label:
+            label = eeg[0][-1] if len(eeg) > 0 else None
+            data = np.transpose(eeg)[:-1, :] if len(eeg) > 0 else []
+            return data, label
         return np.transpose(eeg)
 
     def start_signal_recording(self):
