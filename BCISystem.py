@@ -101,13 +101,13 @@ class BCISystem(object):
 
         y_preds = list()
         y_real = list()
+        label = None
 
         while data_sender is None or data_sender.is_alive():
             t = time.time()
 
             if get_real_labels:
                 data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
-                y_real.append(label)
             else:
                 data = dsp.get_eeg_window(self._window_length)
 
@@ -125,6 +125,7 @@ class BCISystem(object):
 
             y_pred = svm.predict(data)
 
+            y_real.append(label)
             y_preds.append(y_pred)
 
             time.sleep(max(0, sleep_time - (time.time() - t)))
