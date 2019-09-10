@@ -90,13 +90,12 @@ class BCISystem(object):
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
     def online_processing(self, db_name, subject, feature='avg_column', get_real_labels=False, data_sender=None):
-        from pylsl import LostError
         self._init_db_processor(db_name)
         self._proc.init_processed_db_path(feature)
         ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = ai_model[subject]
         dsp = online.DSP()
-        dsp.start_parallel_signal_recording()
+        # dsp.start_parallel_signal_recording()
         sleep_time = 1 / dsp.fs
 
         y_preds = list()
@@ -134,9 +133,12 @@ class BCISystem(object):
 
 
 def calc_online_acc(y_pred, y_real):
+    save_pickle_data(y_real, 'tmp/y_real.data')
+    save_pickle_data(y_pred, 'tmp/y_pred.data')
     from config import PilotDB
     conv = {val: key for key, val in PilotDB.TRIGGER_TASK_CONVERTER.items()}
     y_real = [conv.get(y, REST) for y in y_real]
+    print('diff labels: {}\n'.format(set(np.array(y_pred).flatten())))
     class_report = classification_report(y_real, y_pred)
     conf_martix = confusion_matrix(y_real, y_pred)
     acc = accuracy_score(y_real, y_pred)
