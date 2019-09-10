@@ -58,11 +58,17 @@ class DSP(SignalReceiver):
         self._filt_eeg = list()
         self._timestamp = list()
         self._stop_recording = False
+        self._is_recording = False
         self._lock = threading.Lock()
         self._ch_list = None
         self._plotter = None
 
     def get_eeg_window(self, wlength=1.0, return_label=False):
+        if not self._is_recording:
+            EEG_sample, timestamp = self.get_sample()
+            self._eeg.append(EEG_sample)
+            self._timestamp.append(timestamp)
+
         win = int(self.fs * wlength)
         self._lock.acquire()
         eeg = self._eeg[-win:]
@@ -73,12 +79,13 @@ class DSP(SignalReceiver):
             return data, label
         return np.transpose(eeg)
 
-    def start_signal_recording(self):
+    def start_parallel_signal_recording(self):
         thread = threading.Thread(target=self._record_signal, daemon=True)
         thread.start()
 
     def _record_signal(self):
         # self._save_init_data()
+        self._is_recording = True
         self._stop_recording = False
         self._reset_data()
 
@@ -90,6 +97,8 @@ class DSP(SignalReceiver):
             self._timestamp.append(timestamp)  # + self._inlet.time_correction())
 
             self._lock.release()
+
+        self._is_recording = False
 
     def process_singal(self, wlength=1):
         self._stop_recording = False

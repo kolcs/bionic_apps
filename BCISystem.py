@@ -96,7 +96,7 @@ class BCISystem(object):
         ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = ai_model[subject]
         dsp = online.DSP()
-        dsp.start_signal_recording()
+        dsp.start_parallel_signal_recording()
         sleep_time = 1 / dsp.fs
 
         y_preds = list()
