@@ -49,6 +49,9 @@ class SignalReceiver:
     def get_sample(self, timeout=32000000.0):
         return self._inlet.pull_sample(timeout=timeout)
 
+    def get_chunk(self):
+        return self._inlet.pull_chunk()
+
 
 class DSP(SignalReceiver):
 
@@ -62,22 +65,32 @@ class DSP(SignalReceiver):
         self._lock = threading.Lock()
         self._ch_list = None
         self._plotter = None
+        self._prev_time = 0
 
     def get_eeg_window(self, wlength=1.0, return_label=False):
         if not self._is_recording:
             EEG_sample, timestamp = self.get_sample()
             self._eeg.append(EEG_sample)
             self._timestamp.append(timestamp)
+            # EEG_samples, timestamps = self.get_chunk()
+            # if timestamps:
+            #     self._eeg.extend(EEG_samples)
+            #     self._timestamp.extend(timestamps)
 
         win = int(self.fs * wlength)
-        self._lock.acquire()
+        # self._lock.acquire()
         eeg = self._eeg[-win:]
-        self._lock.release()
+        len_ = len(self._timestamp)
+        timestamp = self._timestamp[-win] if len_ >= win else 0  # self._prev_time + 1 / self.fs
+        # self._lock.release()
+        # print(len_, (time - self._prev_time) * self.fs)
+        self._prev_time = timestamp
+
         if return_label:
             label = eeg[0][-1] if len(eeg) > 0 else None
             data = np.transpose(eeg)[:-1, :] if len(eeg) > 0 else []
-            return data, label
-        return np.transpose(eeg)
+            return timestamp, data, label
+        return timestamp, np.transpose(eeg)
 
     def start_parallel_signal_recording(self):
         thread = threading.Thread(target=self._record_signal, daemon=True)

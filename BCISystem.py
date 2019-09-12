@@ -29,6 +29,7 @@ class BCISystem(object):
         self._window_length = window_length
         self._window_step = window_step
         self._proc = None
+        self._prev_timestamp = 0
 
     def _subject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
         kfold = SubjectKFold(subj_n_fold_num)
@@ -95,7 +96,7 @@ class BCISystem(object):
         ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = ai_model[subject]
         dsp = online.DSP()
-        # dsp.start_parallel_signal_recording()
+        # dsp.start_parallel_signal_recording() # todo: have it or not?
         sleep_time = 1 / dsp.fs
 
         y_preds = list()
@@ -106,14 +107,17 @@ class BCISystem(object):
             t = time.time()
 
             if get_real_labels:
-                data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
+                timestamp, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
             else:
-                data = dsp.get_eeg_window(self._window_length)
+                timestamp, data = dsp.get_eeg_window(self._window_length)
 
             sh = np.shape(data)
-            if len(sh) < 2 or sh[1] / dsp.fs < self._window_length:
+            if len(sh) < 2 or sh[1] / dsp.fs < self._window_length or timestamp == self._prev_timestamp:
                 # The data is still not big enough for window.
+                # time.sleep(1/dsp.fs)
+                self._prev_timestamp = timestamp
                 continue
+            self._prev_timestamp = timestamp
 
             # todo: generalize, similar function in preprocessor _get_windowed_features()
             if feature == 'avg_column':
@@ -126,7 +130,6 @@ class BCISystem(object):
 
             y_real.append(label)
             y_preds.append(y_pred)
-
             time.sleep(max(0, sleep_time - (time.time() - t)))
 
         return y_preds, y_real
@@ -138,7 +141,7 @@ def calc_online_acc(y_pred, y_real):
     from config import PilotDB
     conv = {val: key for key, val in PilotDB.TRIGGER_TASK_CONVERTER.items()}
     y_real = [conv.get(y, REST) for y in y_real]
-    print('diff labels: {}\n'.format(set(np.array(y_pred).flatten())))
+    print('\nDiff labels: {}\n'.format(set(np.array(y_pred).flatten())))
     class_report = classification_report(y_real, y_pred)
     conf_martix = confusion_matrix(y_real, y_pred)
     acc = accuracy_score(y_real, y_pred)
@@ -166,5 +169,5 @@ if __name__ == '__main__':
     thread.start()
     y_preds, y_real = bci.online_processing(db_name=db_name, subject=train_subj, get_real_labels=get_real_labels,
                                             data_sender=thread)
-    print(len(y_preds), len(y_real))
+    assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
     calc_online_acc(y_preds, y_real)
