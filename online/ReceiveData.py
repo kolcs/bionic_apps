@@ -13,8 +13,6 @@ def load_electrodes(info):
     return electrodes
 
 
-EXIT = 2
-i = 0
 # first resolve an EEG stream on the lab network
 print("looking for an EEG stream...")
 streams = resolve_stream('type', 'EEG')
@@ -27,14 +25,13 @@ info = inlet.info()
 print(info.as_xml())
 print(info.nominal_srate())
 
-data, _ = inlet.pull_sample()
-data = np.transpose(np.array(data, ndmin=2))
-print(data)
-while i < EXIT:
+timestamps = list()
+data = list()
+
+while True:
     sample, timestamp = inlet.pull_sample()
     # print(timestamp, sample)
-    sample = np.array(sample, ndmin=2)
-    sample = np.transpose(sample)
-    data = np.append(data, sample, axis=1)
-    print(data)
-    i += 1
+    timestamps.append(timestamp)
+    data.append(sample)
+    print(np.transpose(data).shape)
+

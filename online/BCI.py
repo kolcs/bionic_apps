@@ -78,13 +78,13 @@ class DSP(SignalReceiver):
             #     self._timestamp.extend(timestamps)
 
         win = int(self.fs * wlength)
-        # self._lock.acquire()
+        self._lock.acquire()
         eeg = self._eeg[-win:]
-        len_ = len(self._timestamp)
-        timestamp = self._timestamp[-win] if len_ >= win else 0  # self._prev_time + 1 / self.fs
-        # self._lock.release()
+        # len_ = len(self._timestamp)
+        timestamp = self._timestamp[-win:]  # if len_ >= win else 0  # self._prev_time + 1 / self.fs
+        self._lock.release()
         # print(len_, (time - self._prev_time) * self.fs)
-        self._prev_time = timestamp
+        # self._prev_time = timestamp
 
         if return_label:
             label = eeg[0][-1] if len(eeg) > 0 else None
@@ -92,11 +92,17 @@ class DSP(SignalReceiver):
             return timestamp, data, label
         return timestamp, np.transpose(eeg)
 
-    def start_parallel_signal_recording(self):
-        thread = threading.Thread(target=self._record_signal, daemon=True)
+    def start_parallel_signal_recording(self, rec_type='sample'):
+        if rec_type == 'sample':
+            target = self._record_signal_sample
+        elif rec_type == 'chunk':
+            target = self._record_signal_chunk
+        else:
+            raise NotImplementedError('{} signal recording type is not defined!'.format(rec_type))
+        thread = threading.Thread(target=target, daemon=True)
         thread.start()
 
-    def _record_signal(self):
+    def _record_signal_sample(self):
         # self._save_init_data()
         self._is_recording = True
         self._stop_recording = False
@@ -110,6 +116,22 @@ class DSP(SignalReceiver):
             self._timestamp.append(timestamp)  # + self._inlet.time_correction())
 
             self._lock.release()
+
+        self._is_recording = False
+
+    def _record_signal_chunk(self):
+        self._is_recording = True
+        self._stop_recording = False
+        self._reset_data()
+
+        while not self._stop_recording:
+            EEG_samples, timestamps = self.get_chunk()
+
+            if timestamps:
+                self._lock.acquire()
+                self._eeg.extend(EEG_samples)
+                self._timestamp.extend(timestamps)
+                self._lock.release()
 
         self._is_recording = False
 

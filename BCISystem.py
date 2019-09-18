@@ -90,34 +90,80 @@ class BCISystem(object):
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
+    def _correct_online_data(self, timestamps, data):
+        """Correcting online received data.
+
+        The data sent through the pylsl protocol misses some data points therefore the window is
+        much wider than the required window length. The correction is made by dropping the
+        timeponts and datapoints which are out of the required window length
+
+        Parameters
+        ----------
+        timestamps : list of float
+            Array containing all the timestamps.
+        data : numpy.array
+            EEG data with shape (channels, timepoints).
+
+        Returns
+        -------
+        timestamps : list of float
+            Corrected timestamps.
+        data : numpy.array
+            Corrected data.
+
+        """
+        corr_ind = -1
+        for i, t in enumerate(timestamps):
+            corr_ind = i
+            if timestamps[-1] - t <= self._window_length:
+                break
+        return timestamps[corr_ind:], data[:, corr_ind:]
+
     def online_processing(self, db_name, subject, feature='avg_column', get_real_labels=False, data_sender=None):
         self._init_db_processor(db_name)
         self._proc.init_processed_db_path(feature)
         ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = ai_model[subject]
         dsp = online.DSP()
-        # dsp.start_parallel_signal_recording() # todo: have it or not?
+        # dsp.start_parallel_signal_recording(rec_type='chunk')  # todo: have it or not?
         sleep_time = 1 / dsp.fs
 
         y_preds = list()
         y_real = list()
         label = None
+        drop_count = 0
 
         while data_sender is None or data_sender.is_alive():
             t = time.time()
 
             if get_real_labels:
-                timestamp, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
+                timestamps, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
             else:
-                timestamp, data = dsp.get_eeg_window(self._window_length)
+                timestamps, data = dsp.get_eeg_window(self._window_length)
 
             sh = np.shape(data)
-            if len(sh) < 2 or sh[1] / dsp.fs < self._window_length or timestamp == self._prev_timestamp:
+            if len(sh) < 2 or sh[1] / dsp.fs < self._window_length or timestamps == self._prev_timestamp:
                 # The data is still not big enough for window.
                 # time.sleep(1/dsp.fs)
-                self._prev_timestamp = timestamp
+                self._prev_timestamp = timestamps
+                drop_count += 1
                 continue
-            self._prev_timestamp = timestamp
+            # print('Dropped: {}'.format(drop_count))
+            drop_count = 0
+            # timestamps, data = self._correct_online_data(timestamps, data) # todo: check receive data
+
+            # ts = np.array(timestamps) - timestamps[0]
+            # from scipy import signal
+            # newy, tnew = signal.resample(data, 250, ts, axis=1)
+            # xnew = np.linspace(0, .5, 250)
+            # import matplotlib.pyplot as plt
+            # plt.plot(ts, data[1, :], 'go-', xnew, newy[1, :], '.-')
+            # plt.show()
+            # exit(0)
+            # print('step: {}, win width: {}, should be {}'.format((timestamps[-1] - self._prev_timestamp[-1]) * dsp.fs,
+            #                                                      (timestamps[-1] - timestamps[0]) * dsp.fs,
+            #                                                      250))
+            self._prev_timestamp = timestamps
 
             # todo: generalize, similar function in preprocessor _get_windowed_features()
             if feature == 'avg_column':
@@ -130,7 +176,7 @@ class BCISystem(object):
 
             y_real.append(label)
             y_preds.append(y_pred)
-            time.sleep(max(0, sleep_time - (time.time() - t)))
+            # time.sleep(max(0, sleep_time - (time.time() - t)))  # todo: Do not use - not real time...
 
         return y_preds, y_real
 

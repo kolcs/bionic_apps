@@ -93,11 +93,13 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False):
             data, ev = get_data_with_labels(raw)
         else:
             data = raw.get_data()
+
     stim = 1
+    prevstamp = local_clock() - 0.125 - 1/FS
 
     for t in range(np.size(data, axis=1)):
-        # make a new random 8-channel sample; this is converted into a
-        # pylsl.vectorf (the data type that is expected by push_sample)
+        # tic = time.time()
+
         mysample = list(data[:, t])
         if get_labels:
             stim = ev.get(t, stim)
@@ -105,9 +107,19 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False):
         # get a time stamp in seconds (we pretend that our samples are actually
         # 125ms old, e.g., as if coming from some external hardware)
         stamp = local_clock() - 0.125
+        real_sleep_time = stamp - prevstamp
+        # print('time spent in sleep in hz: {}'.format(1 / (real_sleep_time)))
+        corr = (FS - 1 / real_sleep_time)
+        # print('time diff: {} %'.format(real_sleep_time * FS * 100 - 100))
+        prevstamp = stamp
         # now send it and wait for a bit
         outlet.push_sample(mysample, stamp)
-        time.sleep(1 / FS)
+        time_to_sleep = 1 / (FS + corr)  # max(0, sleep_time - (time.time() - tic))
+        # print('time to sleep in hz: {}'.format(1 / (ts)))
+        # time.sleep(ts)
+        toc = time.clock() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
+        while time.clock() < toc:
+            pass
 
 
 if __name__ == '__main__':
