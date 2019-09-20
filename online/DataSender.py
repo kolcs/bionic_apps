@@ -28,12 +28,12 @@ def get_data_with_labels(raw):  # only for pilot data
     fs = raw.info['sfreq']
     events, event_id = events_from_annotations(raw)
 
-    to = [i for i, el in enumerate(events[:, 2]) if el == 12][3:]  # end stim
-    frm = [i for i, el in enumerate(events[:, 2]) if el == 1001][3:]  # init stim
-    frm = events[frm, 0]
-    to = events[to, 0]
+    from_ = [i for i, el in enumerate(events[:, 2]) if el == 1001][3:]  # init stim
+    to_ = [i for i, el in enumerate(events[:, 2]) if el == 12][3:]  # end stim
+    from_ = events[from_, 0]
+    to_ = events[to_, 0]
 
-    raws = [raw.copy().crop(f / fs, t / fs + 1) for f, t in zip(frm, to)]
+    raws = [raw.copy().crop(frm / fs, to / fs + 1) for frm, to in zip(from_, to_)]
 
     raw = raws.pop(0)
     for r in raws:
@@ -131,6 +131,6 @@ if __name__ == '__main__':
              base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
 
     test_subj = 4
-    file = '{}Cybathlon_pilot/pilot{}/rec01.vhdr'.format(base_dir, test_subj)
+    file = '{}Cybathlon_pilot/paradigmA/pilot{}/rec01.vhdr'.format(base_dir, test_subj)
 
-    run(file, get_labels=False)
+    run(file, get_labels=True)

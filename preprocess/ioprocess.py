@@ -21,8 +21,7 @@ def open_raw_file(filename, preload=True):
     elif ext == 'vhdr':
         raw = mne.io.read_raw_brainvision(filename, preload=preload)
     else:
-        raw = None
-        NotImplementedError('{} file reading is not implemented.'.format(ext))
+        raise NotImplementedError('{} file reading is not implemented.'.format(ext))
 
     return raw
 
@@ -552,7 +551,7 @@ class OfflineDataPreprocessor:
 
             self._save_preprocessed_subject_data(subject_data, subj)
 
-    def _get_windowed_features(self, epochs, task, feature='spatial'):
+    def _get_windowed_features(self, epochs, task, feature='spatial'):  # todo: check!
         """Feature creation from windowed data.
 
         Parameters

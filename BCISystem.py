@@ -134,7 +134,7 @@ class BCISystem(object):
         drop_count = 0
 
         while data_sender is None or data_sender.is_alive():
-            t = time.time()
+            # t = time.time()
 
             if get_real_labels:
                 timestamps, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
@@ -209,7 +209,8 @@ if __name__ == '__main__':
 
     train_subj = 1
     test_subj = 4
-    file = '{}Cybathlon_pilot/pilot{}/rec01.vhdr'.format(base_dir, test_subj)
+    paradigm = 'A'
+    file = '{}Cybathlon_pilot/paradigm{}/pilot{}/rec01.vhdr'.format(base_dir, paradigm, test_subj)
     get_real_labels = True
     thread = threading.Thread(target=online.DataSender.run, args=(file, get_real_labels), daemon=True)
     thread.start()

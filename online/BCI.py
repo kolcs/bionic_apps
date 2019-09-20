@@ -58,7 +58,7 @@ class DSP(SignalReceiver):
     def __init__(self):
         super(DSP, self).__init__()
         self._eeg = list()
-        self._filt_eeg = list()
+        self._filt_eeg = list()  # change it to deque + copy()?
         self._timestamp = list()
         self._stop_recording = False
         self._is_recording = False

@@ -58,8 +58,8 @@ DIR_FEATURE_DB = 'tmp/'
 #
 #     DROP_SUBJECTS = list()
 
-class PilotDB:  # TODO: cut data to smaller parts!!! --> subject + record
-    DIR = "Cybathlon_pilot/"
+class PilotDB:
+    DIR = "Cybathlon_pilot/paradigmA/"
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
