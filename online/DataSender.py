@@ -96,13 +96,14 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False):
 
     stim = 1
     prevstamp = local_clock() - 0.125 - 1/FS
-
+    stims = list()
     for t in range(np.size(data, axis=1)):
         # tic = time.time()
 
         mysample = list(data[:, t])
         if get_labels:
             stim = ev.get(t, stim)
+            stims.append(stim)
             mysample.append(stim)
         # get a time stamp in seconds (we pretend that our samples are actually
         # 125ms old, e.g., as if coming from some external hardware)
@@ -120,6 +121,12 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False):
         toc = time.clock() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
         while time.clock() < toc:
             pass
+
+    diffstim = set(stims)
+    d = {st: 0 for st in diffstim}
+    for st in stims:
+        d[st]+=1
+    print('sent stim:', d)
 
 
 if __name__ == '__main__':

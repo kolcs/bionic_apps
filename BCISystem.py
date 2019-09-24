@@ -35,7 +35,7 @@ class BCISystem(object):
         kfold = SubjectKFold(subj_n_fold_num)
         ai_model = dict()
 
-        for train_x, train_y, test_x, test_y, subject in kfold.split(self._proc):
+        for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
             svm = ai.SVM(C=1, cache_size=4000, random_state=12, class_weight={REST: 0.25})
             # svm = ai.LinearSVM(C=1, random_state=12, max_iter=20000, class_weight={REST: 0.25})
@@ -45,7 +45,7 @@ class BCISystem(object):
             svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(t))
-            ai_model[subject] = svm
+            ai_model[test_subject] = svm
 
             y_pred = svm.predict(test_x)
 
@@ -53,7 +53,7 @@ class BCISystem(object):
             conf_martix = confusion_matrix(test_y, y_pred)
             acc = accuracy_score(test_y, y_pred)
 
-            print("Classification report for subject{}:".format(subject))
+            print("Classification report for subject{}:".format(test_subject))
             print("classifier %s:\n%s\n"
                   % (self, class_report))
             print("Confusion matrix:\n%s\n" % conf_martix)
@@ -119,11 +119,11 @@ class BCISystem(object):
                 break
         return timestamps[corr_ind:], data[:, corr_ind:]
 
-    def online_processing(self, db_name, subject, feature='avg_column', get_real_labels=False, data_sender=None):
+    def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None):
         self._init_db_processor(db_name)
         self._proc.init_processed_db_path(feature)
         ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
-        svm = ai_model[subject]
+        svm = ai_model[test_subject]
         dsp = online.DSP()
         # dsp.start_parallel_signal_recording(rec_type='chunk')  # todo: have it or not?
         sleep_time = 1 / dsp.fs
@@ -132,12 +132,14 @@ class BCISystem(object):
         y_real = list()
         label = None
         drop_count = 0
+        dstim = {1:0, 5:0, 7:0, 1001:0, 9:0, 11:0, 12:0, 15:0}
 
         while data_sender is None or data_sender.is_alive():
             # t = time.time()
 
             if get_real_labels:
                 timestamps, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
+                dstim[label] += 1
             else:
                 timestamps, data = dsp.get_eeg_window(self._window_length)
 
@@ -177,7 +179,7 @@ class BCISystem(object):
             y_real.append(label)
             y_preds.append(y_pred)
             # time.sleep(max(0, sleep_time - (time.time() - t)))  # todo: Do not use - not real time...
-
+        print('received stim', dstim)
         return y_preds, y_real
 
 
@@ -207,14 +209,13 @@ if __name__ == '__main__':
     db_name = 'pilot'
     # bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
 
-    train_subj = 1
     test_subj = 4
     paradigm = 'A'
     file = '{}Cybathlon_pilot/paradigm{}/pilot{}/rec01.vhdr'.format(base_dir, paradigm, test_subj)
     get_real_labels = True
     thread = threading.Thread(target=online.DataSender.run, args=(file, get_real_labels), daemon=True)
     thread.start()
-    y_preds, y_real = bci.online_processing(db_name=db_name, subject=train_subj, get_real_labels=get_real_labels,
+    y_preds, y_real = bci.online_processing(db_name=db_name, test_subject=test_subj, get_real_labels=get_real_labels,
                                             data_sender=thread)
     assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
     calc_online_acc(y_preds, y_real)
