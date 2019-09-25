@@ -81,6 +81,52 @@ class PilotDB:
     DROP_SUBJECTS = [2, 3]  # [] or [1, 4] or [2, 3]
 
 
+class PilotDB_ParadigmB:
+    DIR = "Cybathlon_pilot/paradigmB/"
+    CHANNEL_NUM = 63
+    FS = 500
+    DB_EXT = '.vhdr'
+    SUBJECT_NUM = 4
+    FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        REST: 1,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        RIGHT_LEG: 9,
+        LEFT_LEG: 11
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
+    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
+
+
+class TTK_DB:
+    DIR = "TTK/"
+    CHANNEL_NUM = 63
+    FS = 500
+    DB_EXT = '.vhdr'
+    SUBJECT_NUM = 24
+    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        REST: 1,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        RIGHT_LEG: 9,
+        LEFT_LEG: 11
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
+    DROP_SUBJECTS = [1, 9, 17]
+
+
 class Physionet:
     # Wrong labeling!!!! FP region
     DIR = "physionet.org/"

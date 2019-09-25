@@ -69,9 +69,14 @@ class BCISystem(object):
             if db_name == 'physionet':
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
-            elif db_name == 'pilot':
+            elif db_name == 'pilot_parA':
                 self._proc.use_pilot()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
+            elif db_name == 'pilot_parB':
+                self._proc.use_pilot_par_b()
+            elif db_name == 'ttk':
+                self._proc.use_ttk_db()
+
             else:
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
@@ -206,8 +211,8 @@ if __name__ == '__main__':
     # base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
-    db_name = 'pilot'
-    # bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
+    db_name = 'pilot_parA'
+    bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
 
     test_subj = 4
     paradigm = 'A'

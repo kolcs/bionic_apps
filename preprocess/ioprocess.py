@@ -160,6 +160,29 @@ def generate_pilot_filenames(file_path, subject, runs):
     return _generate_filenames_for_subject(file_path, subject, '{}', runs, '{:02d}')
 
 
+def generate_ttk_filenames(file_path, subject, runs):
+    """Filename generator for pilot db
+
+        Generating filenames from a given string with {subj} and {rec} which are will be replaced.
+
+        Parameters
+        ----------
+        file_path : str
+            special string with {subj} and {rec} substrings
+        subject : int
+            subject number
+        runs : int or list of int
+            list of sessions
+
+        Returns
+        -------
+        rec : list of str
+            filenames for a subject with given runs
+
+        """
+    return _generate_filenames_for_subject(file_path, subject, '{:02d}', runs, '{:02d}')
+
+
 def get_num_with_predefined_char(filename, char, required_num='required'):
     """
     Searches for number in filename
@@ -377,6 +400,14 @@ class OfflineDataPreprocessor:
         self._use_db(PilotDB)
         return self
 
+    def use_pilot_par_b(self):
+        self._use_db(PilotDB_ParadigmB)
+        return self
+
+    def use_ttk_db(self):
+        self._use_db(TTK_DB)
+        return self
+
     @property
     def _db_ext(self):
         return self._db_type.DB_EXT
@@ -542,7 +573,10 @@ class OfflineDataPreprocessor:
                 continue
 
             subject_data = list()
-            filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj, 1)
+            if self._db_type is TTK_DB:
+                filenames = generate_ttk_filenames(self._data_path + self._db_type.FILE_PATH, subj, 1)
+            else:
+                filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj, 1)
             epochs = self._get_epochs_from_files(filenames, task_dict)
 
             for task in task_dict.keys():
@@ -551,7 +585,7 @@ class OfflineDataPreprocessor:
 
             self._save_preprocessed_subject_data(subject_data, subj)
 
-    def _get_windowed_features(self, epochs, task, feature='spatial'):  # todo: check!
+    def _get_windowed_features(self, epochs, task, feature='spatial'):
         """Feature creation from windowed data.
 
         Parameters
@@ -629,7 +663,7 @@ class OfflineDataPreprocessor:
             print_creation_message()
             self._create_physionet_db(feature)
 
-        elif self._db_type is PilotDB:
+        elif self._db_type is PilotDB or PilotDB_ParadigmB or TTK_DB:
             print_creation_message()
             self._create_ttk_db(feature)
 
