@@ -12,8 +12,8 @@ EYE_CLOSED = 'eye closed'
 LEFT_HAND = 'left hand'
 RIGHT_HAND = 'right hand'
 BOTH_HANDS = 'both hands'
-LEFT_LEG = 'left_leg'
-RIGHT_LEG = 'right_leg'
+LEFT_LEG = 'left leg'
+RIGHT_LEG = 'right leg'
 BOTH_LEGS = 'both legs'
 REST = 'rest'
 
@@ -95,8 +95,8 @@ class PilotDB_ParadigmB:
         # EYE_CLOSED: 3,
         RIGHT_HAND: 5,
         LEFT_HAND: 7,
-        RIGHT_LEG: 9,
-        LEFT_LEG: 11
+        BOTH_HANDS: 9,
+        BOTH_LEGS: 11
     }
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
