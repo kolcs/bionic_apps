@@ -45,7 +45,6 @@ class BCISystem(object):
             svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(t))
-            ai_model[test_subject] = svm
 
             y_pred = svm.predict(test_x)
 
@@ -59,8 +58,11 @@ class BCISystem(object):
             print("Confusion matrix:\n%s\n" % conf_martix)
             print("Accuracy score: {}\n".format(acc))
 
-        if save_model:
-            save_pickle_data(ai_model, self._proc.proc_db_path + AI_MODEL)
+            if save_model:
+                print("Saving AI model...")
+                ai_model[test_subject] = svm
+                save_pickle_data(ai_model, self._proc.proc_db_path + AI_MODEL)
+                print("Done\n")
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, fast_load=True):
         if self._proc is None:
@@ -137,14 +139,14 @@ class BCISystem(object):
         y_real = list()
         label = None
         drop_count = 0
-        dstim = {1:0, 5:0, 7:0, 1001:0, 9:0, 11:0, 12:0, 15:0}
+        dstim = {1: 0, 5: 0, 7: 0, 1001: 0, 9: 0, 11: 0, 12: 0, 15: 0}
 
         while data_sender is None or data_sender.is_alive():
             # t = time.time()
 
             if get_real_labels:
                 timestamps, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
-                dstim[label] += 1
+                # dstim[label] += 1
             else:
                 timestamps, data = dsp.get_eeg_window(self._window_length)
 
@@ -184,7 +186,11 @@ class BCISystem(object):
             y_real.append(label)
             y_preds.append(y_pred)
             # time.sleep(max(0, sleep_time - (time.time() - t)))  # todo: Do not use - not real time...
+        stims = np.array(dsp._eeg)[:, -1]
+        for s in stims:
+            dstim[s]+=1
         print('received stim', dstim)
+
         return y_preds, y_real
 
 
@@ -212,7 +218,7 @@ if __name__ == '__main__':
 
     bci = BCISystem(base_dir)
     db_name = 'pilot_parA'
-    bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
+    # bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
 
     test_subj = 4
     paradigm = 'A'
