@@ -48,7 +48,7 @@ def get_data_with_labels(raw):  # only for pilot data
     return data, ev
 
 
-def run(filename, get_labels=False, eeg_type='', use_artificial_data=False):
+def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236'):
     raw = open_raw_file(filename)
 
     # strip channel names of "." characters
@@ -69,10 +69,10 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False):
     if get_labels:
         electrodes.append('trigger')
 
-    info = StreamInfo('BioSemi', 'EEG', len(electrodes), FS, 'float32', 'myuid2424')
+    info = StreamInfo('MNE', 'EEG', len(electrodes), FS, 'float32', host)
 
     # append some meta-data
-    info.desc().append_child_value("manufacturer", "BioSemi")
+    info.desc().append_child_value("manufacturer", "MNE")
     channels = info.desc().append_child("channels")
 
     for c in electrodes:
@@ -119,8 +119,8 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False):
         # print('time to sleep in hz: {}'.format(1 / (ts)))
         # time.sleep(ts)
         toc = time.clock() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
-        while time.clock() < toc:
-            pass
+        # while time.clock() < toc:
+        #     pass
 
     diffstim = set(stims)
     d = {st: 0 for st in diffstim}

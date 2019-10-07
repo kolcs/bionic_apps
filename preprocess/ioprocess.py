@@ -608,7 +608,7 @@ class OfflineDataPreprocessor:
         win_epochs = []
         win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
 
-        for i in range(win_num):
+        for i in range(win_num):  # todo: make it parallel
             ep = epochs.copy().load_data()
             ep.crop(i * self._window_step, self._window_length + i * self._window_step)
 

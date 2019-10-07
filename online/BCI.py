@@ -69,13 +69,13 @@ class DSP(SignalReceiver):
 
     def get_eeg_window(self, wlength=1.0, return_label=False):
         if not self._is_recording:
-            EEG_sample, timestamp = self.get_sample()
-            self._eeg.append(EEG_sample)
-            self._timestamp.append(timestamp)
-            # EEG_samples, timestamps = self.get_chunk()
-            # if timestamps:
-            #     self._eeg.extend(EEG_samples)
-            #     self._timestamp.extend(timestamps)
+            # EEG_sample, timestamp = self.get_sample()
+            # self._eeg.append(EEG_sample)
+            # self._timestamp.append(timestamp)
+            EEG_samples, timestamps = self.get_chunk()
+            if timestamps:
+                self._eeg.extend(EEG_samples)
+                self._timestamp.extend(timestamps)
 
         win = int(self.fs * wlength)
         self._lock.acquire()

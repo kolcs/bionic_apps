@@ -1,6 +1,6 @@
 import time
-import threading
 import numpy as np
+import multiprocessing as mp
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 import ai
@@ -126,7 +126,8 @@ class BCISystem(object):
                 break
         return timestamps[corr_ind:], data[:, corr_ind:]
 
-    def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None):
+    def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None,
+                          file=None):
         self._init_db_processor(db_name)
         self._proc.init_processed_db_path(feature)
         ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
@@ -186,12 +187,28 @@ class BCISystem(object):
             y_real.append(label)
             y_preds.append(y_pred)
             # time.sleep(max(0, sleep_time - (time.time() - t)))  # todo: Do not use - not real time...
-        stims = np.array(dsp._eeg)[:, -1]
+
+        raw = np.array(dsp._eeg)
+        stims = raw[:, -1]
+        check_received_signal(raw[:, :-1], file)
+
         for s in stims:
-            dstim[s]+=1
+            dstim[s] += 1
         print('received stim', dstim)
 
         return y_preds, y_real
+
+
+def check_received_signal(data, filename):
+    from preprocess import open_raw_file
+    raw = open_raw_file(filename)
+    raw.plot(title='Sent')
+    info = raw.info
+    from mne.io import RawArray
+    raw = RawArray(np.transpose(data), info)
+    raw.plot(title='Received')
+    from matplotlib import pyplot as plt
+    plt.show()
 
 
 def calc_online_acc(y_pred, y_real):
@@ -224,9 +241,9 @@ if __name__ == '__main__':
     paradigm = 'A'
     file = '{}Cybathlon_pilot/paradigm{}/pilot{}/rec01.vhdr'.format(base_dir, paradigm, test_subj)
     get_real_labels = True
-    thread = threading.Thread(target=online.DataSender.run, args=(file, get_real_labels), daemon=True)
-    thread.start()
+    data_sender = mp.Process(target=online.DataSender.run, args=(file, get_real_labels), daemon=True)
+    data_sender.start()
     y_preds, y_real = bci.online_processing(db_name=db_name, test_subject=test_subj, get_real_labels=get_real_labels,
-                                            data_sender=thread)
+                                            data_sender=data_sender, file=file)
     assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
     calc_online_acc(y_preds, y_real)
