@@ -29,11 +29,12 @@ class BCISystem(object):
         self._window_length = window_length
         self._window_step = window_step
         self._proc = None
-        self._prev_timestamp = 0
+        self._prev_timestamp = [0]
+        self._ai_model = None
 
     def _subject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
         kfold = SubjectKFold(subj_n_fold_num)
-        ai_model = dict()
+        self._ai_model = dict()
 
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
@@ -60,11 +61,28 @@ class BCISystem(object):
 
             if save_model:
                 print("Saving AI model...")
-                ai_model[test_subject] = svm
-                save_pickle_data(ai_model, self._proc.proc_db_path + AI_MODEL)
+                self._ai_model[test_subject] = svm
+                save_pickle_data(self._ai_model, self._proc.proc_db_path + AI_MODEL)
                 print("Done\n")
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, fast_load=True):
+        """Database initializer.
+
+        Initialize the database preprocessor for the required db, which handles the configuration.
+
+        Parameters
+        ----------
+         db_name : {'physionet', 'pilot_parA', 'pilot_parB', 'ttk'}
+            Database to work on...
+        epoch_tmin : int
+            Defining epoch start from trigger in seconds.
+        epoch_tmax : int
+            Defining epoch end from trigger in seconds.
+        use_drop_subject_list : bool
+            Whether to use drop subject list from config file or not?
+        fast_load : bool
+            Handle with extreme care! It loads the result of a previous preprocess task.
+        """
         if self._proc is None:
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load)
@@ -83,7 +101,7 @@ class BCISystem(object):
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
     def offline_processing(self, db_name='physionet', feature='avg_column', method='subjectXvalidate', epoch_tmin=0,
-                           epoch_tmax=3, use_drop_subject_list=True, fast_load=True, subj_n_fold_num=None):
+                           epoch_tmax=3, use_drop_subject_list=True, fast_load=False, subj_n_fold_num=None):
 
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, fast_load)
         self._proc.run(feature=feature)
@@ -128,10 +146,29 @@ class BCISystem(object):
 
     def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None,
                           file=None):
+        """Online accuracy check.
+
+        This is an example code, how the online classification can be done.
+
+        Parameters
+        ----------
+        db_name : {'physionet', 'pilot_parA', 'pilot_parB', 'ttk'}
+            Database to work on...
+        test_subject : int
+            Test subject number, which was not included in ai training.
+        feature : {'avg_column'}, optional
+            Feature created from EEG window
+        get_real_labels : bool, optional
+            Load real labels from file to test accuracy.
+        data_sender : multiprocess.Process, optional
+            Process object which sends the signals for simulating realtime work.
+        """
         self._init_db_processor(db_name)
         self._proc.init_processed_db_path(feature)
-        ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
-        svm = ai_model[test_subject]
+        if self._ai_model is None:
+            self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
+        svm = self._ai_model[test_subject]
+        self._ai_model = None
         dsp = online.DSP()
         # dsp.start_parallel_signal_recording(rec_type='chunk')  # todo: have it or not?
         sleep_time = 1 / dsp.fs
@@ -155,10 +192,9 @@ class BCISystem(object):
             if len(sh) < 2 or sh[1] / dsp.fs < self._window_length or timestamps == self._prev_timestamp:
                 # The data is still not big enough for window.
                 # time.sleep(1/dsp.fs)
-                self._prev_timestamp = timestamps
                 drop_count += 1
                 continue
-            # print('Dropped: {}'.format(drop_count))
+            # print('Dropped: {}\n time diff: {}'.format(drop_count, (timestamps[0]-self._prev_timestamp[0])*dsp.fs))
             drop_count = 0
             # timestamps, data = self._correct_online_data(timestamps, data) # todo: check receive data
 
@@ -190,30 +226,38 @@ class BCISystem(object):
 
         raw = np.array(dsp._eeg)
         stims = raw[:, -1]
-        check_received_signal(raw[:, :-1], file)
+        # check_received_signal(raw[:, :-1], file)
 
         for s in stims:
             dstim[s] += 1
         print('received stim', dstim)
 
-        return y_preds, y_real
+        return y_preds, y_real, raw
 
 
 def check_received_signal(data, filename):
     from preprocess import open_raw_file
     raw = open_raw_file(filename)
-    raw.plot(title='Sent')
     info = raw.info
+    from online.DataSender import get_data_with_labels
+    _, _, orig = get_data_with_labels(raw)
+    orig.plot(title='Sent')
     from mne.io import RawArray
     raw = RawArray(np.transpose(data), info)
     raw.plot(title='Received')
     from matplotlib import pyplot as plt
     plt.show()
+    print(orig.get_data().shape, raw.get_data().shape)
+    d_orig = orig.get_data()
+    d_raw = raw.get_data()
+    for t in range(len(raw)):
+        print('orig: {}\nreceived: {}\nmatch {}'.format(d_orig[:, t], d_raw[:, t], d_orig[:, t] == d_raw[:, t]))
 
 
-def calc_online_acc(y_pred, y_real):
+def calc_online_acc(y_pred, y_real, raw):
     save_pickle_data(y_real, 'tmp/y_real.data')
     save_pickle_data(y_pred, 'tmp/y_pred.data')
+    save_pickle_data(raw, 'tmp/eeg.data')
     from config import PilotDB
     conv = {val: key for key, val in PilotDB.TRIGGER_TASK_CONVERTER.items()}
     y_real = [conv.get(y, REST) for y in y_real]
@@ -237,13 +281,15 @@ if __name__ == '__main__':
     db_name = 'pilot_parA'
     # bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
 
-    test_subj = 4
+    test_subj = 1
     paradigm = 'A'
     file = '{}Cybathlon_pilot/paradigm{}/pilot{}/rec01.vhdr'.format(base_dir, paradigm, test_subj)
     get_real_labels = True
-    data_sender = mp.Process(target=online.DataSender.run, args=(file, get_real_labels), daemon=True)
+    data_sender = mp.Process(target=online.DataSender.run, args=(file, get_real_labels), daemon=True,
+                             name='signal streamer')
     data_sender.start()
-    y_preds, y_real = bci.online_processing(db_name=db_name, test_subject=test_subj, get_real_labels=get_real_labels,
-                                            data_sender=data_sender, file=file)
+    y_preds, y_real, raw = bci.online_processing(db_name=db_name, test_subject=test_subj,
+                                                 get_real_labels=get_real_labels,
+                                                 data_sender=data_sender, file=file)
     assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
-    calc_online_acc(y_preds, y_real)
+    calc_online_acc(y_preds, y_real, raw)

@@ -518,7 +518,7 @@ class OfflineDataPreprocessor:
         db_file = 'subject{}.data'.format(subj)
         save_pickle_data({subj: subject_data}, self.proc_db_path + db_file)
         self._proc_db_filenames.append(db_file)
-        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
+        # save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_physionet_db(self, feature='spatial'):
         """Physionet feature db creator function
@@ -553,6 +553,7 @@ class OfflineDataPreprocessor:
                 subject_data.extend(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
+        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_ttk_db(self, feature='spatial'):
         """Pilot feature db creator function
@@ -584,6 +585,7 @@ class OfflineDataPreprocessor:
                 subject_data.extend(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
+        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _get_windowed_features(self, epochs, task, feature='spatial'):
         """Feature creation from windowed data.
@@ -712,7 +714,7 @@ class OfflineDataPreprocessor:
             np.random.shuffle(test)
 
         train_x, train_y = zip(*train)
-        test_x, test_y = zip(*train)
+        test_x, test_y = zip(*test)
 
         return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
 

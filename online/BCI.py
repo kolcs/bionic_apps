@@ -7,7 +7,8 @@ Online BCI
 
 from pylsl import StreamInlet, resolve_stream
 import numpy as np
-import threading
+# import threading
+import multiprocessing as mp
 from scipy.signal import butter, lfilter, lfilter_zi
 from online.plotter import EEGPlotter
 
@@ -62,10 +63,11 @@ class DSP(SignalReceiver):
         self._timestamp = list()
         self._stop_recording = False
         self._is_recording = False
-        self._lock = threading.Lock()
+        self._lock = mp.Lock()
         self._ch_list = None
         self._plotter = None
         self._prev_time = 0
+        self._recorder_process = None
 
     def get_eeg_window(self, wlength=1.0, return_label=False):
         if not self._is_recording:
@@ -99,8 +101,8 @@ class DSP(SignalReceiver):
             target = self._record_signal_chunk
         else:
             raise NotImplementedError('{} signal recording type is not defined!'.format(rec_type))
-        thread = threading.Thread(target=target, daemon=True)
-        thread.start()
+        self._recorder_process = mp.Process(target=target, daemon=True, name='signal recorder')
+        self._recorder_process.start()  # todo: check error...
 
     def _record_signal_sample(self):
         # self._save_init_data()
@@ -167,8 +169,8 @@ class DSP(SignalReceiver):
         self._select_channels_for_plot(channels)
         self._plotter = EEGPlotter(plot_size=(len(channels), 2))
         self._plotter.add_data_source(self)
-        thread = threading.Thread(target=self.process_singal, daemon=True)
-        thread.start()
+        process = mp.Process(target=self.process_singal, daemon=True)
+        process.start()
         self._plotter.run()
 
     def _select_channels_for_plot(self, channels=('Cpz', 'Cp1', 'Cp2', 'Cp5', 'Cp6')):

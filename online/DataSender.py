@@ -45,7 +45,7 @@ def get_data_with_labels(raw):  # only for pilot data
 
     ev = {ev[0]: ev[2] for ev in events}
     data = raw.get_data()
-    return data, ev
+    return data, ev, raw
 
 
 def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236'):
@@ -90,7 +90,7 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
         data = get_artificial_data(24, 2 * 60, FS)
     else:
         if get_labels:
-            data, ev = get_data_with_labels(raw)
+            data, ev, _ = get_data_with_labels(raw)
         else:
             data = raw.get_data()
 
@@ -119,8 +119,8 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
         # print('time to sleep in hz: {}'.format(1 / (ts)))
         # time.sleep(ts)
         toc = time.clock() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
-        # while time.clock() < toc:
-        #     pass
+        while time.clock() < toc:
+            pass
 
     diffstim = set(stims)
     d = {st: 0 for st in diffstim}

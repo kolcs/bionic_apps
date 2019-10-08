@@ -6,7 +6,7 @@ IMAGINED_MOVEMENT = "imagined"
 REAL_MOVEMENT = "real"
 BASELINE = 'baseline'
 
-# Task types:
+# Task types: if you modify it you have to rerun the preprocess!
 EYE_OPEN = 'eye open'
 EYE_CLOSED = 'eye closed'
 LEFT_HAND = 'left hand'
@@ -78,7 +78,7 @@ class PilotDB:
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = [2, 3]  # [] or [1, 4] or [2, 3]
+    DROP_SUBJECTS = []  # [] or [1, 4] or [2, 3]
 
 
 class PilotDB_ParadigmB:
