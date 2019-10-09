@@ -69,7 +69,7 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
     if get_labels:
         electrodes.append('trigger')
 
-    info = StreamInfo('MNE', 'EEG', len(electrodes), FS, 'float32', host)
+    info = StreamInfo('MNE', 'EEG', len(electrodes), FS, 'double64', host)
 
     # append some meta-data
     info.desc().append_child_value("manufacturer", "MNE")

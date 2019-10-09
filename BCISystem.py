@@ -38,6 +38,7 @@ class BCISystem(object):
 
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
+            print('Training...')
             svm = ai.SVM(C=1, cache_size=4000, random_state=12, class_weight={REST: 0.25})
             # svm = ai.LinearSVM(C=1, random_state=12, max_iter=20000, class_weight={REST: 0.25})
             # svm = ai.libsvm_SVC(C=1, cache_size=4000, class_weight={REST: 0.25})
@@ -65,7 +66,8 @@ class BCISystem(object):
                 save_pickle_data(self._ai_model, self._proc.proc_db_path + AI_MODEL)
                 print("Done\n")
 
-    def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, fast_load=True):
+    def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, feature='avg_column',
+                           fast_load=True):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -85,7 +87,7 @@ class BCISystem(object):
         """
         if self._proc is None:
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
-                                                 self._window_length, self._window_step, fast_load)
+                                                 self._window_length, self._window_step, feature, fast_load)
             if db_name == 'physionet':
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
@@ -103,8 +105,8 @@ class BCISystem(object):
     def offline_processing(self, db_name='physionet', feature='avg_column', method='subjectXvalidate', epoch_tmin=0,
                            epoch_tmax=3, use_drop_subject_list=True, fast_load=False, subj_n_fold_num=None):
 
-        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, fast_load)
-        self._proc.run(feature=feature)
+        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, feature, fast_load)
+        self._proc.run()
 
         if method == 'subjectXvalidate':
             self._subject_crossvalidate(subj_n_fold_num)
@@ -194,6 +196,7 @@ class BCISystem(object):
                 # time.sleep(1/dsp.fs)
                 drop_count += 1
                 continue
+
             # print('Dropped: {}\n time diff: {}'.format(drop_count, (timestamps[0]-self._prev_timestamp[0])*dsp.fs))
             drop_count = 0
             # timestamps, data = self._correct_online_data(timestamps, data) # todo: check receive data
@@ -213,7 +216,7 @@ class BCISystem(object):
 
             # todo: generalize, similar function in preprocessor _get_windowed_features()
             if feature == 'avg_column':
-                data = np.average(data, axis=1)
+                data = np.average(data, axis=-1)
                 data = data.reshape((1, -1))
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(feature))
@@ -279,17 +282,17 @@ if __name__ == '__main__':
 
     bci = BCISystem(base_dir)
     db_name = 'pilot_parA'
-    # bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
+    bci.offline_processing(db_name=db_name, feature='fft_power', fast_load=False, method='trainSVM')
 
-    test_subj = 1
-    paradigm = 'A'
-    file = '{}Cybathlon_pilot/paradigm{}/pilot{}/rec01.vhdr'.format(base_dir, paradigm, test_subj)
-    get_real_labels = True
-    data_sender = mp.Process(target=online.DataSender.run, args=(file, get_real_labels), daemon=True,
-                             name='signal streamer')
-    data_sender.start()
-    y_preds, y_real, raw = bci.online_processing(db_name=db_name, test_subject=test_subj,
-                                                 get_real_labels=get_real_labels,
-                                                 data_sender=data_sender, file=file)
-    assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
-    calc_online_acc(y_preds, y_real, raw)
+    # test_subj = 1
+    # paradigm = 'A'
+    # file = '{}Cybathlon_pilot/paradigm{}/pilot{}/rec01.vhdr'.format(base_dir, paradigm, test_subj)
+    # get_real_labels = True
+    # data_sender = mp.Process(target=online.DataSender.run, args=(file, get_real_labels), daemon=True,
+    #                          name='signal streamer')
+    # data_sender.start()
+    # y_preds, y_real, raw = bci.online_processing(db_name=db_name, test_subject=test_subj,
+    #                                              get_real_labels=get_real_labels,
+    #                                              data_sender=data_sender, file=file)
+    # assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
+    # calc_online_acc(y_preds, y_real, raw)

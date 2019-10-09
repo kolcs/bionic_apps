@@ -109,7 +109,7 @@ class TTK_DB:
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
-    SUBJECT_NUM = 24
+    SUBJECT_NUM = 25
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
