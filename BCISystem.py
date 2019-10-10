@@ -269,7 +269,7 @@ if __name__ == '__main__':
 
     bci = BCISystem(base_dir)
     db_name = 'pilot_parA'
-    bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
+    bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=False, method='trainSVM')
 
     # test_subj = 1
     # paradigm = 'A'
