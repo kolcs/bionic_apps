@@ -146,8 +146,7 @@ class BCISystem(object):
                 break
         return timestamps[corr_ind:], data[:, corr_ind:]
 
-    def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None,
-                          file=None):
+    def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None):
         """Online accuracy check.
 
         This is an example code, how the online classification can be done.
@@ -165,8 +164,8 @@ class BCISystem(object):
         data_sender : multiprocess.Process, optional
             Process object which sends the signals for simulating realtime work.
         """
-        self._init_db_processor(db_name)
-        self._proc.init_processed_db_path(feature)
+        self._init_db_processor(db_name, feature=feature)
+        self._proc.init_processed_db_path()
         if self._ai_model is None:
             self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = self._ai_model[test_subject]
@@ -199,19 +198,7 @@ class BCISystem(object):
 
             # print('Dropped: {}\n time diff: {}'.format(drop_count, (timestamps[0]-self._prev_timestamp[0])*dsp.fs))
             drop_count = 0
-            # timestamps, data = self._correct_online_data(timestamps, data) # todo: check receive data
 
-            # ts = np.array(timestamps) - timestamps[0]
-            # from scipy import signal
-            # newy, tnew = signal.resample(data, 250, ts, axis=1)
-            # xnew = np.linspace(0, .5, 250)
-            # import matplotlib.pyplot as plt
-            # plt.plot(ts, data[1, :], 'go-', xnew, newy[1, :], '.-')
-            # plt.show()
-            # exit(0)
-            # print('step: {}, win width: {}, should be {}'.format((timestamps[-1] - self._prev_timestamp[-1]) * dsp.fs,
-            #                                                      (timestamps[-1] - timestamps[0]) * dsp.fs,
-            #                                                      250))
             self._prev_timestamp = timestamps
 
             # todo: generalize, similar function in preprocessor _get_windowed_features()
@@ -282,7 +269,7 @@ if __name__ == '__main__':
 
     bci = BCISystem(base_dir)
     db_name = 'pilot_parA'
-    bci.offline_processing(db_name=db_name, feature='fft_power', fast_load=False, method='trainSVM')
+    bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=True, method='trainSVM')
 
     # test_subj = 1
     # paradigm = 'A'
@@ -293,6 +280,6 @@ if __name__ == '__main__':
     # data_sender.start()
     # y_preds, y_real, raw = bci.online_processing(db_name=db_name, test_subject=test_subj,
     #                                              get_real_labels=get_real_labels,
-    #                                              data_sender=data_sender, file=file)
+    #                                              data_sender=data_sender)
     # assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
     # calc_online_acc(y_preds, y_real, raw)
