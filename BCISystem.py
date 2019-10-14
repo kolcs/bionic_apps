@@ -268,8 +268,8 @@ if __name__ == '__main__':
     # base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
-    db_name = 'pilot_parA'
-    bci.offline_processing(db_name=db_name, feature='avg_column', fast_load=False, method='trainSVM')
+    db_name = 'pilot_parB'
+    bci.offline_processing(db_name=db_name, feature='fft_power', fast_load=False, method='trainSVM')
 
     # test_subj = 1
     # paradigm = 'A'

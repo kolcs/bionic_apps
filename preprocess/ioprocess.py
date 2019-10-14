@@ -363,6 +363,7 @@ class OfflineDataPreprocessor:
         # self._preload = preload
         self._window_length = window_length  # seconds
         self._window_step = window_step  # seconds
+        self._fs = None
         self._feature = feature
 
         self._data_set = dict()
@@ -495,8 +496,8 @@ class OfflineDataPreprocessor:
         raw = raws.pop(0)
 
         # correct window length
-        fs = raw.info['sfreq']
-        self._window_length -= 1 / fs
+        self._fs = raw.info['sfreq']
+        self._window_length -= 1 / self._fs
 
         for r in raws:
             raw.append(r)
@@ -587,7 +588,7 @@ class OfflineDataPreprocessor:
             self._save_preprocessed_subject_data(subject_data, subj)
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
-    def _get_windowed_features(self, epochs, task, feature='spatial'):
+    def _get_windowed_features(self, epochs, task, feature='spatial', fft_low=4, fft_high=6):
         """Feature creation from windowed data.
 
         Parameters
@@ -626,12 +627,13 @@ class OfflineDataPreprocessor:
                 data = np.reshape(data, (epoch, channel * time))
             elif feature == 'fft_power':
                 data = ep.get_data()
-                fft_res = np.fft.rfft(data)
-                fft_res = np.abs(fft_res)**2
-                print(fft_res[0])
-                from matplotlib import pyplot as plt
-                plt.plot(np.fft.fftfreq(data.shape[-1], ep.info['sfreq']), fft_res[0])
-                plt.show()
+                n = np.size(data, -1)
+                fft_res = np.abs(np.fft.rfft(data))
+                # fft_res = fft_res**2
+                freqs = np.linspace(0, self._fs / 2, int(n / 2) + 1)
+                ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
+                data = np.average(fft_res[:, :, ind], axis=-1)
+
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(feature))
 
