@@ -128,7 +128,7 @@ class TTK_DB:
 
 
 class Physionet:
-    # Wrong labeling!!!! FP region
+    # What is FP region in channels???
     DIR = "physionet.org/"
     CHANNEL_NUM = 64
     FS = 160
