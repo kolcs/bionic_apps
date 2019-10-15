@@ -1,6 +1,8 @@
 import numpy as np
 import pickle
 import mne
+import multiprocessing as mp
+
 from config import *
 
 EPOCH_DB = 'preprocessed_database'
@@ -582,7 +584,8 @@ class OfflineDataPreprocessor:
             epochs = self._get_epochs_from_files(filenames, task_dict)
 
             for task in task_dict.keys():
-                win_epochs = self._get_windowed_features(epochs, task, feature=self._feature)
+                # win_epochs = self._get_windowed_features(epochs, task, feature=self._feature)
+                win_epochs = self._get_windowed_features_parallel(epochs, task, feature=self._feature)
                 subject_data.extend(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
@@ -641,6 +644,66 @@ class OfflineDataPreprocessor:
             win_epochs.extend(data)
 
         return win_epochs
+
+    def _get_windowed_features_parallel(self, epochs, task, feature='spatial', fft_low=4, fft_high=6):
+        """Feature creation from windowed data.
+
+        Parameters
+        ----------
+        epochs : mne.Epochs
+            Mne epochs from which the feature will be created.
+        task : str
+            Selected from epochs.
+        feature : {'spatial', 'avg_column', 'column'}, optional
+            The feature which will be created.
+
+        Returns
+        -------
+        list
+            Windowed feature data.
+
+        """
+        epochs = epochs[task]
+
+        win_epochs = []
+        win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
+
+        with mp.Pool() as pool:
+            pool_input = [(feature, epochs, i, fft_low, fft_high) for i in range(win_num)]
+            pool_out = pool.starmap(self.generate_feature, pool_input)
+
+        data = [(d, task) for data in pool_out for d in data]
+        win_epochs.extend(data)
+
+        return win_epochs
+
+    def generate_feature(self, feature, epochs, i, fft_low, fft_high):
+        ep = epochs.copy().load_data()
+        ep.crop(i * self._window_step, self._window_length + i * self._window_step)
+
+        if feature == 'spatial':
+            self._init_interp(epochs)
+            data = _calculate_spatial_data(self._interp, ep)
+        elif feature == 'avg_column':
+            data = ep.get_data()
+            data = np.average(data, axis=-1)  # average window
+        elif feature == 'column':
+            data = ep.get_data()
+            (epoch, channel, time) = np.shape(data)
+            data = np.reshape(data, (epoch, channel * time))
+        elif feature == 'fft_power':
+            data = ep.get_data()
+            n = np.size(data, -1)
+            fft_res = np.abs(np.fft.rfft(data))
+            # fft_res = fft_res**2
+            freqs = np.linspace(0, self._fs / 2, int(n / 2) + 1)
+            ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
+            data = np.average(fft_res[:, :, ind], axis=-1)
+
+        else:
+            raise NotImplementedError('{} feature creation is not implemented'.format(feature))
+
+        return data
 
     def init_processed_db_path(self):
         self.proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, self._feature)
