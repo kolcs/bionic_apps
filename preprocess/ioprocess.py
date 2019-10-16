@@ -356,7 +356,7 @@ class OfflineDataPreprocessor:
     """
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.25, feature='avg_column', fast_load=True):
+                 window_step=0.25, fast_load=True):
         self._base_dir = base_dir
         self._data_path = None
         self._db_type = None  # Physionet / TTK
@@ -366,8 +366,10 @@ class OfflineDataPreprocessor:
         # self._preload = preload
         self._window_length = window_length  # seconds
         self._window_step = window_step  # seconds
-        self._fs = None
-        self._feature = feature
+        self._fs = int()
+        self._feature = str()
+        self._fft_low = int()
+        self._fft_high = int()
 
         self._data_set = dict()
         self._fast_load = fast_load
@@ -417,7 +419,7 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self, feature=None):
+    def run(self, feature='avg_column', fft_low=7, fft_high=13):
         """Runs the Database preprocessor with the given features.
 
         Parameters
@@ -426,8 +428,9 @@ class OfflineDataPreprocessor:
             The feature which will be created.
 
         """
-        if feature is not None:
-            self._feature = feature
+        self._feature = feature
+        self._fft_low = fft_low
+        self._fft_high = fft_high
         self._create_db()
 
     """
@@ -552,23 +555,16 @@ class OfflineDataPreprocessor:
                 filenames = generate_physionet_filenames(self._data_path + self._db_type.FILE_PATH, subj,
                                                          recs)
                 epochs = self._get_epochs_from_files(filenames, task_dict)
-                win_epochs = self._get_windowed_features(epochs, task, feature=self._feature)
+                win_epochs = self._get_windowed_features(epochs, task, feature=self._feature, fft_low=self._fft_low,
+                                                         fft_high=self._fft_high)
 
                 subject_data.extend(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
-    def _create_ttk_db(self, feature='spatial'):
-        """Pilot feature db creator function
-
-        This function creates a feature database from Physionet data. The feature type can be selected.
-
-        Parameters
-        ----------
-        feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
-            The feature which will be created.
-        """
+    def _create_ttk_db(self):
+        """Pilot feature db creator function"""
         task_dict = self.convert_task()
 
         for s in range(self._db_type.SUBJECT_NUM):
@@ -585,7 +581,8 @@ class OfflineDataPreprocessor:
             epochs = self._get_epochs_from_files(filenames, task_dict)
 
             for task in task_dict.keys():
-                win_epochs = self._get_windowed_features(epochs, task, feature=self._feature)
+                win_epochs = self._get_windowed_features(epochs, task, feature=self._feature, fft_low=self._fft_low,
+                                                         fft_high=self._fft_high)
                 subject_data.extend(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
@@ -653,6 +650,7 @@ class OfflineDataPreprocessor:
 
         assert self._db_type is not None, \
             'Define a database with .use_<db_name>() function before creating the database!'
+        self._data_set = dict()
         tic = time.time()
         self.init_processed_db_path()
         self._proc_db_source = self.proc_db_path + self._feature + '.db'
