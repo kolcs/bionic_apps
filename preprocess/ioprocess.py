@@ -679,7 +679,7 @@ class OfflineDataPreprocessor:
 
         print('Database initialization took {} seconds.'.format(int(time.time() - tic)))
 
-    def get_split(self, test_subject, shuffle=True, random_seed=None):
+    def get_split(self, test_subject, shuffle=True, random_seed=None, reduce_rest=True):
         """Splits the whole database to train and test sets.
 
         This is a helper function for :class:`SubjectKFold` to make a split from the whole database.
@@ -692,8 +692,10 @@ class OfflineDataPreprocessor:
             Subject to put into the train set.
         shuffle : bool, optional
             Shuffle the train set if True
-        random_seed : int optional
+        random_seed : int, optional
             Random seed for shuffle.
+        reduce_rest : bool, optional
+            Make rest number equal to the max of other labels.
 
         Returns
         -------
@@ -723,7 +725,24 @@ class OfflineDataPreprocessor:
         train_x, train_y = zip(*train)
         test_x, test_y = zip(*test)
 
+        if reduce_rest:
+            train_x, train_y = self._reduce_rest_label(train_x, train_y)
+            test_x, test_y = self._reduce_rest_label(test_x, test_y)
+
         return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
+
+    @staticmethod
+    def _reduce_rest_label(data, labels):
+        from config import REST
+        label_count = {lab: labels.count(lab) for lab in set(labels)}
+        rest_count = label_count[REST]
+        del label_count[REST]
+        max_count = max(label_count.values())
+        rest_ind = [i for i, lab in enumerate(labels) if lab == REST]
+        del_num = rest_count-max_count
+        labels = np.delete(labels, rest_ind[:del_num])
+        data = np.delete(data, rest_ind[:del_num], axis=0)
+        return data, labels
 
 
 if __name__ == '__main__':
