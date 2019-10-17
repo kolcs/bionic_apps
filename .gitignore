@@ -5,6 +5,7 @@ __pycache__/
 tflog/
 .idea/
 tmp/
+log/
 
 # files
 *sandbox.py

@@ -501,9 +501,7 @@ class OfflineDataPreprocessor:
         raws = [open_raw_file(file, preload=False) for file in filenames]
         raw = raws.pop(0)
 
-        # correct window length
         self._fs = raw.info['sfreq']
-        self._window_length -= 1 / self._fs
 
         for r in raws:
             raw.append(r)
@@ -609,11 +607,12 @@ class OfflineDataPreprocessor:
         epochs = epochs[task]
 
         win_epochs = []
-        win_num = int((self._epoch_tmax - self._epoch_tmin - self._window_length) / self._window_step)
+        window_length = self._window_length - 1 / self._fs  # win length correction
+        win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step)
 
         for i in range(win_num):
             ep = epochs.copy().load_data()
-            ep.crop(i * self._window_step, self._window_length + i * self._window_step)
+            ep.crop(i * self._window_step, window_length + i * self._window_step)
 
             if feature == 'spatial':
                 self._init_interp(epochs)

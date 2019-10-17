@@ -177,17 +177,17 @@ class DSP(SignalReceiver):
         assert self.electrodes is not None, "missing electrode names"
         self._ch_list = [self.electrodes.index(ch) for ch in channels]
 
-    def get_data(self):
-        assert self._ch_list is not None, "Channels are not selected for online plot!"
-        eeg = list()
-        if len(self._filt_eeg) > 0:
-            self._lock.acquire()
-            eeg = np.transpose(np.array(self._eeg))[self._ch_list, :]
-            filt_eeg = np.transpose(self._filt_eeg)[self._ch_list, :]
-            self._lock.release()
-            for i, x in enumerate(filt_eeg):
-                eeg = np.insert(eeg, 2 * i + 1, x, axis=0)
-        return eeg
+    # def get_data(self):
+    #     assert self._ch_list is not None, "Channels are not selected for online plot!"
+    #     eeg = list()
+    #     if len(self._filt_eeg) > 0:
+    #         self._lock.acquire()
+    #         eeg = np.transpose(np.array(self._eeg))[self._ch_list, :]
+    #         filt_eeg = np.transpose(self._filt_eeg)[self._ch_list, :]
+    #         self._lock.release()
+    #         for i, x in enumerate(filt_eeg):
+    #             eeg = np.insert(eeg, 2 * i + 1, x, axis=0)
+    #     return eeg
 
     def stop_signal_recording(self):
         self._stop_recording = True

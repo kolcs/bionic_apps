@@ -2,13 +2,28 @@ import time
 import numpy as np
 import multiprocessing as mp
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import logging
+import datetime
 
 import ai
 import online
 from config import *
-from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data
+from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, make_dir
 
 AI_MODEL = 'ai.model'
+
+make_dir('log')
+logging.basicConfig(filename='log/{}.log'.format(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')),
+                    filemode='a',
+                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
+                    datefmt='%H:%M:%S',
+                    level=logging.DEBUG)
+
+
+def log_and_print(msg):
+    logger = logging.getLogger('BCI')
+    logger.info(msg)
+    print(msg)
 
 
 class BCISystem(object):
@@ -38,15 +53,16 @@ class BCISystem(object):
 
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
+            # class_weight = {label: 1-train_y.count(label)/len(train_y) for label in set(train_y)}
             print('Training...')
-            svm = ai.SVM(C=1, cache_size=4000, random_state=12, class_weight={REST: 0.25})
+            svm = ai.SVM(C=1, cache_size=4000, random_state=12, class_weight='balanced')
             # svm = ai.LinearSVM(C=1, random_state=12, max_iter=20000, class_weight={REST: 0.25})
             # svm = ai.libsvm_SVC(C=1, cache_size=4000, class_weight={REST: 0.25})
             # svm = ai.libsvm_cuda(C=1, cache_size=4000, class_weight={REST: 0.25})
             # svm.set_labels(labels)
             svm.fit(train_x, train_y)
             t = time.time() - t
-            print("Training elapsed {} seconds.".format(t))
+            print("Training elapsed {} seconds.".format(int(t)))
 
             y_pred = svm.predict(test_x)
 
@@ -54,11 +70,10 @@ class BCISystem(object):
             conf_martix = confusion_matrix(test_y, y_pred)
             acc = accuracy_score(test_y, y_pred)
 
-            print("Classification report for subject{}:".format(test_subject))
-            print("classifier %s:\n%s\n"
-                  % (self, class_report))
-            print("Confusion matrix:\n%s\n" % conf_martix)
-            print("Accuracy score: {}\n".format(acc))
+            log_and_print("Classification report for subject{}:".format(test_subject))
+            log_and_print("classifier %s:\n%s\n" % (self, class_report))
+            log_and_print("Confusion matrix:\n%s\n" % conf_martix)
+            log_and_print("Accuracy score: {}\n".format(acc))
 
             if save_model:
                 print("Saving AI model...")
@@ -66,8 +81,7 @@ class BCISystem(object):
                 save_pickle_data(self._ai_model, self._proc.proc_db_path + AI_MODEL)
                 print("Done\n")
 
-    def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, feature='avg_column',
-                           fast_load=True):
+    def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, fast_load=True):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -87,7 +101,7 @@ class BCISystem(object):
         """
         if self._proc is None:
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
-                                                 self._window_length, self._window_step, feature, fast_load)
+                                                 self._window_length, self._window_step, fast_load)
             if db_name == 'physionet':
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
@@ -102,11 +116,13 @@ class BCISystem(object):
             else:
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
-    def offline_processing(self, db_name='physionet', feature='avg_column', method='subjectXvalidate', epoch_tmin=0,
-                           epoch_tmax=3, use_drop_subject_list=True, fast_load=False, subj_n_fold_num=None):
+    def offline_processing(self, db_name='physionet', feature='avg_column', fft_low=7, fft_high=13,
+                           method='subjectXvalidate', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
+                           fast_load=False, subj_n_fold_num=None):
 
-        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, feature, fast_load)
-        self._proc.run()
+        # self._proc = None
+        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, fast_load)
+        self._proc.run(feature, fft_low, fft_high)
 
         if method == 'subjectXvalidate':
             self._subject_crossvalidate(subj_n_fold_num)
@@ -164,7 +180,7 @@ class BCISystem(object):
         data_sender : multiprocess.Process, optional
             Process object which sends the signals for simulating realtime work.
         """
-        self._init_db_processor(db_name, feature=feature)
+        self._init_db_processor(db_name)
         self._proc.init_processed_db_path()
         if self._ai_model is None:
             self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
@@ -268,8 +284,18 @@ if __name__ == '__main__':
     # base_dir = "/home/csabi/databases/"  # linux
 
     bci = BCISystem(base_dir)
-    db_name = 'pilot_parB'
-    bci.offline_processing(db_name=db_name, feature='fft_power', fast_load=False, method='trainSVM')
+    db_name = 'physionet'  # 'pilot_parB'
+
+    bci.offline_processing(db_name=db_name, feature='fft_power', fast_load=False, method='subjectXvalidate')
+
+    # fft_range = [(frm, frm + 2) for frm in range(2, 30)]
+    #
+    # for frm, to in fft_range:
+    #     msg = 'fft range: {} - {} Hz\n'.format(frm, to)
+    #     print('###################\n' + msg)
+    #     logging.getLogger('BCI').info(msg)
+    #     bci.offline_processing(db_name=db_name, feature='fft_power', fft_low=frm, fft_high=to, fast_load=False,
+    #                            method='subjectXvalidate')
 
     # test_subj = 1
     # paradigm = 'A'
