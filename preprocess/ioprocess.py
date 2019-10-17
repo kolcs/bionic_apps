@@ -348,6 +348,17 @@ class SubjectKFold(object):
         for s in subjects:
             yield subject_db.get_split(s, shuffle=self._shuffle_data, random_seed=self._random_state)
 
+    def split_subject_data(self, subject_db, subject, train_split=0.8, k_fold_num=None):
+        if k_fold_num is not None:
+            self._k_fold_num = k_fold_num
+
+        data, labels = subject_db.get_subject_data(subject)
+        label_inds = {label: list() for label in set(labels)}
+        for i, label in enumerate(labels):
+            label_inds[label].append(i)
+
+        # todo: from sklearn.model_selection import KFold
+
 
 class OfflineDataPreprocessor:
     """
@@ -679,6 +690,23 @@ class OfflineDataPreprocessor:
 
         print('Database initialization took {} seconds.'.format(int(time.time() - tic)))
 
+    def get_subject_data(self, subject, reduce_rest=True):
+        """Returns data for one subject.
+
+        Parameters
+        ----------
+        subject : int
+            Number of the required subject.
+        reduce_rest : bool, optional
+            To reduce rest data points.
+        """
+        assert subject in list(self._data_set.keys()), \
+            'Subject{} is not in preprocessed database'.format(subject)
+        data, label = zip(*self._data_set[subject])
+        if reduce_rest:
+            data, label = self._reduce_rest_label(data, label)
+        return list(data), list(label)
+
     def get_split(self, test_subject, shuffle=True, random_seed=None, reduce_rest=True):
         """Splits the whole database to train and test sets.
 
@@ -739,7 +767,7 @@ class OfflineDataPreprocessor:
         del label_count[REST]
         max_count = max(label_count.values())
         rest_ind = [i for i, lab in enumerate(labels) if lab == REST]
-        del_num = rest_count-max_count
+        del_num = rest_count - max_count
         labels = np.delete(labels, rest_ind[:del_num])
         data = np.delete(data, rest_ind[:del_num], axis=0)
         return data, labels
