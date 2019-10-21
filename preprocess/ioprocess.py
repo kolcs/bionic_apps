@@ -1,8 +1,8 @@
 import numpy as np
 import pickle
 import mne
-import multiprocessing as mp
 import time
+from sklearn.model_selection import KFold
 
 from config import *
 
@@ -348,14 +348,27 @@ class SubjectKFold(object):
         for s in subjects:
             yield subject_db.get_split(s, shuffle=self._shuffle_data, random_seed=self._random_state)
 
-    def split_subject_data(self, subject_db, subject, train_split=0.8, k_fold_num=None):
+    def split_subject_data(self, subject_db, subject, k_fold_num=None):
         if k_fold_num is not None:
             self._k_fold_num = k_fold_num
+        if self._k_fold_num is None:
+            self._k_fold_num = 10
 
         data, labels = subject_db.get_subject_data(subject)
         label_inds = {label: list() for label in set(labels)}
         for i, label in enumerate(labels):
             label_inds[label].append(i)
+
+        prev_inds = label_inds.values()[0]
+        for label, inds in label_inds.items():
+            assert len(inds) == len(prev_inds), 'The number of label instances are not equal.'
+            prev_inds = inds
+
+        kf = KFold(n_splits=self._k_fold_num)
+        for train_split_ind, test_split_ind in kf.split(np.array(prev_inds).reshape((1, -1))):
+            train_ind = list()
+            for label, inds in label_inds.items():
+                pass
 
         # todo: from sklearn.model_selection import KFold
 
