@@ -69,10 +69,11 @@ class BCISystem(object):
             acc = accuracy_score(test_y, y_pred)
             cross_acc.append(acc)
 
-            log_and_print("classifier %s:\n%s\n" % (self, class_report))
+            log_and_print("classifier %s:\n%s" % (self, class_report))
             log_and_print("Confusion matrix:\n%s\n" % conf_martix)
             log_and_print("Accuracy score: {}\n".format(acc))
 
+        log_and_print("\nAvg accuracy: {}".format(np.mean(cross_acc)))
         log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
 
     def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
@@ -144,8 +145,8 @@ class BCISystem(object):
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
     def offline_processing(self, db_name='physionet', feature='avg_column', fft_low=7, fft_high=13,
-                           method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
-                           fast_load=False, subj_n_fold_num=None):
+                           method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, subject=1,
+                           use_drop_subject_list=True, fast_load=False, subj_n_fold_num=None):
 
         # self._proc = None
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, fast_load)
@@ -158,8 +159,7 @@ class BCISystem(object):
             self._crosssubject_crossvalidate(save_model=True)
 
         elif method == 'subjectXvalidate':
-            for subject in self._proc.get_subjects():
-                self._subject_corssvalidate(subject, subj_n_fold_num)
+            self._subject_corssvalidate(subject, subj_n_fold_num)
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
@@ -313,4 +313,3 @@ if __name__ == '__main__':
 
     bci = BCISystem(base_dir)
     bci.offline_processing(db_name='pilot_parB', feature='fft_power', method='crossSubjectXvalidate')
-
