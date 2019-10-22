@@ -359,18 +359,28 @@ class SubjectKFold(object):
         for i, label in enumerate(labels):
             label_inds[label].append(i)
 
-        prev_inds = label_inds.values()[0]
+        prev_inds = list(label_inds.values())[0]
         for label, inds in label_inds.items():
             assert len(inds) == len(prev_inds), 'The number of label instances are not equal.'
             prev_inds = inds
 
         kf = KFold(n_splits=self._k_fold_num)
-        for train_split_ind, test_split_ind in kf.split(np.array(prev_inds).reshape((1, -1))):
+        for train_split_ind, test_split_ind in kf.split(prev_inds):
             train_ind = list()
+            test_ind = list()
             for label, inds in label_inds.items():
-                pass
+                train_ind.extend(np.array(inds)[train_split_ind])
+                test_ind.extend(np.array(inds)[test_split_ind])
 
-        # todo: from sklearn.model_selection import KFold
+            np.random.shuffle(train_ind)
+            np.random.shuffle(test_ind)
+
+            train_x = [data[ind] for ind in train_ind]
+            train_y = [labels[ind] for ind in train_ind]
+            test_x = [data[ind] for ind in test_ind]
+            test_y = [labels[ind] for ind in test_ind]
+
+            yield train_x, train_y, test_x, test_y
 
 
 class OfflineDataPreprocessor:
@@ -787,16 +797,17 @@ class OfflineDataPreprocessor:
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
-    # base_dir = 'D:/Csabi/'  # Home
-    # base_dir = "D:/Users/Csabi/data"  # ITK
-    # base_dir = "/home/csabi/databases/"  # linux
+    base_dir = "D:/BCI_stuff/databases/"
 
-    proc = OfflineDataPreprocessor(base_dir, fast_load=False).use_pilot()
-    proc.run(feature='avg_column')
+    proc = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot()
+    proc.run(feature='fft_power')
 
     # this is how SubjectKFold works:
     subj_k_fold = SubjectKFold(10)
-    for train_x, train_y, test_x, test_y, subject in subj_k_fold.split(proc):
-        print(train_x[0], train_y[0], test_x[0], test_y[0], subject)
-        break
+
+    for train_x, train_y, test_x, test_y in subj_k_fold.split_subject_data(proc, 1):
+        print(np.array(train_x).shape, len(train_y), len(test_x), len(test_y))
+
+    # for train_x, train_y, test_x, test_y, subject in subj_k_fold.split(proc):
+    #     print(train_x[0], train_y[0], test_x[0], test_y[0], subject)
+    #     break

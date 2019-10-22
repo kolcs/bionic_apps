@@ -1,6 +1,5 @@
 import time
 import numpy as np
-import multiprocessing as mp
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 import logging
 import datetime
@@ -47,15 +46,43 @@ class BCISystem(object):
         self._prev_timestamp = [0]
         self._ai_model = None
 
-    def _subject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
+    def _subject_corssvalidate(self, subject, subj_n_fold_num=10):
+        kfold = SubjectKFold(subj_n_fold_num)
+
+        log_and_print("####### Classification report for subject{}: #######".format(subject))
+        cross_acc = list()
+
+        for train_x, train_y, test_x, test_y in kfold.split_subject_data(self._proc, subject):
+            t = time.time()
+            print('Training...')
+
+            svm = ai.SVM(C=1, cache_size=4000, random_state=12)
+            svm.fit(train_x, train_y)
+
+            t = time.time() - t
+            print("Training elapsed {} seconds.".format(int(t)))
+
+            y_pred = svm.predict(test_x)
+
+            class_report = classification_report(test_y, y_pred)
+            conf_martix = confusion_matrix(test_y, y_pred)
+            acc = accuracy_score(test_y, y_pred)
+            cross_acc.append(acc)
+
+            log_and_print("classifier %s:\n%s\n" % (self, class_report))
+            log_and_print("Confusion matrix:\n%s\n" % conf_martix)
+            log_and_print("Accuracy score: {}\n".format(acc))
+
+        log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
+
+    def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
         kfold = SubjectKFold(subj_n_fold_num)
         self._ai_model = dict()
 
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
-            # class_weight = {label: 1-train_y.count(label)/len(train_y) for label in set(train_y)}
             print('Training...')
-            svm = ai.SVM(C=1, cache_size=4000, random_state=12, class_weight='balanced')
+            svm = ai.SVM(C=1, cache_size=4000, random_state=12)  # , class_weight='balanced')
             # svm = ai.LinearSVM(C=1, random_state=12, max_iter=20000, class_weight={REST: 0.25})
             # svm = ai.libsvm_SVC(C=1, cache_size=4000, class_weight={REST: 0.25})
             # svm = ai.libsvm_cuda(C=1, cache_size=4000, class_weight={REST: 0.25})
@@ -117,18 +144,22 @@ class BCISystem(object):
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
     def offline_processing(self, db_name='physionet', feature='avg_column', fft_low=7, fft_high=13,
-                           method='subjectXvalidate', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
+                           method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True,
                            fast_load=False, subj_n_fold_num=None):
 
         # self._proc = None
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, fast_load)
         self._proc.run(feature, fft_low, fft_high)
 
-        if method == 'subjectXvalidate':
-            self._subject_crossvalidate(subj_n_fold_num)
+        if method == 'crossSubjectXvalidate':
+            self._crosssubject_crossvalidate(subj_n_fold_num)
 
         elif method == 'trainSVM':
-            self._subject_crossvalidate(save_model=True)
+            self._crosssubject_crossvalidate(save_model=True)
+
+        elif method == 'subjectXvalidate':
+            for subject in self._proc.get_subjects():
+                self._subject_corssvalidate(subject, subj_n_fold_num)
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
@@ -278,34 +309,8 @@ def calc_online_acc(y_pred, y_real, raw):
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
-    # base_dir = 'D:/Csabi/'  # Home
-    # base_dir = "D:/Users/Csabi/data/"  # ITK
-    # base_dir = "/home/csabi/databases/"  # linux
+    base_dir = "D:/BCI_stuff/databases/"  # base dir, where all the databases are available
 
     bci = BCISystem(base_dir)
-    db_name = 'physionet'  # 'pilot_parB'
+    bci.offline_processing(db_name='pilot_parB', feature='fft_power', method='crossSubjectXvalidate')
 
-    bci.offline_processing(db_name=db_name, feature='fft_power', fast_load=False, method='subjectXvalidate')
-
-    # fft_range = [(frm, frm + 2) for frm in range(2, 30)]
-    #
-    # for frm, to in fft_range:
-    #     msg = 'fft range: {} - {} Hz\n'.format(frm, to)
-    #     print('###################\n' + msg)
-    #     logging.getLogger('BCI').info(msg)
-    #     bci.offline_processing(db_name=db_name, feature='fft_power', fft_low=frm, fft_high=to, fast_load=False,
-    #                            method='subjectXvalidate')
-
-    # test_subj = 1
-    # paradigm = 'A'
-    # file = '{}Cybathlon_pilot/paradigm{}/pilot{}/rec01.vhdr'.format(base_dir, paradigm, test_subj)
-    # get_real_labels = True
-    # data_sender = mp.Process(target=online.DataSender.run, args=(file, get_real_labels), daemon=True,
-    #                          name='signal streamer')
-    # data_sender.start()
-    # y_preds, y_real, raw = bci.online_processing(db_name=db_name, test_subject=test_subj,
-    #                                              get_real_labels=get_real_labels,
-    #                                              data_sender=data_sender)
-    # assert len(y_preds) == len(y_real), 'Predicted and real label number is not equal.'
-    # calc_online_acc(y_preds, y_real, raw)
