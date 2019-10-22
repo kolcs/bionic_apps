@@ -546,8 +546,9 @@ class OfflineDataPreprocessor:
         # todo: create multi layered picture -- rgb like -> channels
 
         events, _ = mne.events_from_annotations(raw)
-        epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=self._epoch_tmin, tmax=self._epoch_tmax,
-                            preload=False)
+        baseline = tuple([None, self._epoch_tmin]) if self._epoch_tmin > 0 else (None, 0)
+        epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=self._epoch_tmin,
+                            tmax=self._epoch_tmax, preload=False)
         return epochs
 
     def _save_preprocessed_subject_data(self, subject_data, subj):
@@ -642,11 +643,12 @@ class OfflineDataPreprocessor:
 
         win_epochs = []
         window_length = self._window_length - 1 / self._fs  # win length correction
-        win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step)
+        win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
+            if self._window_step > 0 else 1
 
         for i in range(win_num):
             ep = epochs.copy().load_data()
-            ep.crop(i * self._window_step, window_length + i * self._window_step)
+            ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
 
             if feature == 'spatial':
                 self._init_interp(epochs)
