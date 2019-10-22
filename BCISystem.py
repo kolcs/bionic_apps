@@ -73,7 +73,7 @@ class BCISystem(object):
             log_and_print("Confusion matrix:\n%s\n" % conf_martix)
             log_and_print("Accuracy score: {}\n".format(acc))
 
-        log_and_print("\nAvg accuracy: {}".format(np.mean(cross_acc)))
+        log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
         log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
 
     def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
