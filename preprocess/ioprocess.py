@@ -542,11 +542,13 @@ class OfflineDataPreprocessor:
         del raws
         raw.rename_channels(lambda x: x.strip('.'))
 
-        # todo: make filtering here...
-        # todo: create multi layered picture -- rgb like -> channels
+        # todo: make prefiltering here...
+        # raw.load_data()
+        # iir_params = dict(order=5, ftype='butter', output='sos')
+        # raw.filter(l_freq=.5, h_freq=35, method='iir', iir_params=iir_params)
 
         events, _ = mne.events_from_annotations(raw)
-        baseline = tuple([None, self._epoch_tmin]) if self._epoch_tmin > 0 else (None, 0)
+        baseline = None  # tuple([None, self._epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
         epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=self._epoch_tmin,
                             tmax=self._epoch_tmax, preload=False)
         return epochs
@@ -648,7 +650,7 @@ class OfflineDataPreprocessor:
 
         for i in range(win_num):
             ep = epochs.copy().load_data()
-            ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
+            ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)  # todo: check!!!
 
             if feature == 'spatial':
                 self._init_interp(epochs)
