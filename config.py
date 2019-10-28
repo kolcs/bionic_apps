@@ -58,6 +58,21 @@ DIR_FEATURE_DB = 'tmp/'
 #
 #     DROP_SUBJECTS = list()
 
+class GameDB:
+    DIR = "Game/"
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        REST: 1,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        RIGHT_LEG: 9,
+        LEFT_LEG: 11
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+    DROP_SUBJECTS = []
+
 class PilotDB:
     DIR = "Cybathlon_pilot/paradigmA/"
     CHANNEL_NUM = 63

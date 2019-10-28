@@ -109,7 +109,8 @@ class BCISystem(object):
                 save_pickle_data(self._ai_model, self._proc.proc_db_path + AI_MODEL)
                 print("Done\n")
 
-    def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, fast_load=True):
+    def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, window_lenght=None, window_step=None,
+                           use_drop_subject_list=True, fast_load=True):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -128,6 +129,11 @@ class BCISystem(object):
             Handle with extreme care! It loads the result of a previous preprocess task.
         """
         if self._proc is None:
+            if window_lenght is not None:
+                self._window_length = window_lenght
+            if window_step is not None:
+                self._window_step = window_step
+
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load)
             if db_name == 'physionet':
@@ -140,16 +146,20 @@ class BCISystem(object):
                 self._proc.use_pilot_par_b()
             elif db_name == 'ttk':
                 self._proc.use_ttk_db()
+            elif db_name == 'game':
+                self._proc.use_game_data()
 
             else:
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
     def offline_processing(self, db_name='physionet', feature='avg_column', fft_low=7, fft_high=13,
-                           method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, subject=1,
-                           use_drop_subject_list=True, fast_load=False, subj_n_fold_num=None):
+                           method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
+                           window_step=0.25, subject=1, use_drop_subject_list=True, fast_load=False,
+                           subj_n_fold_num=None):
 
         # self._proc = None
-        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, use_drop_subject_list, fast_load)
+        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, window_length, window_step, use_drop_subject_list,
+                                fast_load)
         self._proc.run(feature, fft_low, fft_high)
 
         if method == 'crossSubjectXvalidate':
@@ -163,35 +173,6 @@ class BCISystem(object):
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
-
-    def _correct_online_data(self, timestamps, data):
-        """Correcting online received data.
-
-        The data sent through the pylsl protocol misses some data points therefore the window is
-        much wider than the required window length. The correction is made by dropping the
-        timeponts and datapoints which are out of the required window length
-
-        Parameters
-        ----------
-        timestamps : list of float
-            Array containing all the timestamps.
-        data : numpy.array
-            EEG data with shape (channels, timepoints).
-
-        Returns
-        -------
-        timestamps : list of float
-            Corrected timestamps.
-        data : numpy.array
-            Corrected data.
-
-        """
-        corr_ind = -1
-        for i, t in enumerate(timestamps):
-            corr_ind = i
-            if timestamps[-1] - t <= self._window_length:
-                break
-        return timestamps[corr_ind:], data[:, corr_ind:]
 
     def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None):
         """Online accuracy check.
@@ -270,6 +251,22 @@ class BCISystem(object):
         print('received stim', dstim)
 
         return y_preds, y_real, raw
+
+    def play_game(self, feature='fft_power', fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
+                  window_step=0.25):
+        self._init_db_processor('game', epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax, window_lenght=window_length,
+                                window_step=window_step, use_drop_subject_list=False, fast_load=False)
+        self._proc.run(feature, fft_low, fft_high)
+
+        print('Training...')
+        t = time.time()
+        data, labels = self._proc.get_subject_data(0)
+        svm = ai.SVM(C=1, cache_size=4000)
+        svm.fit(data, labels)
+        print("Training elapsed {} seconds.".format(int(time.time() - t)))
+        dsp = online.DSP()
+        from control import GameControl
+        game = GameControl()
 
 
 def check_received_signal(data, filename):

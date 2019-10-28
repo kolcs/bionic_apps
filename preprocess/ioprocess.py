@@ -449,6 +449,9 @@ class OfflineDataPreprocessor:
         self._use_db(TTK_DB)
         return self
 
+    def use_game_data(self):
+        self._use_db(GameDB)
+
     @property
     def _db_ext(self):
         return self._db_type.DB_EXT
@@ -623,6 +626,25 @@ class OfflineDataPreprocessor:
             self._save_preprocessed_subject_data(subject_data, subj)
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
+    def _create_game_db(self):
+        from tkinter import Tk, filedialog, messagebox
+        root = Tk()
+        root.withdraw()
+        messagebox.showinfo(title='BCI', message='Select an EEG file for training BCI System!')
+        filename = filedialog.askopenfilename(title='Select EEG source file',
+                                              filetypes=(("Brain Product", "*.vhdr"), ("all files", "*.*")))
+        del root
+        assert len(filename) > 0, 'No source files were selected. Cannot play BCI game.'
+
+        task_dict = self.convert_task()
+        subject_data = list()
+        epochs = self._get_epochs_from_files([filename], task_dict)
+        for task in task_dict.keys():
+            win_epochs = self._get_windowed_features(epochs, task, feature=self._feature, fft_low=self._fft_low,
+                                                     fft_high=self._fft_high)
+            subject_data.extend(win_epochs)
+        self._data_set[0] = subject_data
+
     def _get_windowed_features(self, epochs, task, feature='spatial', fft_low=4, fft_high=6):
         """Feature creation from windowed data.
 
@@ -708,9 +730,12 @@ class OfflineDataPreprocessor:
             print_creation_message()
             self._create_physionet_db()
 
-        elif self._db_type is PilotDB or PilotDB_ParadigmB or TTK_DB:
+        elif self._db_type is (PilotDB or PilotDB_ParadigmB or TTK_DB):
             print_creation_message()
             self._create_ttk_db()
+
+        elif self._db_type is GameDB:
+            self._create_game_db()
 
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
