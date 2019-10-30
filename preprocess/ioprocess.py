@@ -497,6 +497,11 @@ class OfflineDataPreprocessor:
     def get_subjects(self):
         return list(self._data_set.keys())
 
+    def get_command_converter(self):
+        attr = 'COMMAND_CONV'
+        assert hasattr(self._db_type, attr), '{} has no {} attribute'.format(self._db_type, attr)
+        return self._db_type.COMMAND_CONV
+
     def _load_data_from_source(self, source_files):
         """Loads preprocessed feature data form source files.
 

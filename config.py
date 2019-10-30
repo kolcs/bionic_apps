@@ -19,6 +19,12 @@ REST = 'rest'
 
 SUBJECT = 'subject'
 
+# control commands
+TURN_LEFT = 'turn left'
+TURN_RIGHT = 'turn right'
+LIGHT_ON = 'light on'
+GO_STRAIGHT = 'go straight'
+
 DATA_START_AFTER = 1  # sec
 DATA_END_BEFORE = 0.5  # sec
 
@@ -58,20 +64,74 @@ DIR_FEATURE_DB = 'tmp/'
 #
 #     DROP_SUBJECTS = list()
 
-class GameDB:
-    DIR = "Game/"
+class PilotBo:
+    DIR = "PilotBo/"
     TRIGGER_TASK_CONVERTER = {  # imagined
         REST: 1,
-        # EYE_OPEN: 2,
-        # EYE_CLOSED: 3,
         RIGHT_HAND: 5,
         LEFT_HAND: 7,
-        RIGHT_LEG: 9,
-        LEFT_LEG: 11
+        # RIGHT_LEG: 9,
+        # LEFT_LEG: 11
+        # BOTH_HANDS: 9,
+        BOTH_LEGS: 11
+    }
+
+    COMMAND_CONV = {
+        REST: GO_STRAIGHT,
+        RIGHT_HAND: TURN_RIGHT,
+        LEFT_HAND: TURN_LEFT,
+        BOTH_LEGS: LIGHT_ON
     }
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
     DROP_SUBJECTS = []
+
+
+class PilotCs:
+    DIR = "PilotCs/"
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        REST: 1,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        # RIGHT_LEG: 9,
+        # LEFT_LEG: 11
+        # BOTH_HANDS: 9,
+        BOTH_LEGS: 11
+    }
+
+    COMMAND_CONV = {
+        REST: GO_STRAIGHT,
+        RIGHT_HAND: TURN_RIGHT,
+        LEFT_HAND: TURN_LEFT,
+        BOTH_LEGS: LIGHT_ON
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+    DROP_SUBJECTS = []
+
+
+class GameDB:
+    DIR = "Game/"
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        REST: 1,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        # RIGHT_LEG: 9,
+        # LEFT_LEG: 11
+        # BOTH_HANDS: 9,
+        BOTH_LEGS: 11
+    }
+
+    COMMAND_CONV = {
+        REST: GO_STRAIGHT,
+        RIGHT_HAND: TURN_RIGHT,
+        LEFT_HAND: TURN_LEFT,
+        BOTH_LEGS: LIGHT_ON
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+    DROP_SUBJECTS = []
+
 
 class PilotDB:
     DIR = "Cybathlon_pilot/paradigmA/"

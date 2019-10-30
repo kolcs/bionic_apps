@@ -152,6 +152,23 @@ class BCISystem(object):
             else:
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
+    def _feature_extraction(self, data, feature='fft_power', fft_low=7, fft_high=13, fs=500):
+
+        if feature == 'avg_column':
+            data = np.average(data, axis=-1)
+            data = data.reshape((1, -1))
+        elif feature == 'fft_power':
+            n = np.size(data, -1)
+            fft_res = np.abs(np.fft.rfft(data))
+            # fft_res = fft_res**2
+            freqs = np.linspace(0, fs / 2, int(n / 2) + 1)
+            ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
+            data = np.average(fft_res[:, :, ind], axis=-1)
+        else:
+            raise NotImplementedError('{} feature creation is not implemented'.format(feature))
+
+        return data
+
     def offline_processing(self, db_name='physionet', feature='avg_column', fft_low=7, fft_high=13,
                            method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=1, use_drop_subject_list=True, fast_load=False,
@@ -229,12 +246,7 @@ class BCISystem(object):
 
             self._prev_timestamp = timestamps
 
-            # todo: generalize, similar function in preprocessor _get_windowed_features()
-            if feature == 'avg_column':
-                data = np.average(data, axis=-1)
-                data = data.reshape((1, -1))
-            else:
-                raise NotImplementedError('{} feature creation is not implemented'.format(feature))
+            data = self._feature_extraction(data, feature)
 
             y_pred = svm.predict(data)
 
@@ -264,9 +276,20 @@ class BCISystem(object):
         svm = ai.SVM(C=1, cache_size=4000)
         svm.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
+
         dsp = online.DSP()
+
         from control import GameControl
-        game = GameControl()
+        controller = GameControl()
+        command_converter = self._proc.get_command_converter()
+
+        print("Starting game control...")
+        while True:
+            timestamp, eeg = dsp.get_eeg_window(wlength=window_length)
+            data = self._feature_extraction(eeg, feature='fft_power', fs=dsp.fs)
+            y_pred = svm.predict(data)
+            command = command_converter[y_pred]
+            controller.control_game(command)
 
 
 def check_received_signal(data, filename):
