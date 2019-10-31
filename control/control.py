@@ -1,12 +1,9 @@
 import socket
 import json
 from numpy import uint8
-import logging
-import datetime
-from time import time
 
 from config import TURN_LEFT, TURN_RIGHT, LIGHT_ON, GO_STRAIGHT
-from preprocess import make_dir
+from logger import *
 
 LEFT = 1
 RIGHT = 3
@@ -15,17 +12,7 @@ STRAIGHT = 0
 
 GAME_CONTROL_PORT = 5555
 
-
-def _init_log(log):
-    if log:
-        make_dir('log')
-        return logging.basicConfig(filename='log/game_{}.log'.format(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')),
-                                   filemode='a',
-                                   format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                                   datefmt='%H:%M:%S',
-                                   level=logging.DEBUG)
-    else:
-        return None
+LOGGER_NAME = 'GameControl'
 
 
 # todo: check from where to load data... networkConfig.json or CONST PARAMS?
@@ -33,33 +20,43 @@ def _init_log(log):
 
 class GameControl(object):
 
-    def __init__(self, path='', log=False):
+    def __init__(self, path='control/', make_log=False):
         with open(path + 'networkConfig.json') as f:
             config = json.load(f)
         self.udp_ip = config['networkAddress']
         self.udp_port = GAME_CONTROL_PORT
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.player_index = config['activPlayerIndex'] * 10
-        self._logger = _init_log(log)
+        self._log = make_log
+        if make_log:
+            setup_logger(LOGGER_NAME, log_file='game')
 
     def _send_message(self, message):
         self.socket.sendto(message, (self.udp_ip, self.udp_port))
 
+    def _log_message(self, message):
+        if self._log:
+            log_info(LOGGER_NAME, message)
+
     def turn_left(self):
         self._send_message(uint8(self.player_index + LEFT))
+        self._log_message('Command: Left turn')
 
     def turn_right(self):
         self._send_message(uint8(self.player_index + RIGHT))
+        self._log_message('Command: Right turn')
 
     def turn_light_on(self):
         self._send_message(uint8(self.player_index + HEADLIGHT))
+        self._log_message('Command: Light on')
 
-    # def go_straight(self):
-    #     self._send_message(uint8(self.player_index + STRAIGHT))
+    def go_straight(self):
+        # do not sed anything because it will registered as wrong command...
+        # self._send_message(uint8(self.player_index + STRAIGHT))
+        self._log_message('Command: Go straight')
 
     def game_started(self):
-        if self._logger is not None:
-            self._logger.info('brainDriver started at {}'.format(time()))
+        self._log_message('Game started!')
 
     def control_game(self, command):
         if command == TURN_LEFT:
@@ -69,15 +66,15 @@ class GameControl(object):
         elif command == LIGHT_ON:
             self.turn_light_on()
         elif command == GO_STRAIGHT:
-            pass
+            self.go_straight()
         else:
             raise NotImplementedError('Command {} is not implemented'.format(command))
 
 
-def run_demo():
+def run_demo(make_log=False):
     from pynput.keyboard import Key, Listener
 
-    controller = GameControl()
+    controller = GameControl(path='', make_log=make_log)
 
     def control(key):
         if key == Key.up:

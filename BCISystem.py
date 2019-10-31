@@ -1,33 +1,20 @@
 import time
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-import logging
-import datetime
 
 import ai
 import online
 from config import *
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, make_dir
+from logger import *
 
 AI_MODEL = 'ai.model'
-
-make_dir('log')
-logging.basicConfig(filename='log/{}.log'.format(datetime.datetime.now().strftime('%Y-%m-%d_%H-%M')),
-                    filemode='a',
-                    format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                    datefmt='%H:%M:%S',
-                    level=logging.DEBUG)
-
-
-def log_and_print(msg):
-    logger = logging.getLogger('BCI')
-    logger.info(msg)
-    print(msg)
+LOGGER_NAME = 'BCISystem'
 
 
 class BCISystem(object):
 
-    def __init__(self, base_dir="", window_length=0.5, window_step=0.25):
+    def __init__(self, base_dir="", window_length=0.5, window_step=0.25, make_logs=False):
         """ Constructor for BCI system
 
         Parameters
@@ -45,11 +32,20 @@ class BCISystem(object):
         self._proc = None
         self._prev_timestamp = [0]
         self._ai_model = None
+        self._log = make_logs
+
+        if make_logs:
+            setup_logger(LOGGER_NAME)
+
+    def _log_and_print(self, msg):
+        if self._log:
+            log_info(LOGGER_NAME, msg)
+        print(msg)
 
     def _subject_corssvalidate(self, subject, subj_n_fold_num=10):
         kfold = SubjectKFold(subj_n_fold_num)
 
-        log_and_print("####### Classification report for subject{}: #######".format(subject))
+        self._log_and_print("####### Classification report for subject{}: #######".format(subject))
         cross_acc = list()
 
         for train_x, train_y, test_x, test_y in kfold.split_subject_data(self._proc, subject):
@@ -69,12 +65,12 @@ class BCISystem(object):
             acc = accuracy_score(test_y, y_pred)
             cross_acc.append(acc)
 
-            log_and_print("classifier %s:\n%s" % (self, class_report))
-            log_and_print("Confusion matrix:\n%s\n" % conf_martix)
-            log_and_print("Accuracy score: {}\n".format(acc))
+            self._log_and_print("classifier %s:\n%s" % (self, class_report))
+            self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
+            self._log_and_print("Accuracy score: {}\n".format(acc))
 
-        log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
-        log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
+        self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
+        self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
 
     def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
         kfold = SubjectKFold(subj_n_fold_num)
@@ -98,10 +94,10 @@ class BCISystem(object):
             conf_martix = confusion_matrix(test_y, y_pred)
             acc = accuracy_score(test_y, y_pred)
 
-            log_and_print("Classification report for subject{}:".format(test_subject))
-            log_and_print("classifier %s:\n%s\n" % (self, class_report))
-            log_and_print("Confusion matrix:\n%s\n" % conf_martix)
-            log_and_print("Accuracy score: {}\n".format(acc))
+            self._log_and_print("Classification report for subject{}:".format(test_subject))
+            self._log_and_print("classifier %s:\n%s\n" % (self, class_report))
+            self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
+            self._log_and_print("Accuracy score: {}\n".format(acc))
 
             if save_model:
                 print("Saving AI model...")
@@ -280,7 +276,7 @@ class BCISystem(object):
         dsp = online.DSP()
 
         from control import GameControl
-        controller = GameControl()
+        controller = GameControl(make_log=True)
         command_converter = self._proc.get_command_converter()
 
         print("Starting game control...")
