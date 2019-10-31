@@ -632,14 +632,9 @@ class OfflineDataPreprocessor:
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_game_db(self):
-        from tkinter import Tk, filedialog, messagebox
-        root = Tk()
-        root.withdraw()
-        messagebox.showinfo(title='BCI', message='Select an EEG file for training BCI System!')
-        filename = filedialog.askopenfilename(title='Select EEG source file',
-                                              filetypes=(("Brain Product", "*.vhdr"), ("all files", "*.*")))
-        del root
-        assert len(filename) > 0, 'No source files were selected. Cannot play BCI game.'
+        from gui_handler import select_eeg_file_in_explorer
+        filename = select_eeg_file_in_explorer()
+        assert filename is not None, 'No source files were selected. Cannot play BCI game.'
 
         task_dict = self.convert_task()
         subject_data = list()
@@ -735,7 +730,7 @@ class OfflineDataPreprocessor:
             print_creation_message()
             self._create_physionet_db()
 
-        elif self._db_type is (PilotDB or PilotDB_ParadigmB or TTK_DB):
+        elif self._db_type in [PilotDB, PilotDB_ParadigmB, TTK_DB]:
             print_creation_message()
             self._create_ttk_db()
 

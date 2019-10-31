@@ -5,28 +5,30 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 import ai
 import online
 from config import *
-from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, make_dir
+from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data
 from logger import *
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
 
+CONFIG_FILE = 'bci_system.cfg'
+# config options
+BASE_DIR = 'base_dir'
+
 
 class BCISystem(object):
 
-    def __init__(self, base_dir="", window_length=0.5, window_step=0.25, make_logs=False):
+    def __init__(self, window_length=0.5, window_step=0.25, make_logs=False):
         """ Constructor for BCI system
 
         Parameters
         ----------
-        base_dir: str
-            absolute path to base dir of database
         window_length: float
             length of eeg processor window in seconds
         window_step: float
             window shift in seconds
         """
-        self._base_dir = base_dir
+        self._base_dir = str()
         self._window_length = window_length
         self._window_step = window_step
         self._proc = None
@@ -34,8 +36,22 @@ class BCISystem(object):
         self._ai_model = None
         self._log = make_logs
 
+        self._init_base_config()
+
         if make_logs:
             setup_logger(LOGGER_NAME)
+
+    def _init_base_config(self):
+        cfg_dict = load_pickle_data(CONFIG_FILE)
+        if cfg_dict is None:
+            from gui_handler import select_base_dir
+            base_dir = select_base_dir()
+            assert base_dir is not None, 'Base directory not selected. Cannot run program!'
+            self._base_dir = base_dir
+            cfg_dict = {BASE_DIR: base_dir}
+            save_pickle_data(cfg_dict, CONFIG_FILE)
+        else:
+            self._base_dir = cfg_dict[BASE_DIR]
 
     def _log_and_print(self, msg):
         if self._log:
@@ -325,7 +341,5 @@ def calc_online_acc(y_pred, y_real, raw):
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # base dir, where all the databases are available
-
-    bci = BCISystem(base_dir)
+    bci = BCISystem()
     bci.offline_processing(db_name='pilot_parB', feature='fft_power', method='crossSubjectXvalidate')
