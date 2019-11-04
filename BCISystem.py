@@ -168,17 +168,18 @@ class BCISystem(object):
 
         if feature == 'avg_column':
             data = np.average(data, axis=-1)
-            data = data.reshape((1, -1))
         elif feature == 'fft_power':
             n = np.size(data, -1)
             fft_res = np.abs(np.fft.rfft(data))
             # fft_res = fft_res**2
             freqs = np.linspace(0, fs / 2, int(n / 2) + 1)
             ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
-            data = np.average(fft_res[:, :, ind], axis=-1)
+            data = np.average(fft_res[:, ind], axis=-1)
         else:
             raise NotImplementedError('{} feature creation is not implemented'.format(feature))
 
+        # Do this only for svm data!!!
+        data = data.reshape((1, -1))
         return data
 
     def offline_processing(self, db_name='physionet', feature='avg_column', fft_low=7, fft_high=13,
@@ -222,7 +223,7 @@ class BCISystem(object):
             Process object which sends the signals for simulating realtime work.
         """
         self._init_db_processor(db_name)
-        self._proc.init_processed_db_path()
+        self._proc.init_processed_db_path(feature)
         if self._ai_model is None:
             self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = self._ai_model[test_subject]
@@ -297,11 +298,12 @@ class BCISystem(object):
 
         print("Starting game control...")
         while True:
-            timestamp, eeg = dsp.get_eeg_window(wlength=window_length)
-            data = self._feature_extraction(eeg, feature='fft_power', fs=dsp.fs)
-            y_pred = svm.predict(data)
-            command = command_converter[y_pred]
-            controller.control_game(command)
+            timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
+            if timestamp is not None:
+                data = self._feature_extraction(eeg, feature='fft_power', fs=dsp.fs)
+                y_pred = svm.predict(data)
+                command = command_converter[y_pred]
+                controller.control_game(command)
 
 
 def check_received_signal(data, filename):

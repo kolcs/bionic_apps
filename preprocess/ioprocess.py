@@ -701,8 +701,10 @@ class OfflineDataPreprocessor:
 
         return win_epochs
 
-    def init_processed_db_path(self):
-        self.proc_db_path = "{}{}{}/{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, self._feature)
+    def init_processed_db_path(self, feature=None):
+        if feature is not None:
+            self._feature = feature
+        self.proc_db_path = "{}{}{}{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, self._feature)
 
     def _create_db(self):
         """Base db creator function."""

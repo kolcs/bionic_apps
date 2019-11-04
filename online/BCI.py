@@ -69,6 +69,21 @@ class DSP(SignalReceiver):
         self._prev_time = 0
         self._recorder_process = None
 
+    def get_eeg_window_in_chunk(self, window_length=1.0):
+        eeg_samples, timestamps = self.get_chunk()
+
+        # todo: make realtime filtering here on received chunk.
+
+        if len(timestamps) == 0:
+            return None, None
+
+        self._eeg.extend(eeg_samples)
+        self._timestamp.extend(timestamps)
+        win = int(self.fs * window_length)
+        eeg = self._eeg[-win:]
+        timestamp = self._timestamp[-win:]
+        return timestamp, np.transpose(eeg)
+
     def get_eeg_window(self, wlength=1.0, return_label=False):
         if not self._is_recording:
             # EEG_sample, timestamp = self.get_sample()
