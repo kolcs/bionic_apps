@@ -14,7 +14,7 @@ def select_eeg_file_in_explorer():
 def select_base_dir():
     root = Tk()
     root.withdraw()
-    messagebox.showinfo(title='BCI', message='Select base dir, which contains all the databases: \n'
+    messagebox.showinfo(title='BCI', message='Select base directory, which contains all the database folders:\n'
                                              '- Cybathlon_pilot\n'
                                              '- physionet.org\n'
                                              '- TTK')
