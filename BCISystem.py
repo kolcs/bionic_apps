@@ -33,7 +33,7 @@ class BCISystem(object):
         self._window_step = window_step
         self._proc = None
         self._prev_timestamp = [0]
-        self._ai_model = None
+        self._ai_model = dict()
         self._log = make_logs
 
         self._init_base_config()
@@ -90,16 +90,12 @@ class BCISystem(object):
 
     def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
         kfold = SubjectKFold(subj_n_fold_num)
-        self._ai_model = dict()
 
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
             print('Training...')
             svm = ai.SVM(C=1, cache_size=4000, random_state=12)  # , class_weight='balanced')
-            # svm = ai.LinearSVM(C=1, random_state=12, max_iter=20000, class_weight={REST: 0.25})
-            # svm = ai.libsvm_SVC(C=1, cache_size=4000, class_weight={REST: 0.25})
-            # svm = ai.libsvm_cuda(C=1, cache_size=4000, class_weight={REST: 0.25})
-            # svm.set_labels(labels)
+
             svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -224,7 +220,7 @@ class BCISystem(object):
         """
         self._init_db_processor(db_name)
         self._proc.init_processed_db_path(feature)
-        if self._ai_model is None:
+        if len(self._ai_model) == 0:
             self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = self._ai_model[test_subject]
         self._ai_model = None

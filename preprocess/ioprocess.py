@@ -348,7 +348,7 @@ class SubjectKFold(object):
         for s in subjects:
             yield subject_db.get_split(s, shuffle=self._shuffle_data, random_seed=self._random_state)
 
-    def split_subject_data(self, subject_db, subject, k_fold_num=None):
+    def split_subject_data(self, subject_db, subject, k_fold_num=None, random_seed=None):
         if k_fold_num is not None:
             self._k_fold_num = k_fold_num
         if self._k_fold_num is None:
@@ -372,7 +372,9 @@ class SubjectKFold(object):
                 train_ind.extend(np.array(inds)[train_split_ind])
                 test_ind.extend(np.array(inds)[test_split_ind])
 
+            # np.random.seed(random_seed)
             np.random.shuffle(train_ind)
+            # np.random.seed(random_seed)
             np.random.shuffle(test_ind)
 
             train_x = [data[ind] for ind in train_ind]
@@ -645,7 +647,7 @@ class OfflineDataPreprocessor:
             subject_data.extend(win_epochs)
         self._data_set[0] = subject_data
 
-    def _get_windowed_features(self, epochs, task, feature='spatial', fft_low=4, fft_high=6):
+    def _get_windowed_features(self, epochs, task, feature='spatial', fft_low=4, fft_high=6, fft_step=2):
         """Feature creation from windowed data.
 
         Parameters
@@ -665,7 +667,7 @@ class OfflineDataPreprocessor:
         """
         epochs = epochs[task]
 
-        win_epochs = []
+        win_epochs = list()
         window_length = self._window_length - 1 / self._fs  # win length correction
         win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
             if self._window_step > 0 else 1
@@ -692,6 +694,20 @@ class OfflineDataPreprocessor:
                 freqs = np.linspace(0, self._fs / 2, int(n / 2) + 1)
                 ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
                 data = np.average(fft_res[:, :, ind], axis=-1)
+            elif feature == 'fft_range':
+                data = ep.get_data()
+                n_epoch, n_channel, n_timeponts = data.shape
+                fft_res = np.abs(np.fft.rfft(data))
+                freqs = np.linspace(0, self._fs / 2, int(n_timeponts / 2) + 1)
+                ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_low + fft_step]
+                data = np.average(fft_res[:, :, ind], axis=-1)
+                for flow in range(fft_low + fft_step, fft_high, fft_step):
+                    ind = [i for i, f in enumerate(freqs) if flow <= f <= flow + fft_step]
+                    fft_power = np.average(fft_res[:, :, ind], axis=-1)
+                    data = np.append(data, fft_power, axis=1)
+                data = data.reshape((n_epoch, 2, n_channel))  # epoch, fft, channel
+                # todo: continue
+
 
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(feature))
