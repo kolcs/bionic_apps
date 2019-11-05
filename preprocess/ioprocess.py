@@ -5,6 +5,7 @@ import time
 from sklearn.model_selection import KFold
 
 from config import *
+from .feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range
 
 EPOCH_DB = 'preprocessed_database'
 
@@ -244,84 +245,6 @@ def save_pickle_data(data, filename):
         pickle.dump(data, f)
 
 
-def _init_interp(interp, epochs, ch_type='eeg'):
-    """spatial data creator initializer
-
-    This function initialize the interpreter which can be used to generate spatially distributed data
-    from eeg signal if it is None. Otherwise returns it
-
-    Parameters
-    ----------
-    interp : None | mne.viz.topomap._GridData
-        the interpreter
-    epochs : mne.Epoch
-    ch_type : str
-
-    Returns
-    -------
-    interp : mne.viz.topomap._GridData
-        interpreter for spatially distributed data creation
-
-    """
-    if interp is None:
-        from mne.channels import _get_ch_type
-        from mne.viz.topomap import _prepare_topo_plot
-
-        layout = mne.channels.read_layout('EEG1005')
-        ch_type = _get_ch_type(epochs, ch_type)
-        picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
-            epochs, ch_type, layout)
-        data = epochs.get_data()[0, :, 0]
-
-        # remove [:2] from the end of the return in plot_topomap()
-        im, _, interp = mne.viz.plot_topomap(data, pos, show=False)
-
-    return interp
-
-
-def _calculate_spatial_data(interp, epochs, crop=True):
-    """Spatial data from epochs
-
-    Creates spatially distributed data for each epoch.
-
-    Parameters
-    ----------
-    interp : mne.viz.topomap._GridData
-        interpreter for spatially distributed data creation. Should be initialized first!
-    epochs : mne.Epoch
-        Data for spatially distributed data generation. Each epoch will have its own spatially data.
-        The time points are averaged for each eeg channel.
-    crop : bool
-        To corp the values to 0 if its out of the eeg circle.
-
-    Returns
-    -------
-    spatial_list : list of ndarray
-        Data
-
-    """
-    spatial_list = list()
-    data3d = epochs.get_data()
-
-    for i in range(np.size(epochs, 0)):
-        ep = data3d[i, :, :]
-        ep = np.average(ep, axis=1)  # average time for each channel
-        interp.set_values(ep)
-        spatial_data = interp()
-
-        # removing data from the border - ROUND electrode system
-        if crop:
-            r = np.size(spatial_data, axis=0) / 2
-            for i in range(int(2 * r)):
-                for j in range(int(2 * r)):
-                    if np.power(i - r, 2) + np.power(j - r, 2) > np.power(r, 2):
-                        spatial_data[i, j] = 0
-
-        spatial_list.append(spatial_data)
-
-    return spatial_list
-
-
 class SubjectKFold(object):
     """
     Class to split subject databse to train and test
@@ -393,32 +316,30 @@ class OfflineDataPreprocessor:
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
                  window_step=0.25, fast_load=True):
-        self._base_dir = base_dir
-        self._data_path = None
-        self._db_type = None  # Physionet / TTK
 
+        self._base_dir = base_dir
         self._epoch_tmin = epoch_tmin
         self._epoch_tmax = epoch_tmax  # seconds
-        # self._preload = preload
         self._window_length = window_length  # seconds
         self._window_step = window_step  # seconds
+        self._fast_load = fast_load
+
         self._fs = int()
         self._feature = str()
         self._fft_low = int()
         self._fft_high = int()
-
+        self._fft_step = int()
         self._data_set = dict()
-        self._fast_load = fast_load
 
         self._interp = None
+        self._data_path = None
+        self._db_type = None  # Physionet / TTK
 
         self.proc_db_path = ''
         self._proc_db_filenames = list()
         self._proc_db_source = ''
 
-        self._drop_subject = None
-        if use_drop_subject_list:
-            self._drop_subject = set()
+        self._drop_subject = set() if use_drop_subject_list else None
 
         if not base_dir[-1] == '/':
             self._base_dir = base_dir + '/'
@@ -458,7 +379,7 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self, feature='avg_column', fft_low=7, fft_high=13):
+    def run(self, feature='avg_column', fft_low=7, fft_high=13, fft_step=2):
         """Runs the Database preprocessor with the given features.
 
         Parameters
@@ -470,14 +391,12 @@ class OfflineDataPreprocessor:
         self._feature = feature
         self._fft_low = fft_low
         self._fft_high = fft_high
+        self._fft_step = fft_step
         self._create_db()
 
     """
     Database functions
     """
-
-    def _init_interp(self, epochs, ch_type='eeg'):
-        self._interp = _init_interp(self._interp, epochs, ch_type)
 
     def _get_filenames(self):
         return get_filenames_in(self._data_path, self._db_ext)
@@ -600,8 +519,7 @@ class OfflineDataPreprocessor:
                 filenames = generate_physionet_filenames(self._data_path + self._db_type.FILE_PATH, subj,
                                                          recs)
                 epochs = self._get_epochs_from_files(filenames, task_dict)
-                win_epochs = self._get_windowed_features(epochs, task, feature=self._feature, fft_low=self._fft_low,
-                                                         fft_high=self._fft_high)
+                win_epochs = self._get_windowed_features(epochs, task)
 
                 subject_data.extend(win_epochs)
 
@@ -626,8 +544,7 @@ class OfflineDataPreprocessor:
             epochs = self._get_epochs_from_files(filenames, task_dict)
 
             for task in task_dict.keys():
-                win_epochs = self._get_windowed_features(epochs, task, feature=self._feature, fft_low=self._fft_low,
-                                                         fft_high=self._fft_high)
+                win_epochs = self._get_windowed_features(epochs, task)
                 subject_data.extend(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
@@ -642,13 +559,15 @@ class OfflineDataPreprocessor:
         subject_data = list()
         epochs = self._get_epochs_from_files([filename], task_dict)
         for task in task_dict.keys():
-            win_epochs = self._get_windowed_features(epochs, task, feature=self._feature, fft_low=self._fft_low,
-                                                     fft_high=self._fft_high)
+            win_epochs = self._get_windowed_features(epochs, task)
             subject_data.extend(win_epochs)
         self._data_set[0] = subject_data
 
-    def _get_windowed_features(self, epochs, task, feature='spatial', fft_low=4, fft_high=6, fft_step=2):
+    def _get_windowed_features(self, epochs, task):
         """Feature creation from windowed data.
+
+        self._feature : {'spatial', 'avg_column', 'column'}, optional
+            The feature which will be created.
 
         Parameters
         ----------
@@ -656,8 +575,6 @@ class OfflineDataPreprocessor:
             Mne epochs from which the feature will be created.
         task : str
             Selected from epochs.
-        feature : {'spatial', 'avg_column', 'column'}, optional
-            The feature which will be created.
 
         Returns
         -------
@@ -674,43 +591,23 @@ class OfflineDataPreprocessor:
 
         for i in range(win_num):
             ep = epochs.copy().load_data()
-            ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)  # todo: check!!!
+            ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
 
-            if feature == 'spatial':
-                self._init_interp(epochs)
-                data = _calculate_spatial_data(self._interp, ep)
-            elif feature == 'avg_column':
+            if self._feature == 'spatial':
+                data, self._interp = calculate_spatial_data(self._interp, ep)
+            elif self._feature == 'avg_column':
                 data = ep.get_data()
                 data = np.average(data, axis=-1)  # average window
-            elif feature == 'column':
+            elif self._feature == 'column':
                 data = ep.get_data()
                 (epoch, channel, time) = np.shape(data)
                 data = np.reshape(data, (epoch, channel * time))
-            elif feature == 'fft_power':
-                data = ep.get_data()
-                n = np.size(data, -1)
-                fft_res = np.abs(np.fft.rfft(data))
-                # fft_res = fft_res**2
-                freqs = np.linspace(0, self._fs / 2, int(n / 2) + 1)
-                ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
-                data = np.average(fft_res[:, :, ind], axis=-1)
-            elif feature == 'fft_range':
-                data = ep.get_data()
-                n_epoch, n_channel, n_timeponts = data.shape
-                fft_res = np.abs(np.fft.rfft(data))
-                freqs = np.linspace(0, self._fs / 2, int(n_timeponts / 2) + 1)
-                ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_low + fft_step]
-                data = np.average(fft_res[:, :, ind], axis=-1)
-                for flow in range(fft_low + fft_step, fft_high, fft_step):
-                    ind = [i for i, f in enumerate(freqs) if flow <= f <= flow + fft_step]
-                    fft_power = np.average(fft_res[:, :, ind], axis=-1)
-                    data = np.append(data, fft_power, axis=1)
-                data = data.reshape((n_epoch, 2, n_channel))  # epoch, fft, channel
-                # todo: continue
-
-
+            elif self._feature == 'fft_power':
+                data = calculate_fft_power(ep.get_data(), self._fs, self._fft_low, self._fft_high)
+            elif self._feature == 'fft_range':
+                data = calculate_fft_range(ep.get_data(), self._fs, self._fft_low, self._fft_high, self._fft_step)
             else:
-                raise NotImplementedError('{} feature creation is not implemented'.format(feature))
+                raise NotImplementedError('{} feature creation is not implemented'.format(self._feature))
 
             data = [(d, task) for d in data]
             win_epochs.extend(data)
