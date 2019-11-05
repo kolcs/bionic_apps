@@ -82,26 +82,69 @@ def calculate_spatial_data(interp, epochs, crop=True):
 
 
 def calculate_fft_power(data, fs, fft_low, fft_high):
+    """Calculating fft power for eeg data
+
+    Parameters
+    ----------
+    data : numpy.array
+        eeg data
+    fs : int
+        Sampling frequency.
+    fft_low : int
+        Low border for fft power calculation.
+    fft_high : int
+        High border for fft power calculation.
+
+    Returns
+    -------
+    numpy.array
+        Feature extracted data.
+    """
     n = np.size(data, -1)
     fft_res = np.abs(np.fft.rfft(data))
     # fft_res = fft_res**2
     freqs = np.linspace(0, fs / 2, int(n / 2) + 1)
     ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
-    data = np.average(fft_res[:, :, ind], axis=-1)
+    if len(data.shape) == 3:  # offline
+        data = np.average(fft_res[:, :, ind], axis=-1)
+    else:  # online
+        data = np.average(fft_res[:, ind], axis=-1)
     return data
 
 
-def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2):
+def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
+    """Calculating fft power all ranges between fft_low and fft_high.
+
+        Parameters
+        ----------
+        data : numpy.array
+            eeg data
+        fs : int
+            Sampling frequency.
+        fft_low : int
+            Low border for fft power calculation.
+        fft_high : int
+            High border for fft power calculation.
+        fft_step : int
+            Step number between fft ranges.
+        fft_width : int
+            The width between fft borders.
+
+        Returns
+        -------
+        numpy.array
+            Feature extracted data.
+        """
     n_epoch, n_channel, n_timeponts = data.shape
     fft_res = np.abs(np.fft.rfft(data))
     freqs = np.linspace(0, fs / 2, int(n_timeponts / 2) + 1)
-    ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_low + fft_step]
+    ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_low + fft_width]
     data = np.average(fft_res[:, :, ind], axis=-1)
-    n_fft = 0
-    for n, flow in enumerate(range(fft_low + fft_step, fft_high, fft_step)):
-        ind = [i for i, f in enumerate(freqs) if flow <= f <= flow + fft_step]
+    n_fft = 1
+    for flow in range(fft_low + fft_step, fft_high, fft_step):
+        ind = [i for i, f in enumerate(freqs) if flow <= f <= flow + fft_width]
         fft_power = np.average(fft_res[:, :, ind], axis=-1)
         data = np.append(data, fft_power, axis=1)
-        n_fft = n
+        n_fft += 1
     data = data.reshape((n_epoch, n_fft, n_channel))  # checked
     return data

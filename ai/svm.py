@@ -6,6 +6,7 @@ from sklearn.preprocessing import OneHotEncoder, normalize
 # import sys
 # import os
 # from subprocess import *
+from joblib import Parallel, delayed
 
 from preprocess import make_dir
 
@@ -82,6 +83,61 @@ class SVM(svm.SVC):
         X_normalized = normalize(X, norm='l2')
         y = super().predict(X_normalized)
         return y
+
+
+class MultiSVM(object):
+    def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='scale',
+                 coef0=0.0, shrinking=True, probability=False,
+                 tol=1e-3, cache_size=200, class_weight=None,
+                 verbose=False, max_iter=-1, decision_function_shape='ovr',
+                 random_state=None):
+        self._svm_args = (C, kernel, degree, gamma, coef0, shrinking, probability, tol, cache_size, class_weight,
+                          verbose, max_iter, decision_function_shape, random_state)
+        self._svms = dict()
+
+    def _fit_one_svm(self, data, label, num):
+        svm = SVM(*self._svm_args)
+        svm.fit(data, label)
+        return num, svm
+
+    # def _fit_svm(self, i, data, label):
+    #     self._svms[i].fit(data, label)
+
+    def _predict(self, i, data):
+        svm = self._svms[i]
+        return svm.predict(data)
+
+    def fit(self, X, y):
+        """
+
+        Parameters
+        ----------
+        X : numpy.array
+            EEG data to be processed. shape: (n_samples, n_svm, n_features)
+        y : list
+            labels
+
+        Returns
+        -------
+
+        """
+        X = np.array(X)
+        n_svms = np.array(X).shape[1]
+        # self._svms = [SVM(*self._svm_args) for _ in range(n_svms)]  # serial: 3 times slower
+        # for i in range(len(self._svms)):
+        #     self._fit_svm(i, X[:, i, :], y)
+        svms = Parallel(n_jobs=-2)(delayed(self._fit_one_svm)(X[:, i, :], y, i) for i in range(n_svms))
+        self._svms = dict(svms)
+
+    def predict(self, X):
+        X = np.array(X)
+        votes = Parallel(n_jobs=-2)(delayed(self._predict)(i, X[:, i, :]) for i in range(len(self._svms)))
+        votes = np.array(votes)
+        res = list()
+        for i in range(votes.shape[1]):  # counting votes
+            unique, count = np.unique(votes[:, i], return_counts=True)
+            res.append(unique[np.argmax(count)])
+        return res
 
 
 # class LinearSVM(svm.LinearSVC):

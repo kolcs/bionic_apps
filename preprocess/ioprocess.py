@@ -9,6 +9,13 @@ from .feature_extraction import calculate_spatial_data, calculate_fft_power, cal
 
 EPOCH_DB = 'preprocessed_database'
 
+# features
+SPATIAL = 'spatial'
+AVG_COLUMN = 'avg_column'
+COLUMN = 'column'
+FFT_POWER = 'fft_power'
+FFT_RANGE = 'fft_range'
+
 
 def open_raw_file(filename, preload=True):
     """
@@ -329,6 +336,7 @@ class OfflineDataPreprocessor:
         self._fft_low = int()
         self._fft_high = int()
         self._fft_step = int()
+        self._fft_width = int()
         self._data_set = dict()
 
         self._interp = None
@@ -379,7 +387,7 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self, feature='avg_column', fft_low=7, fft_high=13, fft_step=2):
+    def run(self, feature='avg_column', fft_low=7, fft_high=13, fft_step=2, fft_width=2):
         """Runs the Database preprocessor with the given features.
 
         Parameters
@@ -392,6 +400,7 @@ class OfflineDataPreprocessor:
         self._fft_low = fft_low
         self._fft_high = fft_high
         self._fft_step = fft_step
+        self._fft_width = fft_width
         self._create_db()
 
     """
@@ -593,19 +602,20 @@ class OfflineDataPreprocessor:
             ep = epochs.copy().load_data()
             ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
 
-            if self._feature == 'spatial':
+            if self._feature == SPATIAL:
                 data, self._interp = calculate_spatial_data(self._interp, ep)
-            elif self._feature == 'avg_column':
+            elif self._feature == AVG_COLUMN:
                 data = ep.get_data()
                 data = np.average(data, axis=-1)  # average window
-            elif self._feature == 'column':
+            elif self._feature == COLUMN:
                 data = ep.get_data()
                 (epoch, channel, time) = np.shape(data)
                 data = np.reshape(data, (epoch, channel * time))
-            elif self._feature == 'fft_power':
+            elif self._feature == FFT_POWER:
                 data = calculate_fft_power(ep.get_data(), self._fs, self._fft_low, self._fft_high)
-            elif self._feature == 'fft_range':
-                data = calculate_fft_range(ep.get_data(), self._fs, self._fft_low, self._fft_high, self._fft_step)
+            elif self._feature == FFT_RANGE:
+                data = calculate_fft_range(ep.get_data(), self._fs, self._fft_low, self._fft_high, self._fft_step,
+                                           self._fft_width)
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(self._feature))
 

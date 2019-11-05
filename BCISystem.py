@@ -5,8 +5,9 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 import ai
 import online
 from config import *
-from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data
 from logger import *
+from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, calculate_fft_power, \
+    FFT_RANGE, AVG_COLUMN, FFT_POWER
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -58,8 +59,8 @@ class BCISystem(object):
             log_info(LOGGER_NAME, msg)
         print(msg)
 
-    def _subject_corssvalidate(self, subject, subj_n_fold_num=10):
-        kfold = SubjectKFold(subj_n_fold_num)
+    def _subject_corssvalidate(self, subject, k_fold_num=10, feature=None):
+        kfold = SubjectKFold(k_fold_num)
 
         self._log_and_print("####### Classification report for subject{}: #######".format(subject))
         cross_acc = list()
@@ -68,7 +69,10 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            svm = ai.SVM(C=1, cache_size=4000, random_state=12)
+            if feature == FFT_RANGE:
+                svm = ai.MultiSVM(C=1, cache_size=4000, random_state=12)
+            else:
+                svm = ai.SVM(C=1, cache_size=4000, random_state=12)
             svm.fit(train_x, train_y)
 
             t = time.time() - t
@@ -162,15 +166,10 @@ class BCISystem(object):
 
     def _feature_extraction(self, data, feature='fft_power', fft_low=7, fft_high=13, fs=500):
 
-        if feature == 'avg_column':
+        if feature == AVG_COLUMN:
             data = np.average(data, axis=-1)
-        elif feature == 'fft_power':
-            n = np.size(data, -1)
-            fft_res = np.abs(np.fft.rfft(data))
-            # fft_res = fft_res**2
-            freqs = np.linspace(0, fs / 2, int(n / 2) + 1)
-            ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
-            data = np.average(fft_res[:, ind], axis=-1)
+        elif feature == FFT_POWER:
+            data = calculate_fft_power(data, fs, fft_low, fft_high)
         else:
             raise NotImplementedError('{} feature creation is not implemented'.format(feature))
 
@@ -178,15 +177,14 @@ class BCISystem(object):
         data = data.reshape((1, -1))
         return data
 
-    def offline_processing(self, db_name='physionet', feature='avg_column', fft_low=7, fft_high=13,
-                           method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
+    def offline_processing(self, db_name='physionet', feature=FFT_POWER, fft_low=7, fft_high=13, fft_step=2,
+                           fft_width=2, method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=1, use_drop_subject_list=True, fast_load=False,
                            subj_n_fold_num=None):
 
-        # self._proc = None
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, window_length, window_step, use_drop_subject_list,
                                 fast_load)
-        self._proc.run(feature, fft_low, fft_high)
+        self._proc.run(feature, fft_low, fft_high, fft_step, fft_width)
 
         if method == 'crossSubjectXvalidate':
             self._crosssubject_crossvalidate(subj_n_fold_num)
@@ -195,7 +193,7 @@ class BCISystem(object):
             self._crosssubject_crossvalidate(save_model=True)
 
         elif method == 'subjectXvalidate':
-            self._subject_corssvalidate(subject, subj_n_fold_num)
+            self._subject_corssvalidate(subject, subj_n_fold_num, feature)
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
@@ -300,6 +298,7 @@ class BCISystem(object):
                 y_pred = svm.predict(data)
                 command = command_converter[y_pred]
                 controller.control_game(command)
+                time.sleep(0.1)
 
 
 def check_received_signal(data, filename):
