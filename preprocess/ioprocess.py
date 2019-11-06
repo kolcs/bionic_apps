@@ -5,7 +5,7 @@ import time
 from sklearn.model_selection import KFold
 
 from config import *
-from .feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range
+from preprocess.feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range
 
 EPOCH_DB = 'preprocessed_database'
 
@@ -15,6 +15,10 @@ AVG_COLUMN = 'avg_column'
 COLUMN = 'column'
 FFT_POWER = 'fft_power'
 FFT_RANGE = 'fft_range'
+
+# config options
+CONFIG_FILE = 'bci_system.cfg'
+BASE_DIR = 'base_dir'
 
 
 def open_raw_file(filename, preload=True):
@@ -250,6 +254,21 @@ def load_pickle_data(filename):
 def save_pickle_data(data, filename):
     with open(filename, 'wb') as f:
         pickle.dump(data, f)
+
+
+def init_base_config(path='./'):
+    from os.path import realpath, dirname, join
+    file_dir = dirname(realpath('__file__'))
+    file = join(file_dir, path+CONFIG_FILE)
+    cfg_dict = load_pickle_data(file)
+    if cfg_dict is None:
+        from gui_handler import select_base_dir
+        base_directory = select_base_dir()
+        cfg_dict = {BASE_DIR: base_directory}
+        save_pickle_data(cfg_dict, file)
+    else:
+        base_directory = cfg_dict[BASE_DIR]
+    return base_directory
 
 
 class SubjectKFold(object):
@@ -751,17 +770,18 @@ class OfflineDataPreprocessor:
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"
+    base_dir = init_base_config('../')
 
-    proc = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot()
-    proc.run(feature='fft_power')
+    preprocessor = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot()
+    preprocessor.run(feature=FFT_POWER)
 
     # this is how SubjectKFold works:
     subj_k_fold = SubjectKFold(10)
 
-    for train_x, train_y, test_x, test_y in subj_k_fold.split_subject_data(proc, 1):
+    for train_x, train_y, test_x, test_y in subj_k_fold.split_subject_data(preprocessor, 1):
         print(np.array(train_x).shape, len(train_y), len(test_x), len(test_y))
+        break
 
-    # for train_x, train_y, test_x, test_y, subject in subj_k_fold.split(proc):
-    #     print(train_x[0], train_y[0], test_x[0], test_y[0], subject)
-    #     break
+    for train_x, train_y, test_x, test_y, subject in subj_k_fold.split(preprocessor):
+        print(train_x[0], train_y[0], test_x[0], test_y[0], subject)
+        break

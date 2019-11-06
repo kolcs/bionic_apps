@@ -7,15 +7,11 @@ import online
 from config import *
 from logger import *
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
-    calculate_fft_power, calculate_fft_range, \
+    init_base_config, calculate_fft_power, calculate_fft_range, \
     FFT_RANGE, AVG_COLUMN, FFT_POWER
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
-
-# config options
-CONFIG_FILE = 'bci_system.cfg'
-BASE_DIR = 'base_dir'
 
 
 class BCISystem(object):
@@ -34,7 +30,7 @@ class BCISystem(object):
         make_logs : bool
             To make log files or not.
         """
-        self._base_dir = str()
+        self._base_dir = init_base_config()
         self._window_length = window_length
         self._window_step = window_step
         self._proc = None
@@ -43,22 +39,8 @@ class BCISystem(object):
         self._log = make_logs
         self._feature = feature
 
-        self._init_base_config()
-
         if make_logs:
             setup_logger(LOGGER_NAME)
-
-    def _init_base_config(self):
-        cfg_dict = load_pickle_data(CONFIG_FILE)
-        if cfg_dict is None:
-            from gui_handler import select_base_dir
-            base_dir = select_base_dir()
-            assert base_dir is not None, 'Base directory not selected. Cannot run program!'
-            self._base_dir = base_dir
-            cfg_dict = {BASE_DIR: base_dir}
-            save_pickle_data(cfg_dict, CONFIG_FILE)
-        else:
-            self._base_dir = cfg_dict[BASE_DIR]
 
     def _log_and_print(self, msg):
         if self._log:
@@ -284,7 +266,7 @@ class BCISystem(object):
 
         return y_preds, y_real, raw
 
-    def play_game(self, feature=FFT_POWER, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
+    def play_game(self, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                   window_step=0.25):
         if feature is not None:
             self._feature = feature

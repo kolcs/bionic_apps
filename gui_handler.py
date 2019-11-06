@@ -4,11 +4,12 @@ from tkinter import Tk, filedialog, messagebox
 def select_eeg_file_in_explorer():
     root = Tk()
     root.withdraw()
-    messagebox.showinfo(title='BCI', message='Select an EEG file for training BCI System!')
+    messagebox.showinfo(title='BCI', message='Select an EEG file!')
     filename = filedialog.askopenfilename(title='Select EEG source file',
                                           filetypes=(("Brain Product", "*.vhdr"), ("all files", "*.*")))
     del root
-    return filename if len(filename) > 0 else None
+    assert len(filename) > 0, 'No source files were selected...'
+    return filename
 
 
 def select_base_dir():
@@ -21,7 +22,8 @@ def select_base_dir():
     base_dir = filedialog.askdirectory(title='Select main database directory')
 
     del root
-    return base_dir if len(base_dir) > 0 else None
+    assert len(base_dir) > 0, 'Base directory is not selected. Cannot run program!'
+    return base_dir
 
 
 if __name__ == '__main__':

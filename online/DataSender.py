@@ -5,7 +5,7 @@ import time
 from pylsl import StreamInfo, StreamOutlet, local_clock
 import numpy as np
 
-from preprocess.ioprocess import open_raw_file
+from preprocess.ioprocess import open_raw_file, init_base_config
 
 M_BRAIN_TRAIN = 'mBrainTrain'
 
@@ -130,14 +130,8 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
 
 
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
-    # base_dir = 'D:/Csabi/'  # Home
-    # base_dir = "D:/Users/Csabi/data"  # ITK
-    # base_dir = "/home/csabi/databases/"  # linux
-    files = [base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R03.edf",
-             base_dir + "physionet.org/physiobank/database/eegmmidb/S001/S001R04.edf"]
+    from gui_handler import select_eeg_file_in_explorer
+    base_dir = init_base_config('../')
+    file = select_eeg_file_in_explorer()
 
-    test_subj = 4
-    file = '{}Cybathlon_pilot/paradigmA/pilot{}/rec01.vhdr'.format(base_dir, test_subj)
-
-    run(file, get_labels=True)
+    run(file, get_labels=False)
