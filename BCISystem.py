@@ -1,6 +1,7 @@
 import time
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from warnings import warn, simplefilter
 
 import ai
 import online
@@ -157,6 +158,7 @@ class BCISystem(object):
 
         if self._feature == AVG_COLUMN:
             data = np.average(data, axis=-1)
+            data = data.reshape((1, -1))
         elif self._feature == FFT_POWER:
             data = calculate_fft_power(data, fs, fft_low, fft_high)
         elif self._feature == FFT_RANGE:
@@ -164,9 +166,6 @@ class BCISystem(object):
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self._feature))
 
-        # Do this only for svm data!!!
-        # data = data.reshape((1, -1))
-        print(data.shape)
         return data
 
     def offline_processing(self, db_name='physionet', feature=None, fft_low=7, fft_high=13, fft_step=2,
@@ -248,7 +247,7 @@ class BCISystem(object):
 
             self._prev_timestamp = timestamps
 
-            data = self._feature_extraction(data)
+            data = self._feature_extraction(data, dsp.fs)
 
             y_pred = svm.predict(data)
 
@@ -267,7 +266,7 @@ class BCISystem(object):
         return y_preds, y_real, raw
 
     def play_game(self, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
-                  window_step=0.25):
+                  window_step=0.25, command_in_each_sec=0.1):
         if feature is not None:
             self._feature = feature
         self._init_db_processor('game', epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax, window_lenght=window_length,
@@ -287,14 +286,21 @@ class BCISystem(object):
         command_converter = self._proc.get_command_converter()
 
         print("Starting game control...")
+        simplefilter('always', UserWarning)
         while True:
             timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
             if timestamp is not None:
-                data = self._feature_extraction(eeg, fs=dsp.fs)
-                y_pred = svm.predict(data)
+                tic = time.time()
+                data = self._feature_extraction(eeg, fft_low, fft_high, fs=dsp.fs)
+                y_pred = svm.predict(data)[0]
                 command = command_converter[y_pred]
                 controller.control_game(command)
-                time.sleep(0.1)
+                toc = time.time() - tic
+                print(command, 'pause between commands {} s'.format(toc))
+                if toc < command_in_each_sec:
+                    time.sleep(command_in_each_sec - toc)
+                else:
+                    warn('Classification took longer than command giving limit!')
 
 
 def check_received_signal(data, filename):
