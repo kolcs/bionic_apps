@@ -131,7 +131,8 @@ class MultiSVM(object):
 
     def predict(self, X):
         X = np.array(X)
-        votes = Parallel(n_jobs=-2)(delayed(self._predict)(i, X[:, i, :]) for i in range(len(self._svms)))
+        votes = [self._predict(i, X[:, i, :]) for i in range(len(self._svms))]
+        # votes = Parallel(n_jobs=-2)(delayed(self._predict)(i, X[:, i, :]) for i in range(len(self._svms)))
         votes = np.array(votes)
         res = list()
         for i in range(votes.shape[1]):  # counting votes
