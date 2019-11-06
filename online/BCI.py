@@ -80,8 +80,10 @@ class DSP(SignalReceiver):
         self._eeg.extend(eeg_samples)
         self._timestamp.extend(timestamps)
         win = int(self.fs * window_length)
-        eeg = self._eeg[-win:]
         timestamp = self._timestamp[-win:]
+        eeg = self._eeg[-win:]
+        if len(timestamp) < win:
+            return None, None
         return timestamp, np.transpose(eeg)
 
     def get_eeg_window(self, wlength=1.0, return_label=False):

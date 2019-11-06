@@ -132,6 +132,6 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
 if __name__ == '__main__':
     from gui_handler import select_eeg_file_in_explorer
     base_dir = init_base_config('../')
-    file = select_eeg_file_in_explorer()
+    file = select_eeg_file_in_explorer(base_dir)
 
     run(file, get_labels=False)
