@@ -297,13 +297,13 @@ class SubjectKFold(object):
         for s in subjects:
             yield subject_db.get_split(s, shuffle=self._shuffle_data, random_seed=self._random_state)
 
-    def split_subject_data(self, subject_db, subject, k_fold_num=None, random_seed=None):
+    def split_subject_data(self, subject_db, subject, k_fold_num=None, shuffle=True, random_seed=None):
         if k_fold_num is not None:
             self._k_fold_num = k_fold_num
         if self._k_fold_num is None:
             self._k_fold_num = 10
 
-        data, labels = subject_db.get_subject_data(subject)
+        data, labels = subject_db.get_subject_data(subject, shuffle=shuffle, random_seed=random_seed)
         label_inds = {label: list() for label in set(labels)}
         for i, label in enumerate(labels):
             label_inds[label].append(i)
@@ -321,10 +321,11 @@ class SubjectKFold(object):
                 train_ind.extend(np.array(inds)[train_split_ind])
                 test_ind.extend(np.array(inds)[test_split_ind])
 
-            # np.random.seed(random_seed)
-            np.random.shuffle(train_ind)
-            # np.random.seed(random_seed)
-            np.random.shuffle(test_ind)
+            if shuffle:
+                np.random.seed(random_seed)
+                np.random.shuffle(train_ind)
+                np.random.seed(random_seed)
+                np.random.shuffle(test_ind)
 
             train_x = [data[ind] for ind in train_ind]
             train_y = [labels[ind] for ind in train_ind]
@@ -580,7 +581,7 @@ class OfflineDataPreprocessor:
 
     def _create_game_db(self):
         from gui_handler import select_eeg_file_in_explorer
-        filename = select_eeg_file_in_explorer()
+        filename = select_eeg_file_in_explorer(self._base_dir)
         assert filename is not None, 'No source files were selected. Cannot play BCI game.'
 
         task_dict = self.convert_task()
@@ -686,7 +687,7 @@ class OfflineDataPreprocessor:
 
         print('Database initialization took {} seconds.'.format(int(time.time() - tic)))
 
-    def get_subject_data(self, subject, reduce_rest=True):
+    def get_subject_data(self, subject, reduce_rest=True, shuffle=True, random_seed=None):
         """Returns data for one subject.
 
         Parameters
@@ -701,6 +702,13 @@ class OfflineDataPreprocessor:
         data, label = zip(*self._data_set[subject])
         if reduce_rest:
             data, label = self._reduce_rest_label(data, label)
+        if shuffle:
+            ind = np.arange(len(label))
+            np.random.seed(random_seed)
+            np.random.shuffle(ind)
+            data = [data[i] for i in ind]
+            label = [label[i] for i in ind]
+
         return list(data), list(label)
 
     def get_split(self, test_subject, shuffle=True, random_seed=None, reduce_rest=True):
