@@ -1,14 +1,22 @@
 from tkinter import Tk, filedialog, messagebox
 
 
-def select_eeg_file_in_explorer():
+def show_message(message):
+    root = Tk()
+    root.withdraw()
+    messagebox.showinfo(title='BCI', message=message)
+    del root
+
+
+def select_eeg_file_in_explorer(init_dir):
     root = Tk()
     root.withdraw()
     messagebox.showinfo(title='BCI', message='Select an EEG file!')
     filename = filedialog.askopenfilename(title='Select EEG source file',
+                                          initialdir=init_dir,
                                           filetypes=(("Brain Product", "*.vhdr"), ("all files", "*.*")))
     del root
-    assert len(filename) > 0, 'No source files were selected...'
+    assert len(filename) > 0, 'No EEG files were selected...'
     return filename
 
 
@@ -27,5 +35,5 @@ def select_base_dir():
 
 
 if __name__ == '__main__':
-    print(select_eeg_file_in_explorer())
-    print(select_base_dir())
+    base_dir = select_base_dir()
+    print(select_eeg_file_in_explorer(base_dir))
