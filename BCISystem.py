@@ -6,28 +6,33 @@ import ai
 import online
 from config import *
 from logger import *
-from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, calculate_fft_power, \
+from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
+    calculate_fft_power, calculate_fft_range, \
     FFT_RANGE, AVG_COLUMN, FFT_POWER
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
 
-CONFIG_FILE = 'bci_system.cfg'
 # config options
+CONFIG_FILE = 'bci_system.cfg'
 BASE_DIR = 'base_dir'
 
 
 class BCISystem(object):
 
-    def __init__(self, window_length=0.5, window_step=0.25, make_logs=False):
+    def __init__(self, feature=FFT_POWER, window_length=0.5, window_step=0.25, make_logs=False):
         """ Constructor for BCI system
 
         Parameters
         ----------
+        feature : {'avg_column', 'fft_power', 'fft_range'}
+            The feature which will be created.
         window_length: float
             length of eeg processor window in seconds
         window_step: float
             window shift in seconds
+        make_logs : bool
+            To make log files or not.
         """
         self._base_dir = str()
         self._window_length = window_length
@@ -36,6 +41,7 @@ class BCISystem(object):
         self._prev_timestamp = [0]
         self._ai_model = dict()
         self._log = make_logs
+        self._feature = feature
 
         self._init_base_config()
 
@@ -59,7 +65,12 @@ class BCISystem(object):
             log_info(LOGGER_NAME, msg)
         print(msg)
 
-    def _subject_corssvalidate(self, subject, k_fold_num=10, feature=None):
+    def _init_svm(self, C=1, cache_size=4000, random_state=12):
+        if self._feature == FFT_RANGE:
+            return ai.MultiSVM(C=C, cache_size=cache_size, random_state=random_state)
+        return ai.SVM(C=C, cache_size=cache_size, random_state=random_state)
+
+    def _subject_corssvalidate(self, subject, k_fold_num=10):
         kfold = SubjectKFold(k_fold_num)
 
         self._log_and_print("####### Classification report for subject{}: #######".format(subject))
@@ -69,10 +80,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            if feature == FFT_RANGE:
-                svm = ai.MultiSVM(C=1, cache_size=4000, random_state=12)
-            else:
-                svm = ai.SVM(C=1, cache_size=4000, random_state=12)
+            svm = self._init_svm(C=1, cache_size=4000, random_state=12)
             svm.fit(train_x, train_y)
 
             t = time.time() - t
@@ -98,8 +106,7 @@ class BCISystem(object):
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
             print('Training...')
-            svm = ai.SVM(C=1, cache_size=4000, random_state=12)  # , class_weight='balanced')
-
+            svm = self._init_svm(C=1, cache_size=4000, random_state=12)  # , class_weight='balanced')
             svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -164,27 +171,31 @@ class BCISystem(object):
             else:
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
-    def _feature_extraction(self, data, feature='fft_power', fft_low=7, fft_high=13, fs=500):
+    def _feature_extraction(self, data, fft_low=7, fft_high=13, fs=500):
 
-        if feature == AVG_COLUMN:
+        if self._feature == AVG_COLUMN:
             data = np.average(data, axis=-1)
-        elif feature == FFT_POWER:
+        elif self._feature == FFT_POWER:
             data = calculate_fft_power(data, fs, fft_low, fft_high)
+        elif self._feature == FFT_RANGE:
+            data = calculate_fft_range(data, fs, fft_low, fft_high)
         else:
-            raise NotImplementedError('{} feature creation is not implemented'.format(feature))
+            raise NotImplementedError('{} feature is not implemented'.format(self._feature))
 
         # Do this only for svm data!!!
-        data = data.reshape((1, -1))
+        # data = data.reshape((1, -1))
+        print(data.shape)
         return data
 
-    def offline_processing(self, db_name='physionet', feature=FFT_POWER, fft_low=7, fft_high=13, fft_step=2,
+    def offline_processing(self, db_name='physionet', feature=None, fft_low=7, fft_high=13, fft_step=2,
                            fft_width=2, method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=1, use_drop_subject_list=True, fast_load=False,
                            subj_n_fold_num=None):
-
+        if feature is not None:
+            self._feature = feature
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, window_length, window_step, use_drop_subject_list,
                                 fast_load)
-        self._proc.run(feature, fft_low, fft_high, fft_step, fft_width)
+        self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
 
         if method == 'crossSubjectXvalidate':
             self._crosssubject_crossvalidate(subj_n_fold_num)
@@ -193,12 +204,12 @@ class BCISystem(object):
             self._crosssubject_crossvalidate(save_model=True)
 
         elif method == 'subjectXvalidate':
-            self._subject_corssvalidate(subject, subj_n_fold_num, feature)
+            self._subject_corssvalidate(subject, subj_n_fold_num)
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
-    def online_processing(self, db_name, test_subject, feature='avg_column', get_real_labels=False, data_sender=None):
+    def online_processing(self, db_name, test_subject, feature=None, get_real_labels=False, data_sender=None):
         """Online accuracy check.
 
         This is an example code, how the online classification can be done.
@@ -216,8 +227,10 @@ class BCISystem(object):
         data_sender : multiprocess.Process, optional
             Process object which sends the signals for simulating realtime work.
         """
+        if feature is not None:
+            self._feature = feature
         self._init_db_processor(db_name)
-        self._proc.init_processed_db_path(feature)
+        self._proc.init_processed_db_path(self._feature)
         if len(self._ai_model) == 0:
             self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
         svm = self._ai_model[test_subject]
@@ -253,7 +266,7 @@ class BCISystem(object):
 
             self._prev_timestamp = timestamps
 
-            data = self._feature_extraction(data, feature)
+            data = self._feature_extraction(data)
 
             y_pred = svm.predict(data)
 
@@ -271,16 +284,17 @@ class BCISystem(object):
 
         return y_preds, y_real, raw
 
-    def play_game(self, feature='fft_power', fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
+    def play_game(self, feature=FFT_POWER, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                   window_step=0.25):
+        if feature is not None:
+            self._feature = feature
         self._init_db_processor('game', epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax, window_lenght=window_length,
                                 window_step=window_step, use_drop_subject_list=False, fast_load=False)
-        self._proc.run(feature, fft_low, fft_high)
-
+        self._proc.run(self._feature, fft_low, fft_high)
         print('Training...')
         t = time.time()
-        data, labels = self._proc.get_subject_data(0)
-        svm = ai.SVM(C=1, cache_size=4000)
+        data, labels = self._proc.get_subject_data(0)  # todo: shuffle data!
+        svm = self._init_svm(C=1, cache_size=4000, random_state=12)
         svm.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
@@ -294,7 +308,7 @@ class BCISystem(object):
         while True:
             timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
             if timestamp is not None:
-                data = self._feature_extraction(eeg, feature='fft_power', fs=dsp.fs)
+                data = self._feature_extraction(eeg, fs=dsp.fs)
                 y_pred = svm.predict(data)
                 command = command_converter[y_pred]
                 controller.control_game(command)
@@ -339,4 +353,4 @@ def calc_online_acc(y_pred, y_real, raw):
 
 if __name__ == '__main__':
     bci = BCISystem()
-    bci.offline_processing(db_name='pilot_parB', feature='fft_power', method='crossSubjectXvalidate')
+    bci.offline_processing(db_name='pilot_parB', feature=FFT_POWER, method='crossSubjectXvalidate')
