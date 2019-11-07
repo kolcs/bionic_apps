@@ -174,8 +174,12 @@ class BCISystem(object):
                            subj_n_fold_num=None):
         if feature is not None:
             self._feature = feature
-        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, window_length, window_step, use_drop_subject_list,
-                                fast_load)
+        if window_length is not None:
+            self._window_length = window_length
+        if window_step is not None:
+            self._window_step = window_step
+        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, self._window_length, self._window_step,
+                                use_drop_subject_list, fast_load)
         self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
 
         if method == 'crossSubjectXvalidate':
@@ -265,12 +269,16 @@ class BCISystem(object):
 
         return y_preds, y_real, raw
 
-    def play_game(self, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
-                  window_step=0.25, command_in_each_sec=0.1):
+    def play_game(self, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=None,
+                  window_step=None, command_in_each_sec=0.1):
         if feature is not None:
             self._feature = feature
-        self._init_db_processor('game', epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax, window_lenght=window_length,
-                                window_step=window_step, use_drop_subject_list=False, fast_load=False)
+        if window_length is not None:
+            self._window_length = window_length
+        if window_step is not None:
+            self._window_step = window_step
+        self._init_db_processor('game', epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax, window_lenght=self._window_length,
+                                window_step=self._window_step, use_drop_subject_list=False, fast_load=False)
         self._proc.run(self._feature, fft_low, fft_high)
         print('Training...')
         t = time.time()
@@ -291,12 +299,13 @@ class BCISystem(object):
             timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
             if timestamp is not None:
                 tic = time.time()
+                eeg = np.delete(eeg, 47, axis=0)  # todo: check!!! online channels...
                 data = self._feature_extraction(eeg, fft_low, fft_high, fs=dsp.fs)
                 y_pred = svm.predict(data)[0]
                 command = command_converter[y_pred]
                 controller.control_game(command)
                 toc = time.time() - tic
-                print(command, 'pause between commands {} s'.format(toc))
+                print(command)
                 if toc < command_in_each_sec:
                     time.sleep(command_in_each_sec - toc)
                 else:
