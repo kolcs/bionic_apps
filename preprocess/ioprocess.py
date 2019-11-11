@@ -415,7 +415,7 @@ class OfflineDataPreprocessor:
     """
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.25, fast_load=True):
+                 window_step=0.25, fast_load=True, make_binary_label=False):
 
         self._base_dir = base_dir
         self._epoch_tmin = epoch_tmin
@@ -423,6 +423,7 @@ class OfflineDataPreprocessor:
         self._window_length = window_length  # seconds
         self._window_step = window_step  # seconds
         self._fast_load = fast_load
+        self._make_binary_label = make_binary_label
 
         self._fs = int()
         self._feature = str()
@@ -676,7 +677,10 @@ class OfflineDataPreprocessor:
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(self._feature))
 
-            data = [(d, task) for d in data]
+            label = task
+            if self._make_binary_label and label is not REST:
+                label = ACTIVE
+            data = [(d, label) for d in data]
             win_epochs.extend(data)
 
         return win_epochs
@@ -738,7 +742,7 @@ class OfflineDataPreprocessor:
             'Subject{} is not in preprocessed database'.format(subject)
         data, label = zip(*self._data_set[subject])
         if reduce_rest:
-            data, label = self._reduce_rest_label(data, label)
+            data, label = self._reduce_max_label(data, label)
         if shuffle:
             ind = np.arange(len(label))
             np.random.seed(random_seed)
@@ -795,22 +799,35 @@ class OfflineDataPreprocessor:
         test_x, test_y = zip(*test)
 
         if reduce_rest:
-            train_x, train_y = self._reduce_rest_label(train_x, train_y)
-            test_x, test_y = self._reduce_rest_label(test_x, test_y)
+            train_x, train_y = self._reduce_max_label(train_x, train_y)
+            test_x, test_y = self._reduce_max_label(test_x, test_y)
 
         return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
 
+    # @staticmethod
+    # def _reduce_max_label(data, labels):
+    #     from config import REST
+    #     label_count = {lab: labels.count(lab) for lab in set(labels)}
+    #     rest_count = label_count[REST]
+    #     del label_count[REST]
+    #     max_count = max(label_count.values())
+    #     rest_ind = [i for i, lab in enumerate(labels) if lab == REST]
+    #     del_num = rest_count - max_count
+    #     labels = np.delete(labels, rest_ind[:del_num])
+    #     data = np.delete(data, rest_ind[:del_num], axis=0)
+    #     return data, labels
+
     @staticmethod
-    def _reduce_rest_label(data, labels):
-        from config import REST
+    def _reduce_max_label(data, labels):
         label_count = {lab: labels.count(lab) for lab in set(labels)}
-        rest_count = label_count[REST]
-        del label_count[REST]
-        max_count = max(label_count.values())
-        rest_ind = [i for i, lab in enumerate(labels) if lab == REST]
-        del_num = rest_count - max_count
-        labels = np.delete(labels, rest_ind[:del_num])
-        data = np.delete(data, rest_ind[:del_num], axis=0)
+        max_label = max(label_count, key=lambda key: label_count[key])
+        max_count = label_count[max_label]
+        del label_count[max_label]
+        next_max_count = max(label_count.values())
+        label_ind = [i for i, lab in enumerate(labels) if lab == max_label]
+        del_num = max_count - next_max_count
+        labels = np.delete(labels, label_ind[:del_num])
+        data = np.delete(data, label_ind[:del_num], axis=0)
         return data, labels
 
 

@@ -12,6 +12,7 @@ LEFT_LEG = 'left leg'
 RIGHT_LEG = 'right leg'
 BOTH_LEGS = 'both legs'
 REST = 'rest'
+ACTIVE = 'active'
 
 SUBJECT = 'subject'
 
