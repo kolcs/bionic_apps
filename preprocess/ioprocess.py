@@ -152,7 +152,7 @@ def generate_physionet_filenames(file_path, subject, runs):
     return _generate_filenames_for_subject(file_path, subject, '{:03d}', runs, '{:02d}')
 
 
-def generate_pilot_filenames(file_path, subject, runs):
+def generate_pilot_filenames(file_path, subject, runs=1):
     """Filename generator for pilot db
 
         Generating filenames from a given string with {subj} and {rec} which are will be replaced.
@@ -175,7 +175,7 @@ def generate_pilot_filenames(file_path, subject, runs):
     return _generate_filenames_for_subject(file_path, subject, '{}', runs, '{:02d}')
 
 
-def generate_ttk_filenames(file_path, subject, runs):
+def generate_ttk_filenames(file_path, subject, runs=1):
     """Filename generator for pilot db
 
         Generating filenames from a given string with {subj} and {rec} which are will be replaced.
@@ -259,7 +259,7 @@ def save_pickle_data(data, filename):
 def init_base_config(path='./'):
     from os.path import realpath, dirname, join
     file_dir = dirname(realpath('__file__'))
-    file = join(file_dir, path+CONFIG_FILE)
+    file = join(file_dir, path + CONFIG_FILE)
     cfg_dict = load_pickle_data(file)
     if cfg_dict is None:
         from gui_handler import select_base_dir
@@ -269,6 +269,50 @@ def init_base_config(path='./'):
     else:
         base_directory = cfg_dict[BASE_DIR]
     return base_directory
+
+
+def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5):
+    """Generate epochs from files.
+
+    Parameters
+    ----------
+    filenames : str, list of str
+        List of file names from where epochs will be generated.
+    task_dict : dict
+        Used for creating mne.Epochs.
+    epoch_tmin : float
+        Start time before event. If nothing is provided, defaults to -0.2
+    epoch_tmax : float
+        End time after event. If nothing is provided, defaults to 0.5
+
+    Returns
+    -------
+    mne.Epochs
+        Created epochs from files.
+
+    """
+    if type(filenames) is str:
+        filenames = [filenames]
+    raws = [open_raw_file(file, preload=False) for file in filenames]
+    raw = raws.pop(0)
+
+    fs = raw.info['sfreq']
+
+    for r in raws:
+        raw.append(r)
+    del raws
+    raw.rename_channels(lambda x: x.strip('.'))
+
+    # todo: make prefiltering here...
+    # raw.load_data()
+    # iir_params = dict(order=5, ftype='butter', output='sos')
+    # raw.filter(l_freq=.5, h_freq=35, method='iir', iir_params=iir_params)
+
+    events, _ = mne.events_from_annotations(raw)
+    baseline = None  # tuple([None, self._epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
+    epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
+                        tmax=epoch_tmax, preload=False)
+    return epochs, fs
 
 
 class SubjectKFold(object):
@@ -474,43 +518,6 @@ class OfflineDataPreprocessor:
 
         return data
 
-    def _get_epochs_from_files(self, filenames, task_dict):
-        """Generate epochs from files.
-
-        Parameters
-        ----------
-        filenames : list of str
-            List of file names from where epochs will be generated.
-        task_dict : dict
-            Used for creating mne.Epochs.
-
-        Returns
-        -------
-        mne.Epochs
-            Created epochs from files.
-
-        """
-        raws = [open_raw_file(file, preload=False) for file in filenames]
-        raw = raws.pop(0)
-
-        self._fs = raw.info['sfreq']
-
-        for r in raws:
-            raw.append(r)
-        del raws
-        raw.rename_channels(lambda x: x.strip('.'))
-
-        # todo: make prefiltering here...
-        # raw.load_data()
-        # iir_params = dict(order=5, ftype='butter', output='sos')
-        # raw.filter(l_freq=.5, h_freq=35, method='iir', iir_params=iir_params)
-
-        events, _ = mne.events_from_annotations(raw)
-        baseline = None  # tuple([None, self._epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
-        epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=self._epoch_tmin,
-                            tmax=self._epoch_tmax, preload=False)
-        return epochs
-
     def _save_preprocessed_subject_data(self, subject_data, subj):
         """Saving preprocessed feature data for a given subject.
 
@@ -547,7 +554,7 @@ class OfflineDataPreprocessor:
                 task_dict = self.convert_task(recs[0])
                 filenames = generate_physionet_filenames(self._data_path + self._db_type.FILE_PATH, subj,
                                                          recs)
-                epochs = self._get_epochs_from_files(filenames, task_dict)
+                epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
                 win_epochs = self._get_windowed_features(epochs, task)
 
                 subject_data.extend(win_epochs)
@@ -567,10 +574,10 @@ class OfflineDataPreprocessor:
 
             subject_data = list()
             if self._db_type is TTK_DB:
-                filenames = generate_ttk_filenames(self._data_path + self._db_type.FILE_PATH, subj, 1)
+                filenames = generate_ttk_filenames(self._data_path + self._db_type.FILE_PATH, subj)
             else:
-                filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj, 1)
-            epochs = self._get_epochs_from_files(filenames, task_dict)
+                filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj)
+            epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
 
             for task in task_dict.keys():
                 win_epochs = self._get_windowed_features(epochs, task)
@@ -586,7 +593,7 @@ class OfflineDataPreprocessor:
 
         task_dict = self.convert_task()
         subject_data = list()
-        epochs = self._get_epochs_from_files([filename], task_dict)
+        epochs, self._fs = get_epochs_from_files(filename, task_dict, self._epoch_tmin, self._epoch_tmax)
         for task in task_dict.keys():
             win_epochs = self._get_windowed_features(epochs, task)
             subject_data.extend(win_epochs)
