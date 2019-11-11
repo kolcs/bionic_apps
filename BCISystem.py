@@ -71,6 +71,7 @@ class BCISystem(object):
 
             y_pred = svm.predict(test_x)
 
+            # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
             class_report = classification_report(test_y, y_pred)
             conf_martix = confusion_matrix(test_y, y_pred)
             acc = accuracy_score(test_y, y_pred)
@@ -89,6 +90,7 @@ class BCISystem(object):
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
             print('Training...')
+
             svm = self._init_svm(C=1, cache_size=4000, random_state=12)  # , class_weight='balanced')
             svm.fit(train_x, train_y)
             t = time.time() - t
@@ -100,6 +102,7 @@ class BCISystem(object):
             conf_martix = confusion_matrix(test_y, y_pred)
             acc = accuracy_score(test_y, y_pred)
 
+            # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
             self._log_and_print("Classification report for subject{}:".format(test_subject))
             self._log_and_print("classifier %s:\n%s\n" % (self, class_report))
             self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
