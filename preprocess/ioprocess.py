@@ -66,9 +66,10 @@ def make_dir(path):
     :param path: str
         path to new dir
     """
-    import os
-    if not os.path.exists(path):
-        os.makedirs(path)
+    from os import makedirs
+    from os.path import exists
+    if not exists(path):
+        makedirs(path)
 
 
 def filter_filenames(files, subject, runs):
@@ -257,6 +258,18 @@ def save_pickle_data(data, filename):
 
 
 def init_base_config(path='./'):
+    """Loads base directory path from pickle data. It it does not exist it creates it.
+
+    Parameters
+    ----------
+    path : str
+        Relative path to search for config file.
+
+    Returns
+    -------
+    str
+        Base directory path.
+    """
     from os.path import realpath, dirname, join
     file_dir = dirname(realpath('__file__'))
     file = join(file_dir, path + CONFIG_FILE)
@@ -288,7 +301,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5)
     Returns
     -------
     mne.Epochs
-        Created epochs from files.
+        Created epochs from files. Data is not loaded!
 
     """
     if type(filenames) is str:
@@ -317,7 +330,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5)
 
 class SubjectKFold(object):
     """
-    Class to split subject databse to train and test
+    Class to split subject database to train and test set, in an N-fold cross validation manner.
     """
 
     def __init__(self, k_fold_num=None, shuffle_subjects=True, shuffle_data=True, random_state=None):
@@ -327,6 +340,14 @@ class SubjectKFold(object):
         self._random_state = random_state
 
     def split(self, subject_db):
+        """Splits database by subject. Use it at cross subject cross validation.
+
+        Parameters
+        ----------
+        subject_db : OfflineDataPreprocessor
+            The database to split.
+
+        """
         subjects = subject_db.get_subjects()
 
         if self._shuffle_subj:
@@ -341,13 +362,21 @@ class SubjectKFold(object):
         for s in subjects:
             yield subject_db.get_split(s, shuffle=self._shuffle_data, random_seed=self._random_state)
 
-    def split_subject_data(self, subject_db, subject, k_fold_num=None, shuffle=True, random_seed=None):
-        if k_fold_num is not None:
-            self._k_fold_num = k_fold_num
+    def split_subject_data(self, subject_db, subject_id):
+        """Splits one subjects data to train and test set.
+
+        Parameters
+        ----------
+        subject_db : OfflineDataPreprocessor
+            The database from the subject data is selected.
+        subject_id : int
+            Subject ID number
+
+        """
         if self._k_fold_num is None:
             self._k_fold_num = 10
 
-        data, labels = subject_db.get_subject_data(subject, shuffle=shuffle, random_seed=random_seed)
+        data, labels = subject_db.get_subject_data(subject_id, shuffle=self._shuffle_data, random_seed=self._random_state)
         label_inds = {label: list() for label in set(labels)}
         for i, label in enumerate(labels):
             label_inds[label].append(i)
@@ -365,10 +394,10 @@ class SubjectKFold(object):
                 train_ind.extend(np.array(inds)[train_split_ind])
                 test_ind.extend(np.array(inds)[test_split_ind])
 
-            if shuffle:
-                np.random.seed(random_seed)
+            if self._shuffle_data:
+                np.random.seed(self._random_state)
                 np.random.shuffle(train_ind)
-                np.random.seed(random_seed)
+                np.random.seed(self._random_state)
                 np.random.shuffle(test_ind)
 
             train_x = [data[ind] for ind in train_ind]
@@ -587,6 +616,7 @@ class OfflineDataPreprocessor:
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_game_db(self):
+        """Game database creation"""
         from gui_handler import select_eeg_file_in_explorer
         filename = select_eeg_file_in_explorer(self._base_dir)
         assert filename is not None, 'No source files were selected. Cannot play BCI game.'
