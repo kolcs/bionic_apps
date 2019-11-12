@@ -53,7 +53,9 @@ class BCISystem(object):
             return ai.MultiSVM(C=C, cache_size=cache_size, random_state=random_state)
         return ai.SVM(C=C, cache_size=cache_size, random_state=random_state)
 
-    def _subject_corssvalidate(self, subject, k_fold_num=10):
+    def _subject_corssvalidate(self, subject=None, k_fold_num=10):
+        if subject is None:
+            subject = 1
         kfold = SubjectKFold(k_fold_num)
 
         self._log_and_print("####### Classification report for subject{}: #######".format(subject))
@@ -115,7 +117,7 @@ class BCISystem(object):
                 print("Done\n")
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, window_lenght=None, window_step=None,
-                           use_drop_subject_list=True, fast_load=True, make_binary_label=False):
+                           use_drop_subject_list=True, fast_load=True, make_binary_label=False, subject=None):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -132,6 +134,8 @@ class BCISystem(object):
             Whether to use drop subject list from config file or not?
         fast_load : bool
             Handle with extreme care! It loads the result of a previous preprocess task.
+        subject : int or list of int
+            Data preprocess is made on these subjects.
         """
         if self._proc is None:
             if window_lenght is not None:
@@ -140,7 +144,8 @@ class BCISystem(object):
                 self._window_step = window_step
 
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
-                                                 self._window_length, self._window_step, fast_load, make_binary_label)
+                                                 self._window_length, self._window_step, fast_load,
+                                                 make_binary_label, subject)
             if db_name == 'physionet':
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
@@ -173,7 +178,7 @@ class BCISystem(object):
 
     def offline_processing(self, db_name='physionet', feature=None, fft_low=7, fft_high=13, fft_step=2,
                            fft_width=2, method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
-                           window_step=0.25, subject=1, use_drop_subject_list=True, fast_load=False,
+                           window_step=0.25, subject=None, use_drop_subject_list=True, fast_load=False,
                            subj_n_fold_num=None, make_binary_label=False):
         if feature is not None:
             self._feature = feature
@@ -182,7 +187,7 @@ class BCISystem(object):
         if window_step is not None:
             self._window_step = window_step
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, self._window_length, self._window_step,
-                                use_drop_subject_list, fast_load, make_binary_label)
+                                use_drop_subject_list, fast_load, make_binary_label, subject)
         self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
 
         if method == 'crossSubjectXvalidate':

@@ -376,7 +376,8 @@ class SubjectKFold(object):
         if self._k_fold_num is None:
             self._k_fold_num = 10
 
-        data, labels = subject_db.get_subject_data(subject_id, shuffle=self._shuffle_data, random_seed=self._random_state)
+        data, labels = subject_db.get_subject_data(subject_id, shuffle=self._shuffle_data,
+                                                   random_seed=self._random_state)
         label_inds = {label: list() for label in set(labels)}
         for i, label in enumerate(labels):
             label_inds[label].append(i)
@@ -415,7 +416,7 @@ class OfflineDataPreprocessor:
     """
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.25, fast_load=True, make_binary_label=False):
+                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None):
 
         self._base_dir = base_dir
         self._epoch_tmin = epoch_tmin
@@ -424,6 +425,7 @@ class OfflineDataPreprocessor:
         self._window_step = window_step  # seconds
         self._fast_load = fast_load
         self._make_binary_label = make_binary_label
+        self._subject_list = [subject] if type(subject) is int else subject
 
         self._fs = int()
         self._feature = str()
@@ -565,17 +567,27 @@ class OfflineDataPreprocessor:
         self._proc_db_filenames.append(db_file)
         # save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
+    def _get_subject_list(self):
+        if self._subject_list is not None:
+            for subj in self._subject_list:
+                assert 0 < subj <= self._db_type.SUBJECT_NUM, 'Subject{} is not in subject range: 1 - {}'.format(
+                    subj, self._db_type.SUBJECT_NUM)
+            subject_list = self._subject_list
+        else:
+            subject_list = list(range(1, self._db_type.SUBJECT_NUM + 1))
+
+        for subj in self._drop_subject:
+            if subj in subject_list:
+                subject_list.remove(subj)
+                print('Dropping subject {}'.format(subj))
+        return subject_list
+
     def _create_physionet_db(self):
         """Physionet feature db creator function"""
 
         keys = self._db_type.TASK_TO_REC.keys()
 
-        for s in range(self._db_type.SUBJECT_NUM):
-            subj = s + 1
-
-            if subj in self._drop_subject:
-                print('Dropping subject {}'.format(subj))
-                continue
+        for subj in self._get_subject_list():
 
             subject_data = list()
 
@@ -596,13 +608,10 @@ class OfflineDataPreprocessor:
         """Pilot feature db creator function"""
         task_dict = self.convert_task()
 
-        for s in range(self._db_type.SUBJECT_NUM):
-            subj = s + 1
-            if subj in self._drop_subject:
-                print('Dropping subject {}'.format(subj))
-                continue
+        for subj in self._get_subject_list():
 
             subject_data = list()
+
             if self._db_type is TTK_DB:
                 filenames = generate_ttk_filenames(self._data_path + self._db_type.FILE_PATH, subj)
             else:
