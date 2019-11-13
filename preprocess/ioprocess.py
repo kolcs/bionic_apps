@@ -284,7 +284,7 @@ def init_base_config(path='./'):
     return base_directory
 
 
-def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5):
+def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, event_id='auto'):
     """Generate epochs from files.
 
     Parameters
@@ -321,7 +321,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5)
     # iir_params = dict(order=5, ftype='butter', output='sos')
     # raw.filter(l_freq=.5, h_freq=35, method='iir', iir_params=iir_params)
 
-    events, _ = mne.events_from_annotations(raw)
+    events, _ = mne.events_from_annotations(raw, event_id)
     baseline = None  # tuple([None, self._epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
     epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
                         tmax=epoch_tmax, preload=False)
