@@ -747,6 +747,7 @@ class OfflineDataPreprocessor:
         reduce_rest : bool, optional
             To reduce rest data points.
         """
+        assert subject not in self._drop_subject, 'Subject{} is in drop subject list.'.format(subject)
         assert subject in list(self._data_set.keys()), \
             'Subject{} is not in preprocessed database'.format(subject)
         data, label = zip(*self._data_set[subject])
