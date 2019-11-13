@@ -117,7 +117,7 @@ class BCISystem(object):
                 print("Done\n")
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, window_lenght=None, window_step=None,
-                           use_drop_subject_list=True, fast_load=True, make_binary_label=False, subject=None):
+                           use_drop_subject_list=True, fast_load=True, make_binary_classification=False, subject=None):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -145,7 +145,7 @@ class BCISystem(object):
 
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load,
-                                                 make_binary_label, subject)
+                                                 make_binary_classification, subject)
             if db_name == 'physionet':
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
@@ -179,7 +179,7 @@ class BCISystem(object):
     def offline_processing(self, db_name='physionet', feature=None, fft_low=7, fft_high=13, fft_step=2,
                            fft_width=2, method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=None, use_drop_subject_list=True, fast_load=False,
-                           subj_n_fold_num=None, make_binary_label=False):
+                           subj_n_fold_num=None, make_binary_classification=False):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
@@ -187,7 +187,7 @@ class BCISystem(object):
         if window_step is not None:
             self._window_step = window_step
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, self._window_length, self._window_step,
-                                use_drop_subject_list, fast_load, make_binary_label, subject)
+                                use_drop_subject_list, fast_load, make_binary_classification, subject)
         self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
 
         if method == 'crossSubjectXvalidate':
@@ -278,7 +278,7 @@ class BCISystem(object):
         return y_preds, y_real, raw
 
     def play_game(self, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=None,
-                  window_step=None, command_in_each_sec=0.1):
+                  window_step=None, command_in_each_sec=0.5, make_binary_classification=False):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
@@ -286,11 +286,12 @@ class BCISystem(object):
         if window_step is not None:
             self._window_step = window_step
         self._init_db_processor('game', epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax, window_lenght=self._window_length,
-                                window_step=self._window_step, use_drop_subject_list=False, fast_load=False)
+                                window_step=self._window_step, use_drop_subject_list=False, fast_load=False,
+                                make_binary_classification=make_binary_classification)
         self._proc.run(self._feature, fft_low, fft_high)
         print('Training...')
         t = time.time()
-        data, labels = self._proc.get_subject_data(0)  # todo: shuffle data!
+        data, labels = self._proc.get_subject_data(0)
         svm = self._init_svm(C=1, cache_size=4000, random_state=12)
         svm.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
@@ -298,7 +299,7 @@ class BCISystem(object):
         dsp = online.DSP()
 
         from control import GameControl
-        controller = GameControl(make_log=True)
+        controller = GameControl(make_log=True, log_to_stream=True)
         command_converter = self._proc.get_command_converter()
 
         print("Starting game control...")
@@ -310,10 +311,14 @@ class BCISystem(object):
                 eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
                 data = self._feature_extraction(eeg, fft_low, fft_high, fs=dsp.fs)
                 y_pred = svm.predict(data)[0]
-                command = command_converter[y_pred]
-                controller.control_game(command)
+
+                if make_binary_classification:
+                    controller.control_game_with_2_opt(y_pred)
+                else:
+                    command = command_converter[y_pred]
+                    controller.control_game(command)
+
                 toc = time.time() - tic
-                print(command)
                 if toc < command_in_each_sec:
                     time.sleep(command_in_each_sec - toc)
                 else:

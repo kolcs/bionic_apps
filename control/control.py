@@ -1,8 +1,9 @@
 import socket
 import json
 from numpy import uint8
+from itertools import cycle
 
-from config import TURN_LEFT, TURN_RIGHT, LIGHT_ON, GO_STRAIGHT
+from config import TURN_LEFT, TURN_RIGHT, LIGHT_ON, GO_STRAIGHT, REST
 from logger import *
 
 LEFT = 1
@@ -20,7 +21,7 @@ LOGGER_NAME = 'GameControl'
 
 class GameControl(object):
 
-    def __init__(self, path='control/', make_log=False):
+    def __init__(self, path='control/', make_log=False, log_to_stream=False):
         with open(path + 'networkConfig.json') as f:
             config = json.load(f)
         self.udp_ip = config['networkAddress']
@@ -28,8 +29,9 @@ class GameControl(object):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.player_index = config['activPlayerIndex'] * 10
         self._log = make_log
+        self._command_menu = cycle([self.turn_left, self.turn_right, self.turn_light_on])
         if make_log:
-            setup_logger(LOGGER_NAME, log_file='game')
+            setup_logger(LOGGER_NAME, log_file='game', log_to_stream=log_to_stream)
 
     def _send_message(self, message):
         self.socket.sendto(message, (self.udp_ip, self.udp_port))
@@ -69,6 +71,13 @@ class GameControl(object):
             self.go_straight()
         else:
             raise NotImplementedError('Command {} is not implemented'.format(command))
+
+    def control_game_with_2_opt(self, state):
+        if state == REST:
+            self.go_straight()
+        else:
+            command = next(self._command_menu)
+            command()
 
 
 def run_demo(make_log=False):

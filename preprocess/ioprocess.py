@@ -814,19 +814,6 @@ class OfflineDataPreprocessor:
 
         return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
 
-    # @staticmethod
-    # def _reduce_max_label(data, labels):
-    #     from config import REST
-    #     label_count = {lab: labels.count(lab) for lab in set(labels)}
-    #     rest_count = label_count[REST]
-    #     del label_count[REST]
-    #     max_count = max(label_count.values())
-    #     rest_ind = [i for i, lab in enumerate(labels) if lab == REST]
-    #     del_num = rest_count - max_count
-    #     labels = np.delete(labels, rest_ind[:del_num])
-    #     data = np.delete(data, rest_ind[:del_num], axis=0)
-    #     return data, labels
-
     @staticmethod
     def _reduce_max_label(data, labels):
         label_count = {lab: labels.count(lab) for lab in set(labels)}
