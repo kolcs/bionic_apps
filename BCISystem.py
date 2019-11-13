@@ -304,10 +304,10 @@ class BCISystem(object):
         print("Starting game control...")
         simplefilter('always', UserWarning)
         while True:
-            timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
+            timestamp, eeg = dsp.get_eeg_window_in_chunk(self._window_length)
             if timestamp is not None:
                 tic = time.time()
-                eeg = np.delete(eeg, 47, axis=0)  # todo: check!!! online channels...
+                eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
                 data = self._feature_extraction(eeg, fft_low, fft_high, fs=dsp.fs)
                 y_pred = svm.predict(data)[0]
                 command = command_converter[y_pred]
