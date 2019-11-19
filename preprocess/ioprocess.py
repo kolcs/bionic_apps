@@ -688,7 +688,7 @@ class OfflineDataPreprocessor:
 
             label = task
             if self._make_binary_label and label is not REST:
-                label = ACTIVE
+                label = CALM if CALM in label else ACTIVE
             data = [(d, label) for d in data]
             win_epochs.extend(data)
 
