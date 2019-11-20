@@ -3,7 +3,7 @@ import json
 from numpy import uint8
 from itertools import cycle
 
-from config import TURN_LEFT, TURN_RIGHT, LIGHT_ON, GO_STRAIGHT, REST
+from config import TURN_LEFT, TURN_RIGHT, LIGHT_ON, GO_STRAIGHT, ACTIVE
 from logger import *
 
 LEFT = 1
@@ -73,11 +73,11 @@ class GameControl(object):
             raise NotImplementedError('Command {} is not implemented'.format(command))
 
     def control_game_with_2_opt(self, state):
-        if state == REST:
-            self.go_straight()
-        else:
+        if state == ACTIVE:
             command = next(self._command_menu)
             command()
+        else:
+            self.go_straight()
 
 
 def run_demo(make_log=False):
