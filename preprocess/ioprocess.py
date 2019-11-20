@@ -464,8 +464,8 @@ class OfflineDataPreprocessor:
         self._use_db(Physionet)
         return self
 
-    def use_pilot(self):
-        self._use_db(PilotDB)
+    def use_pilot_par_a(self):
+        self._use_db(PilotDB_ParadigmA)
         return self
 
     def use_pilot_par_b(self):
@@ -478,6 +478,15 @@ class OfflineDataPreprocessor:
 
     def use_game_data(self):
         self._use_db(GameDB)
+        return self
+
+    def use_game_par_c(self):
+        self._use_db(Game_ParadigmC)
+        return self
+
+    def use_game_par_d(self):
+        self._use_db(Game_ParadigmD)
+        return self
 
     @property
     def _db_ext(self):
@@ -725,11 +734,17 @@ class OfflineDataPreprocessor:
             print_creation_message()
             self._create_physionet_db()
 
-        elif self._db_type in [PilotDB, PilotDB_ParadigmB, TTK_DB]:
+        elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB]:
             print_creation_message()
             self._create_ttk_db()
 
-        elif self._db_type is GameDB:
+        elif self._db_type in [GameDB, Game_ParadigmC]:
+            print_creation_message()
+            self._create_game_db()
+
+        elif self._db_type is Game_ParadigmD:
+            print_creation_message()
+            self._make_binary_label = True
             self._create_game_db()
 
         else:
@@ -831,7 +846,7 @@ class OfflineDataPreprocessor:
 if __name__ == '__main__':
     base_dir = init_base_config('../')
 
-    preprocessor = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot()
+    preprocessor = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot_par_a()
     preprocessor.run(feature=FFT_POWER)
 
     # this is how SubjectKFold works:

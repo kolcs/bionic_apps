@@ -266,7 +266,7 @@ if __name__ == '__main__':
 
     if db == 'pilot':
         file = '{}Cybathlon pilot/pilot{}/rec01.vhdr'.format(base_dir, subj)
-        proc.use_pilot()
+        proc.use_pilot_par_a()
         filter_on_file(file, proc, ref_channels=['TP9', 'TP10'])
     else:  # physionet
         file = '{}physionet.org/physiobank/database/eegmmidb/S{:03d}/S{:03d}R{:02d}.edf'.format(base_dir, subj, subj,

@@ -118,7 +118,7 @@ class PilotCs:
 
 
 class GameDB:
-    DIR = "Game/"
+    DIR = "Game/paradigmB"
     TRIGGER_TASK_CONVERTER = {  # imagined
         REST: 1,
         RIGHT_HAND: 5,
@@ -140,7 +140,53 @@ class GameDB:
     DROP_SUBJECTS = []
 
 
-class PilotDB:
+class Game_ParadigmC:
+    DIR = "Game/paradigmC/"
+    CHANNEL_NUM = 63
+    FS = 500
+    DB_EXT = '.vhdr'
+    SUBJECT_NUM = 0
+    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        # REST: 1,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        CALM: 9,
+        BOTH_LEGS: 11
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
+    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
+
+
+class Game_ParadigmD:
+    DIR = "Game/paradigmD/"
+    CHANNEL_NUM = 63
+    FS = 500
+    DB_EXT = '.vhdr'
+    SUBJECT_NUM = 0
+    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        # REST: 1,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
+        ACTIVE + '1': 5,
+        ACTIVE + '2': 7,
+        CALM + '1': 9,
+        CALM + '2': 11
+    }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
+    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
+
+
+class PilotDB_ParadigmA:
     DIR = "Cybathlon_pilot/paradigmA/"
     CHANNEL_NUM = 63
     FS = 500
@@ -170,52 +216,6 @@ class PilotDB_ParadigmB:
     DB_EXT = '.vhdr'
     SUBJECT_NUM = 4
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
-
-    TRIGGER_TASK_CONVERTER = {  # imagined
-        REST: 1,
-        # EYE_OPEN: 2,
-        # EYE_CLOSED: 3,
-        RIGHT_HAND: 5,
-        LEFT_HAND: 7,
-        BOTH_HANDS: 9,
-        BOTH_LEGS: 11
-    }
-
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-
-    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
-
-
-class Game_ParadigmC:
-    DIR = "Game/paradigmC/"
-    CHANNEL_NUM = 63
-    FS = 500
-    DB_EXT = '.vhdr'
-    SUBJECT_NUM = 0
-    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
-
-    TRIGGER_TASK_CONVERTER = {  # imagined
-        REST: 1,
-        # EYE_OPEN: 2,
-        # EYE_CLOSED: 3,
-        RIGHT_HAND: 5,
-        LEFT_HAND: 7,
-        BOTH_HANDS: 9,
-        BOTH_LEGS: 11
-    }
-
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-
-    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
-
-
-class Game_ParadigmD:
-    DIR = "Game/paradigmD/"
-    CHANNEL_NUM = 63
-    FS = 500
-    DB_EXT = '.vhdr'
-    SUBJECT_NUM = 0
-    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         REST: 1,

@@ -5,7 +5,7 @@ from warnings import warn, simplefilter
 
 import ai
 import online
-from config import *
+from config import REST
 from logger import *
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
     init_base_config, calculate_fft_power, calculate_fft_range, \
@@ -13,6 +13,20 @@ from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, 
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
+
+# db selection options
+PHYSIONET = 'physionet'
+PILOT_PAR_A = 'pilot_par_a'
+PILOT_PAR_B = 'pilot_par_b'
+TTK = 'ttk'
+GAME = 'game'
+GAME_PAR_C = 'game_par_c'
+GAME_PAR_D = 'game_par_d'
+
+# method selection options
+CROSS_SUBJECT_X_VALIDATE = 'crossSubjectXvalidate'
+SUBJECT_X_VALIDATE = 'subjectXvalidate'
+CROSS_SUBJECT_X_AND_SAVE_SVM = 'crossSubXandTrainSVM'
 
 
 class BCISystem(object):
@@ -146,18 +160,22 @@ class BCISystem(object):
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load,
                                                  make_binary_classification, subject)
-            if db_name == 'physionet':
+            if db_name == PHYSIONET:
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
-            elif db_name == 'pilot_parA':
-                self._proc.use_pilot()
+            elif db_name == PILOT_PAR_A:
+                self._proc.use_pilot_par_a()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
-            elif db_name == 'pilot_parB':
+            elif db_name == PILOT_PAR_B:
                 self._proc.use_pilot_par_b()
-            elif db_name == 'ttk':
+            elif db_name == TTK:
                 self._proc.use_ttk_db()
-            elif db_name == 'game':
+            elif db_name == GAME:
                 self._proc.use_game_data()
+            elif db_name == GAME_PAR_C:
+                self._proc.use_game_par_c()
+            elif db_name == GAME_PAR_D:
+                self._proc.use_game_par_d()
 
             else:
                 raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
@@ -176,8 +194,8 @@ class BCISystem(object):
 
         return data
 
-    def offline_processing(self, db_name='physionet', feature=None, fft_low=7, fft_high=13, fft_step=2,
-                           fft_width=2, method='crossSubjectXvalidate', epoch_tmin=0, epoch_tmax=3, window_length=0.5,
+    def offline_processing(self, db_name=PHYSIONET, feature=None, fft_low=7, fft_high=13, fft_step=2,
+                           fft_width=2, method=CROSS_SUBJECT_X_VALIDATE, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=None, use_drop_subject_list=True, fast_load=False,
                            subj_n_fold_num=None, make_binary_classification=False):
         if feature is not None:
@@ -190,13 +208,13 @@ class BCISystem(object):
                                 use_drop_subject_list, fast_load, make_binary_classification, subject)
         self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
 
-        if method == 'crossSubjectXvalidate':
+        if method == CROSS_SUBJECT_X_VALIDATE:
             self._crosssubject_crossvalidate(subj_n_fold_num)
 
-        elif method == 'trainSVM':
+        elif method == CROSS_SUBJECT_X_AND_SAVE_SVM:
             self._crosssubject_crossvalidate(save_model=True)
 
-        elif method == 'subjectXvalidate':
+        elif method == SUBJECT_X_VALIDATE:
             self._subject_corssvalidate(subject, subj_n_fold_num)
 
         else:
@@ -277,7 +295,7 @@ class BCISystem(object):
 
         return y_preds, y_real, raw
 
-    def play_game(self, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=None,
+    def play_game(self, db_name=GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=None,
                   window_step=None, command_in_each_sec=0.5, make_binary_classification=False):
         if feature is not None:
             self._feature = feature
@@ -285,8 +303,9 @@ class BCISystem(object):
             self._window_length = window_length
         if window_step is not None:
             self._window_step = window_step
-        self._init_db_processor('game', epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax, window_lenght=self._window_length,
-                                window_step=self._window_step, use_drop_subject_list=False, fast_load=False,
+        self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
+                                window_lenght=self._window_length,window_step=self._window_step,
+                                use_drop_subject_list=False, fast_load=False,
                                 make_binary_classification=make_binary_classification)
         self._proc.run(self._feature, fft_low, fft_high)
         print('Training...')
@@ -348,8 +367,8 @@ def calc_online_acc(y_pred, y_real, raw):
     save_pickle_data(y_real, 'tmp/y_real.data')
     save_pickle_data(y_pred, 'tmp/y_pred.data')
     save_pickle_data(raw, 'tmp/eeg.data')
-    from config import PilotDB
-    conv = {val: key for key, val in PilotDB.TRIGGER_TASK_CONVERTER.items()}
+    from config import PilotDB_ParadigmA
+    conv = {val: key for key, val in PilotDB_ParadigmA.TRIGGER_TASK_CONVERTER.items()}
     y_real = [conv.get(y, REST) for y in y_real]
     print('\nDiff labels: {}\n'.format(set(np.array(y_pred).flatten())))
     class_report = classification_report(y_real, y_pred)
@@ -363,4 +382,4 @@ def calc_online_acc(y_pred, y_real, raw):
 
 if __name__ == '__main__':
     bci = BCISystem()
-    bci.offline_processing(db_name='pilot_parB', feature=FFT_POWER, method='crossSubjectXvalidate')
+    bci.offline_processing(db_name=PILOT_PAR_B, feature=FFT_POWER, method=CROSS_SUBJECT_X_VALIDATE)
