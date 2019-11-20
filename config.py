@@ -176,8 +176,8 @@ class Game_ParadigmD:
         # EYE_OPEN: 2,
         # EYE_CLOSED: 3,
         ACTIVE + '1': 5,
-        ACTIVE + '2': 7,
-        CALM + '1': 9,
+        ACTIVE + '2': 9,
+        CALM + '1': 7,
         CALM + '2': 11
     }
 
