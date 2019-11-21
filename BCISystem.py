@@ -295,16 +295,18 @@ class BCISystem(object):
 
         return y_preds, y_real, raw
 
-    def play_game(self, db_name=GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3, window_length=None,
-                  window_step=None, command_in_each_sec=0.5, make_binary_classification=False):
+    def play_game(self, db_name=GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3,
+                  window_length=None, window_step=None, command_in_each_sec=0.5, make_binary_classification=False):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
             self._window_length = window_length
         if window_step is not None:
             self._window_step = window_step
+        if db_name == GAME_PAR_D:
+            make_binary_classification = True
         self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
-                                window_lenght=self._window_length,window_step=self._window_step,
+                                window_lenght=self._window_length, window_step=self._window_step,
                                 use_drop_subject_list=False, fast_load=False,
                                 make_binary_classification=make_binary_classification)
         self._proc.run(self._feature, fft_low, fft_high)
