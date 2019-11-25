@@ -284,7 +284,7 @@ def init_base_config(path='./'):
     return base_directory
 
 
-def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, event_id='auto'):
+def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto'):
     """Generate epochs from files.
 
     Parameters
@@ -322,7 +322,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     # raw.filter(l_freq=.5, h_freq=35, method='iir', iir_params=iir_params)
 
     events, _ = mne.events_from_annotations(raw, event_id)
-    baseline = None  # tuple([None, self._epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
+    # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
     epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
                         tmax=epoch_tmax, preload=False)
     return epochs, fs
@@ -416,7 +416,7 @@ class OfflineDataPreprocessor:
     """
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None):
+                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None, play_game=False):
 
         self._base_dir = base_dir
         self._epoch_tmin = epoch_tmin
@@ -426,6 +426,7 @@ class OfflineDataPreprocessor:
         self._fast_load = fast_load
         self._make_binary_label = make_binary_label
         self._subject_list = [subject] if type(subject) is int else subject
+        self._play_game = play_game
 
         self._fs = int()
         self._feature = str()
@@ -576,14 +577,25 @@ class OfflineDataPreprocessor:
         self._proc_db_filenames.append(db_file)
         # save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
-    def _get_subject_list(self):
+    def _get_subject_num(self):
+        if self._db_type is Physionet:
+            return self._db_type.SUBJECT_NUM
+        try:
+            file = 'rec01.vhdr'
+            subject_num = len(get_filenames_in(self._data_path, file))
+        except FileNotFoundError:
+            subject_num = 0
+        return subject_num
+
+    def _get_subject_list(self):  # todo: rethink
+        subject_num = self._get_subject_num()
         if self._subject_list is not None:
             for subj in self._subject_list:
-                assert 0 < subj <= self._db_type.SUBJECT_NUM, 'Subject{} is not in subject range: 1 - {}'.format(
-                    subj, self._db_type.SUBJECT_NUM)
+                assert 0 < subj <= subject_num, 'Subject{} is not in subject range: 1 - {}'.format(
+                    subj, subject_num)
             subject_list = self._subject_list
         else:
-            subject_list = list(range(1, self._db_type.SUBJECT_NUM + 1))
+            subject_list = list(range(1, subject_num + 1))
 
         for subj in self._drop_subject:
             if subj in subject_list:
@@ -734,7 +746,7 @@ class OfflineDataPreprocessor:
             print_creation_message()
             self._create_physionet_db()
 
-        elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB]:
+        elif not self._play_game:  # self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB]:
             print_creation_message()
             self._create_ttk_db()
 

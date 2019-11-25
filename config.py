@@ -118,7 +118,8 @@ class PilotCs:
 
 
 class GameDB:
-    DIR = "Game/paradigmB"
+    DIR = "Game/mixed"
+    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
     TRIGGER_TASK_CONVERTER = {  # imagined
         REST: 1,
         RIGHT_HAND: 5,
@@ -145,7 +146,6 @@ class Game_ParadigmC:
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
-    SUBJECT_NUM = 0
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -168,7 +168,6 @@ class Game_ParadigmD:
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
-    SUBJECT_NUM = 0
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -191,7 +190,6 @@ class PilotDB_ParadigmA:
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
-    SUBJECT_NUM = 4
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -214,7 +212,6 @@ class PilotDB_ParadigmB:
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
-    SUBJECT_NUM = 4
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -237,7 +234,6 @@ class TTK_DB:
     CHANNEL_NUM = 63
     FS = 500
     DB_EXT = '.vhdr'
-    SUBJECT_NUM = 25
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined

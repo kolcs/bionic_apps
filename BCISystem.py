@@ -6,7 +6,7 @@ from warnings import warn, simplefilter
 import ai
 import online
 from config import REST
-from logger import *
+from logger import setup_logger, log_info
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
     init_base_config, calculate_fft_power, calculate_fft_range, \
     FFT_RANGE, AVG_COLUMN, FFT_POWER
@@ -131,7 +131,8 @@ class BCISystem(object):
                 print("Done\n")
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, window_lenght=None, window_step=None,
-                           use_drop_subject_list=True, fast_load=True, make_binary_classification=False, subject=None):
+                           use_drop_subject_list=True, fast_load=True, make_binary_classification=False,
+                           subject=None, play_game=False):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -159,7 +160,7 @@ class BCISystem(object):
 
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load,
-                                                 make_binary_classification, subject)
+                                                 make_binary_classification, subject, play_game)
             if db_name == PHYSIONET:
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
@@ -305,10 +306,12 @@ class BCISystem(object):
             self._window_step = window_step
         if db_name == GAME_PAR_D:
             make_binary_classification = True
+
         self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                 window_lenght=self._window_length, window_step=self._window_step,
                                 use_drop_subject_list=False, fast_load=False,
-                                make_binary_classification=make_binary_classification)
+                                make_binary_classification=make_binary_classification,
+                                play_game=True)
         self._proc.run(self._feature, fft_low, fft_high)
         print('Training...')
         t = time.time()
@@ -321,7 +324,7 @@ class BCISystem(object):
 
         from control import GameControl
         controller = GameControl(make_log=True, log_to_stream=True)
-        command_converter = self._proc.get_command_converter()
+        command_converter = self._proc.get_command_converter() if not make_binary_classification else dict()
 
         print("Starting game control...")
         simplefilter('always', UserWarning)
