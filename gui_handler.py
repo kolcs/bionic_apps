@@ -15,7 +15,7 @@ def select_eeg_file_in_explorer(init_dir='./'):
     filename = filedialog.askopenfilename(title='Select EEG source file',
                                           initialdir=init_dir,
                                           filetypes=(("Brain Product", "*.vhdr"), ("all files", "*.*")))
-    del root
+    root.destroy()
     assert len(filename) > 0, 'No EEG files were selected...'
     return filename
 
@@ -29,7 +29,7 @@ def select_base_dir():
                                              '- TTK')
     base_dir = filedialog.askdirectory(title='Select main database directory')
 
-    del root
+    root.destroy()
     assert len(base_dir) > 0, 'Base directory is not selected. Cannot run program!'
     return base_dir
 
