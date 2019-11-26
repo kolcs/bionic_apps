@@ -284,7 +284,8 @@ def init_base_config(path='./'):
     return base_directory
 
 
-def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto'):
+def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto',
+                          get_fs=False):
     """Generate epochs from files.
 
     Parameters
@@ -325,7 +326,9 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
     epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
                         tmax=epoch_tmax, preload=False)
-    return epochs, fs
+    if get_fs:
+        return epochs, fs
+    return epochs
 
 
 class SubjectKFold(object):
@@ -617,7 +620,8 @@ class OfflineDataPreprocessor:
                 task_dict = self.convert_task(recs[0])
                 filenames = generate_physionet_filenames(self._data_path + self._db_type.FILE_PATH, subj,
                                                          recs)
-                epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
+                epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
+                                                         get_fs=True)
                 win_epochs = self._get_windowed_features(epochs, task)
 
                 subject_data.extend(win_epochs)
@@ -637,7 +641,8 @@ class OfflineDataPreprocessor:
                 filenames = generate_ttk_filenames(self._data_path + self._db_type.FILE_PATH, subj)
             else:
                 filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj)
-            epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
+            epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
+                                                     get_fs=True)
 
             for task in task_dict.keys():
                 win_epochs = self._get_windowed_features(epochs, task)
@@ -654,7 +659,7 @@ class OfflineDataPreprocessor:
 
         task_dict = self.convert_task()
         subject_data = list()
-        epochs, self._fs = get_epochs_from_files(filename, task_dict, self._epoch_tmin, self._epoch_tmax)
+        epochs, self._fs = get_epochs_from_files(filename, task_dict, self._epoch_tmin, self._epoch_tmax, get_fs=True)
         for task in task_dict.keys():
             win_epochs = self._get_windowed_features(epochs, task)
             subject_data.extend(win_epochs)

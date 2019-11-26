@@ -8,7 +8,7 @@ def show_message(message):
     del root
 
 
-def select_eeg_file_in_explorer(init_dir):
+def select_eeg_file_in_explorer(init_dir='./'):
     root = Tk()
     root.withdraw()
     messagebox.showinfo(title='BCI', message='Select an EEG file!')
