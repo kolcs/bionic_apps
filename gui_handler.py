@@ -5,7 +5,7 @@ def show_message(message):
     root = Tk()
     root.withdraw()
     messagebox.showinfo(title='BCI', message=message)
-    del root
+    root.destroy()
 
 
 def select_eeg_file_in_explorer(init_dir='./'):
