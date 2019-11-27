@@ -315,7 +315,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     for r in raws:
         raw.append(r)
     del raws
-    raw.rename_channels(lambda x: x.strip('.'))
+    raw.rename_channels(lambda x: x.strip('.').capitalize())
 
     # todo: make prefiltering here...
     # raw.load_data()
