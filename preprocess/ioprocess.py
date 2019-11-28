@@ -284,6 +284,14 @@ def init_base_config(path='./'):
     return base_directory
 
 
+def pollute_data(dataset, dev=0.000005):  # todo: integrate to the system and test it!
+    """Use it for data augmentation
+    This function adds gautian noise to the eeg data.
+    """
+    noise = np.random.normal(0, dev, dataset.shape)
+    return np.add(dataset, noise)
+
+
 def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto',
                           prefilter_signal=False, f_type='butter', f_order=5, l_freq=1, h_freq=None,
                           get_fs=False):
