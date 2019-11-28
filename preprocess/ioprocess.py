@@ -285,6 +285,7 @@ def init_base_config(path='./'):
 
 
 def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto',
+                          prefilter_signal=False, f_type='butter', f_order=5, l_freq=1, h_freq=None,
                           get_fs=False):
     """Generate epochs from files.
 
@@ -317,10 +318,10 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     del raws
     raw.rename_channels(lambda x: x.strip('.').capitalize())
 
-    # todo: make prefiltering here...
-    # raw.load_data()
-    # iir_params = dict(order=5, ftype='butter', output='sos')
-    # raw.filter(l_freq=.5, h_freq=35, method='iir', iir_params=iir_params)
+    if prefilter_signal:
+        raw.load_data()
+        iir_params = dict(order=f_order, ftype=f_type, output='sos')
+        raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params)
 
     events, _ = mne.events_from_annotations(raw, event_id)
     # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
