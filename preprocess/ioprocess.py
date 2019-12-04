@@ -3,6 +3,8 @@ import pickle
 import mne
 import time
 from sklearn.model_selection import KFold
+from os import makedirs
+from os.path import exists, realpath, dirname, join
 
 from config import *
 from preprocess.feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range
@@ -66,8 +68,6 @@ def make_dir(path):
     :param path: str
         path to new dir
     """
-    from os import makedirs
-    from os.path import exists
     if not exists(path):
         makedirs(path)
 
@@ -243,8 +243,7 @@ def get_subject_number(filename):
 
 
 def load_pickle_data(filename):
-    import os
-    if not os.path.exists(filename):
+    if not exists(filename):
         return None
 
     with open(filename, 'rb') as fin:
@@ -270,7 +269,6 @@ def init_base_config(path='./'):
     str
         Base directory path.
     """
-    from os.path import realpath, dirname, join
     file_dir = dirname(realpath('__file__'))
     file = join(file_dir, path + CONFIG_FILE)
     cfg_dict = load_pickle_data(file)
@@ -466,6 +464,7 @@ class OfflineDataPreprocessor:
         Loads a specified database.
         """
         self._data_path = self._base_dir + db_type.DIR
+        assert exists(self._data_path), "Path {} does not exists.".format(self._data_path)
         self._db_type = db_type
 
         if self._drop_subject is not None:
