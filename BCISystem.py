@@ -2,6 +2,7 @@ import time
 import numpy as np
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from warnings import warn, simplefilter
+import pandas as pd
 
 import ai
 import online
@@ -28,6 +29,22 @@ CROSS_SUBJECT_X_VALIDATE = 'crossSubjectXvalidate'
 SUBJECT_X_VALIDATE = 'subjectXvalidate'
 CROSS_SUBJECT_X_AND_SAVE_SVM = 'crossSubXandTrainSVM'
 
+# LOG, pandas columns
+LOG_COLS = ['Database', 'Method', 'Feature', 'Subject', 'Epoch tmin', 'Epoch tmax', 'Window length', 'Window step',
+            'FFT low', 'FFT high', 'FFT step', 'Accuracy list', 'Avg. Acc']
+
+
+# LOG_DB_NAME = 'Database'
+# LOG_METHOD = 'Method'
+# LOG_FEATURE = 'Feature'
+# LOG_SUBJECT = 'Subject'
+# LOG_EPOCH_TMIN = 'Epoch tmin'
+# LOG_EPOCH_TMAX = 'Epoch tmax'
+# LOG_WINDOW_LENGTH = 'Window length'
+# LOG_WINDOW_STEP = 'Window step'
+# LOG_FFT_LOW = 'FFT low'
+# LOG_FFT_HIGH = 'FFT high'
+# LOG_FFT_STEP = 'FFT step'
 
 class BCISystem(object):
 
@@ -54,13 +71,29 @@ class BCISystem(object):
         self._log = make_logs
         self._feature = feature
 
+        self._df = None
+        self._df_base_data = list()
+
         if make_logs:
             setup_logger(LOGGER_NAME)
+            self._df = pd.DataFrame(columns=LOG_COLS)
 
     def _log_and_print(self, msg):
         if self._log:
             log_info(LOGGER_NAME, msg)
         print(msg)
+
+    def _save_params(self, args):
+        if self._log:
+            data = self._df_base_data.copy()
+            data.extend(args)
+            s = pd.Series(data, index=LOG_COLS)
+            self._df = self._df.append(s, ignore_index=True)
+
+    def show_results(self, out_file_name='out.csv'):
+        if self._log:
+            print(self._df)
+            self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
     def _init_svm(self, C=1, cache_size=4000, random_state=12):
         if self._feature == FFT_RANGE:
@@ -99,6 +132,7 @@ class BCISystem(object):
 
         self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
         self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
+        self._save_params((cross_acc, np.mean(cross_acc)))  # todo: print result...
 
     def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
         kfold = SubjectKFold(subj_n_fold_num)
@@ -208,6 +242,10 @@ class BCISystem(object):
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, self._window_length, self._window_step,
                                 use_drop_subject_list, fast_load, make_binary_classification, subject)
         self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
+
+        if self._log:
+            self._df_base_data = [db_name, method, self._feature, subject, epoch_tmin, epoch_tmax, self._window_length,
+                                  self._window_step, fft_low, fft_high, fft_step]
 
         if method == CROSS_SUBJECT_X_VALIDATE:
             self._crosssubject_crossvalidate(subj_n_fold_num)
