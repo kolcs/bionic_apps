@@ -95,7 +95,7 @@ class BCISystem(object):
             print(self._df)
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
-    def _init_svm(self, C=1, cache_size=4000, random_state=12):
+    def _init_svm(self, C=1, cache_size=2000, random_state=12):
         if self._feature == FFT_RANGE:
             return ai.MultiSVM(C=C, cache_size=cache_size, random_state=random_state)
         return ai.SVM(C=C, cache_size=cache_size, random_state=random_state)
