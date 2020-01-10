@@ -6,6 +6,8 @@ TCP_PORT = 6700
 BUFFER_SIZE = 1024
 
 
+# TODO: start remote control server, make annotations --> log,
+
 class RemoteControlClient(object):
     def __init__(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -88,9 +90,13 @@ class RemoteControlClient(object):
     def request_acquisition_state(self):
         self._send_message('AQ')
 
+    def send_trigger(self, stimulus):
+        self._send_message('AN:{};Stimulus'.format(stimulus))
+
 
 if __name__ == '__main__':
     import time
+
     rcc = RemoteControlClient()
     rcc.ask_msg_protocol()
     rcc.open_recorder()
