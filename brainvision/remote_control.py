@@ -1,26 +1,48 @@
 import socket
 import threading
+from os import startfile
+from time import sleep
 
 TCP_IP = '127.0.0.1'
 TCP_PORT = 6700
 BUFFER_SIZE = 1024
+REMOTE_CONTROL_SERVER_PATH = r'C:\Vision\RemoteControlServer\RemoteControlServer.exe'
+
+APPLICATION_SATE = 'AP'
+RECORDER_STATE = 'RS'
+ACQUISITION_SATE = 'AQ'
+
+ANS_WAITING_TIME = 0.1  # sec
 
 
 # TODO: start remote control server, make annotations --> log,
+# TODO: step into next sate if previous state is done...
 
 class RemoteControlClient(object):
-    def __init__(self):
+    def __init__(self, start_remote_control_server=True):
+        if start_remote_control_server:
+            startfile(REMOTE_CONTROL_SERVER_PATH)
+
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.connect((TCP_IP, TCP_PORT))
         self._sent_msg = str()
-        self._state = {'AP': str(), 'RS': str(), 'AQ': str()}
+        self._state = {APPLICATION_SATE: str(), RECORDER_STATE: str(), ACQUISITION_SATE: str()}
+
         self._listen_thread = threading.Thread(target=self._listening_message_in_thread, daemon=True)
         self._listen_thread.start()
+        self.ask_msg_protocol()
 
-    def _send_message(self, msg):
+    def _send_message(self, msg, state=None, code=None):
+        self._waiting_for_state(state, code)
         self._sent_msg = msg
         msg += '\r'
         self._sock.send(msg.encode())
+
+    def _waiting_for_state(self, state=None, code=None):
+        if state is not None:
+            code = str(code)
+            while self._state[state] != code:
+                sleep(ANS_WAITING_TIME)
 
     def _get_message(self):
         return self._sock.recv(BUFFER_SIZE).decode().strip('\r')
@@ -39,6 +61,7 @@ class RemoteControlClient(object):
 
             if ans[0] in self._state.keys():
                 self._state[ans[0]] = ans[1]
+                # print(ans[0], self._state[ans[0]], ans[1])
 
             print(msg)
 
@@ -55,10 +78,10 @@ class RemoteControlClient(object):
         self._send_message('M')
 
     def check_impedance(self):
-        self._send_message('I')
+        self._send_message('I', APPLICATION_SATE, 1)
 
     def test_signal(self):
-        self._send_message('T')
+        self._send_message('T', APPLICATION_SATE, 1)
 
     def stop_view(self):
         self._send_message('SV')
@@ -90,14 +113,14 @@ class RemoteControlClient(object):
     def request_acquisition_state(self):
         self._send_message('AQ')
 
-    def send_trigger(self, stimulus):
-        self._send_message('AN:{};Stimulus'.format(stimulus))
+    def send_annotation(self, annotation, ann_type='Stimulus'):
+        self._send_message('AN:{};{}'.format(annotation, ann_type))
 
 
 if __name__ == '__main__':
     import time
 
     rcc = RemoteControlClient()
-    rcc.ask_msg_protocol()
     rcc.open_recorder()
+    rcc.check_impedance()
     time.sleep(10)

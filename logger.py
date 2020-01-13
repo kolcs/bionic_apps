@@ -1,7 +1,41 @@
 import logging
 import datetime
+import socket
+from struct import unpack
 
 from preprocess import make_dir
+
+UDP_IP = '127.0.0.1'
+UDP_PORT = 8053
+BUFFER_SIZE = 36
+
+
+class GameLogger(object):
+
+    def __init__(self, bv_rcc=None, player=1):
+        self._soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._soc.bind((UDP_IP, UDP_PORT))
+        self._player = player - 1
+        self._bv_rcc = bv_rcc
+        self._prev_state = -1
+
+    def _log(self, exp_sig):
+        if self._bv_rcc is not None:
+            if exp_sig != self._prev_state:
+                self._bv_rcc.send_annotation(exp_sig)
+                self._prev_state = exp_sig
+
+    def run(self):
+        import time
+        while True:
+            t = time.time()
+            data = self._soc.recv(BUFFER_SIZE)
+            game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig = unpack(
+                'ffifififi', data)
+            exp_sig = [p1_exp_sig, p2_exp_sig, p3_exp_sig, p4_exp_sig]
+            exp_sig = exp_sig[self._player] % 10  # remove player number
+            self._log(exp_sig)
+            # print(time.time() - t)
 
 
 def setup_logger(logger_name, log_file='', log_dir='log/', level=logging.INFO, log_to_stream=False):
@@ -55,3 +89,12 @@ def log_info(logger_name, msg):
     """
     logger = logging.getLogger(logger_name)
     logger.info(msg)
+
+
+if __name__ == '__main__':
+    from brainvision import *
+    rcc = RemoteControlClient()
+    rcc.open_recorder()
+    rcc.check_impedance()
+    logger = GameLogger(rcc)
+    logger.run()
