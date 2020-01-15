@@ -8,15 +8,16 @@ def show_message(message):
     root.destroy()
 
 
-def select_eeg_file_in_explorer(init_dir='./'):
+def select_file_in_explorer(init_dir='./', message='Select an EEG file!', file_type="Brain Product", ext=".vhdr"):
     root = Tk()
     root.withdraw()
-    messagebox.showinfo(title='BCI', message='Select an EEG file!')
-    filename = filedialog.askopenfilename(title='Select EEG source file',
+    messagebox.showinfo(title='BCI', message=message)
+    extension = ext if ext[0] == '.' else '.' + ext
+    filename = filedialog.askopenfilename(title='Select file',
                                           initialdir=init_dir,
-                                          filetypes=(("Brain Product", "*.vhdr"), ("all files", "*.*")))
+                                          filetypes=((file_type, "*{}".format(extension)), ("all files", "*.*")))
     root.destroy()
-    assert len(filename) > 0, 'No EEG files were selected...'
+    assert len(filename) > 0, 'No file were selected...'
     return filename
 
 
@@ -36,4 +37,4 @@ def select_base_dir():
 
 if __name__ == '__main__':
     base_dir = select_base_dir()
-    print(select_eeg_file_in_explorer(base_dir))
+    print(select_file_in_explorer(base_dir))

@@ -1,7 +1,7 @@
 from scipy.signal import butter, lfilter, find_peaks, sosfilt
 import numpy as np
 
-from gui_handler import select_eeg_file_in_explorer
+from gui_handler import select_file_in_explorer
 from preprocess import get_epochs_from_files
 from config import GameDB
 
@@ -67,5 +67,5 @@ if __name__ == '__main__':
                   47, 48, 49, 50, 51, 52, 54, 55, 57, 58, 61, 62, 63, 64, 68, 70, 72, 74, 75, 77, 79, 81, 82, 84, 86, 87,
                   88, 89, 90, 92, 94, 95, 97, 99, 100, 101, 103, 105, 106, 107, 109, 111, 113, 115, 117, 119, 120, 121,
                   122, 123, 125, 127, 128, 129, 131, 133, 134, 135, 137, 138, 139, 140, 141]
-    filename = select_eeg_file_in_explorer()
+    filename = select_file_in_explorer()
     _test_blinking_detection(filename, blink_list)

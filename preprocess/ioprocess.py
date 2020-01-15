@@ -661,8 +661,8 @@ class OfflineDataPreprocessor:
 
     def _create_game_db(self):
         """Game database creation"""
-        from gui_handler import select_eeg_file_in_explorer
-        filename = select_eeg_file_in_explorer(self._base_dir)
+        from gui_handler import select_file_in_explorer
+        filename = select_file_in_explorer(self._base_dir)
         assert filename is not None, 'No source files were selected. Cannot play BCI game.'
 
         task_dict = self.convert_task()
