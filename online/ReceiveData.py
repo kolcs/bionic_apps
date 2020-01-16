@@ -25,7 +25,7 @@ info = inlet.info()
 print(info.as_xml())
 print(info.nominal_srate())
 print(load_electrodes(info))
-exit(0)
+# exit(0)
 timestamps = list()
 data = list()
 
@@ -35,5 +35,4 @@ while True:
     timestamps.append(timestamp)
     data.append(sample)
     # print(np.transpose(data).shape)
-    print(sample[-1])
-
+    print(sample)
