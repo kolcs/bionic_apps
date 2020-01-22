@@ -158,6 +158,13 @@ class Game_ParadigmC:
         BOTH_LEGS: 11
     }
 
+    COMMAND_CONV = {
+        CALM: GO_STRAIGHT,
+        RIGHT_HAND: TURN_RIGHT,
+        LEFT_HAND: TURN_LEFT,
+        BOTH_LEGS: LIGHT_ON
+    }
+
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
     DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
