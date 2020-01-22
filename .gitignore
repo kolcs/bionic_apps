@@ -25,3 +25,5 @@ log/
 *.dotx
 *.txt
 *.csv
+*.xls
+*.xlsx

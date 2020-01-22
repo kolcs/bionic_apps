@@ -8,7 +8,7 @@ def show_message(message):
     root.destroy()
 
 
-def select_file_in_explorer(init_dir='./', message='Select an EEG file!', file_type="Brain Product", ext=".vhdr"):
+def select_file_in_explorer(init_dir='./', message='Select an EEG file!', file_type="EEG files", ext=".vhdr;*.edf"):
     root = Tk()
     root.withdraw()
     messagebox.showinfo(title='BCI', message=message)
