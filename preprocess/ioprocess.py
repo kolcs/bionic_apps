@@ -685,6 +685,8 @@ class OfflineDataPreprocessor:
         """
         if task is not None:
             epochs = epochs[task]
+        else:
+            epochs.load_data()
 
         win_epochs = list()
         window_length = self._window_length - 1 / self._fs  # win length correction
