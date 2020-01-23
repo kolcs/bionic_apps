@@ -685,10 +685,12 @@ class OfflineDataPreprocessor:
         """
         if task is not None:
             epochs = epochs[task]
+            win_epochs = {task: list()}  # todo: rethink
         else:
             epochs.load_data()
+            task = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
+            win_epochs = {tsk: list() for tsk in task}
 
-        win_epochs = list()
         window_length = self._window_length - 1 / self._fs  # win length correction
         win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
             if self._window_step > 0 else 1
@@ -714,11 +716,9 @@ class OfflineDataPreprocessor:
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(self._feature))
 
-            if task is None:
-                task = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
-
             data = self._make_data_labeling(data, task)
-            win_epochs.extend(data)
+            # win_epochs.extend(data)
+            self._update_win_epochs()  # todo:
 
         return win_epochs
 
@@ -735,6 +735,13 @@ class OfflineDataPreprocessor:
             data = [(d, laben_conv(label[i])) for i, d in enumerate(data)]
 
         return data
+
+    def _update_win_epochs(self, win_epochs, data, task):
+        if type(task) is str:
+            pass
+        else:
+            for i, d in enumerate(data):
+                win_epochs[i].apped(d)
 
     def init_processed_db_path(self, feature=None):
         if feature is not None:
