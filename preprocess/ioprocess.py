@@ -642,21 +642,16 @@ class OfflineDataPreprocessor:
         task_dict = self.convert_task()
 
         for subj in self._get_subject_list():
-
-            subject_data = list()
-
             if self._db_type is TTK_DB:
                 filenames = generate_ttk_filenames(self._data_path + self._db_type.FILE_PATH, subj)
             else:
                 filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj)
+
             epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
                                                      get_fs=True)
-
-            for task in task_dict.keys():
-                win_epochs = self._get_windowed_features(epochs, task)
-                subject_data.extend(win_epochs)
-
+            subject_data = self._get_windowed_features(epochs)
             self._save_preprocessed_subject_data(subject_data, subj)
+
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_game_db(self):
@@ -666,14 +661,10 @@ class OfflineDataPreprocessor:
         assert filename is not None, 'No source files were selected. Cannot play BCI game.'
 
         task_dict = self.convert_task()
-        subject_data = list()
         epochs, self._fs = get_epochs_from_files(filename, task_dict, self._epoch_tmin, self._epoch_tmax, get_fs=True)
-        for task in task_dict.keys():
-            win_epochs = self._get_windowed_features(epochs, task)
-            subject_data.extend(win_epochs)
-        self._data_set[0] = subject_data
+        self._data_set[0] = self._get_windowed_features(epochs)
 
-    def _get_windowed_features(self, epochs, task):
+    def _get_windowed_features(self, epochs, task=None):
         """Feature creation from windowed data.
 
         self._feature : {'spatial', 'avg_column', 'column'}, optional
@@ -692,7 +683,8 @@ class OfflineDataPreprocessor:
             Windowed feature data.
 
         """
-        epochs = epochs[task]
+        if task is not None:
+            epochs = epochs[task]
 
         win_epochs = list()
         window_length = self._window_length - 1 / self._fs  # win length correction
@@ -720,13 +712,27 @@ class OfflineDataPreprocessor:
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(self._feature))
 
-            label = task
-            if self._make_binary_label and label is not REST:
-                label = CALM if CALM in label else ACTIVE
-            data = [(d, label) for d in data]
+            if task is None:
+                task = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
+
+            data = self._make_data_labeling(data, task)
             win_epochs.extend(data)
 
         return win_epochs
+
+    def _make_data_labeling(self, data, label):
+
+        def laben_conv(label):
+            if self._make_binary_label and label is not REST:
+                label = CALM if CALM in label else ACTIVE
+            return label
+
+        if type(label) is str:
+            data = [(d, laben_conv(label)) for d in data]
+        elif type(label) in [list, tuple]:
+            data = [(d, laben_conv(label[i])) for i, d in enumerate(data)]
+
+        return data
 
     def init_processed_db_path(self, feature=None):
         if feature is not None:
