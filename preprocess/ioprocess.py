@@ -621,7 +621,7 @@ class OfflineDataPreprocessor:
 
         for subj in self._get_subject_list():
 
-            subject_data = list()
+            subject_data = dict()
 
             for task in keys:
                 recs = self.convert_rask_to_recs(task)
@@ -632,7 +632,7 @@ class OfflineDataPreprocessor:
                                                          get_fs=True)
                 win_epochs = self._get_windowed_features(epochs, task)
 
-                subject_data.extend(win_epochs)
+                subject_data.update(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
@@ -685,18 +685,17 @@ class OfflineDataPreprocessor:
         """
         if task is not None:
             epochs = epochs[task]
-            win_epochs = {task: list()}  # todo: rethink
-        else:
-            epochs.load_data()
-            task = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
-            win_epochs = {tsk: list() for tsk in task}
+
+        epochs.load_data()
+        tasks = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
+        win_epochs = {'{}{}'.format(tsk, i): list() for i, tsk in enumerate(tasks)}
 
         window_length = self._window_length - 1 / self._fs  # win length correction
         win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
             if self._window_step > 0 else 1
 
         for i in range(win_num):
-            ep = epochs.copy().load_data()
+            ep = epochs.copy()
             ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
 
             if self._feature == SPATIAL:
@@ -716,32 +715,21 @@ class OfflineDataPreprocessor:
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(self._feature))
 
-            data = self._make_data_labeling(data, task)
-            # win_epochs.extend(data)
-            self._update_win_epochs()  # todo:
-
+            self._update_and_label_win_epochs(win_epochs, data, tasks)
         return win_epochs
 
-    def _make_data_labeling(self, data, label):
+    def _update_and_label_win_epochs(self, win_epochs, data, labels):
+        assert len(data) == len(labels), 'Number of data points are nor equal to number of labels'
 
         def laben_conv(label):
             if self._make_binary_label and label is not REST:
                 label = CALM if CALM in label else ACTIVE
             return label
 
-        if type(label) is str:
-            data = [(d, laben_conv(label)) for d in data]
-        elif type(label) in [list, tuple]:
-            data = [(d, laben_conv(label[i])) for i, d in enumerate(data)]
+        # data = [(d, laben_conv(labels[i])) for i, d in enumerate(data)]
 
-        return data
-
-    def _update_win_epochs(self, win_epochs, data, task):
-        if type(task) is str:
-            pass
-        else:
-            for i, d in enumerate(data):
-                win_epochs[i].apped(d)
+        for i, tsk in enumerate(labels):
+            win_epochs["{}{}".format(tsk, i)].apped((data[i], tsk))
 
     def init_processed_db_path(self, feature=None):
         if feature is not None:
@@ -840,13 +828,11 @@ class OfflineDataPreprocessor:
 
         """
         train_subjects = list(self._data_set.keys())
-        # if type(test_subject) is int:
-        #     test_subject = [test_subject]
         train_subjects.remove(test_subject)
-        # train_subjects = [subj for subj in train_subjects if subj not in test_subject]
 
         train = list()
         test = self._data_set.get(test_subject)
+        test = list(test.values())  # todo: check
 
         # for s in test_subject:
         #     test.extend(self._data_set.get(s))
