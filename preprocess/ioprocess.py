@@ -386,6 +386,8 @@ class SubjectKFold(object):
         if self._k_fold_num is None:
             self._k_fold_num = 10
 
+        # todo: get epochs and split by it...
+        # shuffle epochs --> train and test ep --> get windowed data
         data, labels = subject_db.get_subject_data(subject_id, shuffle=self._shuffle_data,
                                                    random_seed=self._random_state)
         label_inds = {label: list() for label in set(labels)}
@@ -793,7 +795,7 @@ class OfflineDataPreprocessor:
         assert subject not in self._drop_subject, 'Subject{} is in drop subject list.'.format(subject)
         assert subject in list(self._data_set.keys()), \
             'Subject{} is not in preprocessed database'.format(subject)
-        data, label = zip(*self._data_set[subject])
+        data, label = zip(*self._get_subject_eeg_data(subject))
         if reduce_rest:
             data, label = self._reduce_max_label(data, label)
         if shuffle:
@@ -804,6 +806,14 @@ class OfflineDataPreprocessor:
             label = [label[i] for i in ind]
 
         return list(data), list(label)
+
+    def _get_subject_eeg_data(self, subject_id):
+        ep_dict = self._data_set.get(subject_id)
+        ep_list = list(ep_dict.values())
+        data = list()
+        for d in ep_list:
+            data.extend(d)
+        return data
 
     def get_split(self, test_subject, shuffle=True, random_seed=None, reduce_rest=True):
         """Splits the whole database to train and test sets.
@@ -831,14 +841,10 @@ class OfflineDataPreprocessor:
         train_subjects.remove(test_subject)
 
         train = list()
-        test = self._data_set.get(test_subject)
-        test = list(test.values())  # todo: check
-
-        # for s in test_subject:
-        #     test.extend(self._data_set.get(s))
+        test = self._get_subject_eeg_data(test_subject)
 
         for s in train_subjects:
-            train.extend(self._data_set.get(s))
+            train.extend(self._get_subject_eeg_data(s))
 
         if shuffle:
             np.random.seed(random_seed)
