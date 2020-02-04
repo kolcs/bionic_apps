@@ -30,34 +30,6 @@ IMAGINED_MOVEMENT = "imagined"
 REAL_MOVEMENT = "real"
 BASELINE = 'baseline'
 
-# ############### These parameters may will be deprecated in future release: ################
-if False:
-    DATA_START_AFTER = 1  # sec
-    DATA_END_BEFORE = 0.5  # sec
-
-    RECORD_TO_NUM = {key: value for value, key in enumerate([IMAGINED_MOVEMENT, REAL_MOVEMENT, BASELINE])}
-    TASK_TO_NUM = {key: value for value, key in enumerate(
-        [EYE_OPEN, EYE_CLOSED, LEFT_HAND, RIGHT_HAND, BOTH_HANDS, LEFT_LEG, RIGHT_LEG, BOTH_LEGS, REST])}
-    ONE_HOT_LIST = [RECORD_TO_NUM, TASK_TO_NUM]
-
-    DATA = 'data'
-    DATA_SHAPE = 'data shape'
-    RECORD_TYPE_LABEL = 'record type label'
-    TASK_LABEL = 'task label'
-
-    TRAIN = 'train'
-    VALIDATION = 'validation'
-    TEST = 'test'
-
-    DIR_TRAIN = 'train/'
-    DIR_VALIDATION = 'validation/'
-    DIR_TEST = 'test/'
-    DIR_TF_RECORDS = 'tfRecords/'
-    F_EXT_TF_RECORD = '.tfrecord'
-
-
-# #######################################################################################
-
 # class SourceDB: # JUST a template!!!
 #     DIR = ""
 #     CHANNEL_NUM = int()
