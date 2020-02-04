@@ -1,10 +1,11 @@
-import numpy as np
 import pickle
-import mne
 import time
-from sklearn.model_selection import KFold
 from os import makedirs
 from os.path import exists, realpath, dirname, join
+
+import mne
+import numpy as np
+from sklearn.model_selection import KFold
 
 from config import *
 from preprocess.feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range
@@ -333,9 +334,30 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
     epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
                         tmax=epoch_tmax, preload=False)
+
     if get_fs:
         return epochs, fs
     return epochs
+
+
+def _reduce_max_label(data, labels):
+    label_count = {lab: labels.count(lab) for lab in set(labels)}
+    max_label = max(label_count, key=lambda key: label_count[key])
+    max_count = label_count[max_label]
+    del label_count[max_label]
+    next_max_count = max(label_count.values())
+    label_ind = [i for i, lab in enumerate(labels) if lab == max_label]
+    del_num = max_count - next_max_count
+    labels = np.delete(labels, label_ind[:del_num])
+    data = np.delete(data, label_ind[:del_num], axis=0)
+    return data, labels
+
+
+def _generate_window_list_from_epoch_list(epoch_list):
+    win_list = list()
+    for d in epoch_list:
+        win_list.extend(d)
+    return win_list
 
 
 class SubjectKFold(object):
@@ -386,37 +408,29 @@ class SubjectKFold(object):
         if self._k_fold_num is None:
             self._k_fold_num = 10
 
-        # todo: get epochs and split by it...
-        # shuffle epochs --> train and test ep --> get windowed data
-        data, labels = subject_db.get_subject_data(subject_id, shuffle=self._shuffle_data,
-                                                   random_seed=self._random_state)
-        label_inds = {label: list() for label in set(labels)}
-        for i, label in enumerate(labels):
-            label_inds[label].append(i)
+        ep_list = subject_db.get_data_for_subject_split(subject_id)
 
-        prev_inds = list(label_inds.values())[0]
-        for label, inds in label_inds.items():
-            assert len(inds) == len(prev_inds), 'The number of label instances are not equal.'
-            prev_inds = inds
+        if subject_db.is_name('Physionet'):
+            np.random.seed(self._random_state)
+            np.random.shuffle(ep_list)
 
         kf = KFold(n_splits=self._k_fold_num)
-        for train_split_ind, test_split_ind in kf.split(prev_inds):
-            train_ind = list()
-            test_ind = list()
-            for label, inds in label_inds.items():
-                train_ind.extend(np.array(inds)[train_split_ind])
-                test_ind.extend(np.array(inds)[test_split_ind])
+        for train_ind, test_ind in kf.split(list(range(len(ep_list)))):
+            train = [ep_list[ind] for ind in train_ind]
+            train = _generate_window_list_from_epoch_list(train)
+            test = [ep_list[ind] for ind in test_ind]
+            test = _generate_window_list_from_epoch_list(test)
 
             if self._shuffle_data:
                 np.random.seed(self._random_state)
-                np.random.shuffle(train_ind)
-                np.random.seed(self._random_state)
-                np.random.shuffle(test_ind)
+                np.random.shuffle(train)
+                np.random.shuffle(test)
 
-            train_x = [data[ind] for ind in train_ind]
-            train_y = [labels[ind] for ind in train_ind]
-            test_x = [data[ind] for ind in test_ind]
-            test_y = [labels[ind] for ind in test_ind]
+            train_x, train_y = zip(*train)
+            test_x, test_y = zip(*test)
+
+            train_x, train_y = _reduce_max_label(train_x, train_y)
+            test_x, test_y = _reduce_max_label(test_x, test_y)
 
             yield train_x, train_y, test_x, test_y
 
@@ -550,6 +564,9 @@ class OfflineDataPreprocessor:
         attr = 'COMMAND_CONV'
         assert hasattr(self._db_type, attr), '{} has no {} attribute'.format(self._db_type, attr)
         return self._db_type.COMMAND_CONV
+
+    def is_name(self, db_name):
+        return db_name in str(self._db_type)
 
     def _load_data_from_source(self, source_files):
         """Loads preprocessed feature data form source files.
@@ -728,10 +745,8 @@ class OfflineDataPreprocessor:
                 label = CALM if CALM in label else ACTIVE
             return label
 
-        # data = [(d, laben_conv(labels[i])) for i, d in enumerate(data)]
-
         for i, tsk in enumerate(labels):
-            win_epochs["{}{}".format(tsk, i)].apped((data[i], tsk))
+            win_epochs["{}{}".format(tsk, i)].append((data[i], laben_conv(tsk)))
 
     def init_processed_db_path(self, feature=None):
         if feature is not None:
@@ -792,12 +807,13 @@ class OfflineDataPreprocessor:
         reduce_rest : bool, optional
             To reduce rest data points.
         """
+        # todo: rethink reduce_rest --> reduce_max or reduce to min...
         assert subject not in self._drop_subject, 'Subject{} is in drop subject list.'.format(subject)
         assert subject in list(self._data_set.keys()), \
             'Subject{} is not in preprocessed database'.format(subject)
         data, label = zip(*self._get_subject_eeg_data(subject))
         if reduce_rest:
-            data, label = self._reduce_max_label(data, label)
+            data, label = _reduce_max_label(data, label)
         if shuffle:
             ind = np.arange(len(label))
             np.random.seed(random_seed)
@@ -807,13 +823,16 @@ class OfflineDataPreprocessor:
 
         return list(data), list(label)
 
-    def _get_subject_eeg_data(self, subject_id):
+    def _get_epoch_list(self, subject_id):
         ep_dict = self._data_set.get(subject_id)
-        ep_list = list(ep_dict.values())
-        data = list()
-        for d in ep_list:
-            data.extend(d)
-        return data
+        return list(ep_dict.values())
+
+    def _get_subject_eeg_data(self, subject_id):
+        ep_list = self._get_epoch_list(subject_id)
+        return _generate_window_list_from_epoch_list(ep_list)
+
+    def get_data_for_subject_split(self, subject_id):
+        return self._get_epoch_list(subject_id)
 
     def get_split(self, test_subject, shuffle=True, random_seed=None, reduce_rest=True):
         """Splits the whole database to train and test sets.
@@ -849,30 +868,16 @@ class OfflineDataPreprocessor:
         if shuffle:
             np.random.seed(random_seed)
             np.random.shuffle(train)
-            np.random.seed(random_seed)
             np.random.shuffle(test)
 
         train_x, train_y = zip(*train)
         test_x, test_y = zip(*test)
 
         if reduce_rest:
-            train_x, train_y = self._reduce_max_label(train_x, train_y)
-            test_x, test_y = self._reduce_max_label(test_x, test_y)
+            train_x, train_y = _reduce_max_label(train_x, train_y)
+            test_x, test_y = _reduce_max_label(test_x, test_y)
 
         return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
-
-    @staticmethod
-    def _reduce_max_label(data, labels):
-        label_count = {lab: labels.count(lab) for lab in set(labels)}
-        max_label = max(label_count, key=lambda key: label_count[key])
-        max_count = label_count[max_label]
-        del label_count[max_label]
-        next_max_count = max(label_count.values())
-        label_ind = [i for i, lab in enumerate(labels) if lab == max_label]
-        del_num = max_count - next_max_count
-        labels = np.delete(labels, label_ind[:del_num])
-        data = np.delete(data, label_ind[:del_num], axis=0)
-        return data, labels
 
 
 if __name__ == '__main__':

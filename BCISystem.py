@@ -1,8 +1,9 @@
 import time
-import numpy as np
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from warnings import warn, simplefilter
+
+import numpy as np
 import pandas as pd
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 import ai
 import online
