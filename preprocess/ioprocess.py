@@ -580,7 +580,7 @@ class OfflineDataPreprocessor:
         -------
         dict
             Preprocessed data dictionary, where the keys are the subjects in the database and
-            the values are the list of preprocessed feature data.
+            the values are the dict of epochs which are contain preprocessed feature data.
 
         """
         data = dict()
