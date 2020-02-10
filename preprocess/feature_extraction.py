@@ -141,6 +141,7 @@ def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
     n_data_point, n_channel, n_timeponts = data.shape
     fft_res = np.abs(np.fft.rfft(data))
     freqs = np.linspace(0, fs / 2, int(n_timeponts / 2) + 1)
+    assert freqs[1] - freqs[0] <= fft_width, 'Can not generate feature. Increase fft_width or window_length!'
     ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_low + fft_width]
     data = np.average(fft_res[:, :, ind], axis=-1)
     n_fft = 1
