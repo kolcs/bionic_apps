@@ -291,9 +291,24 @@ def pollute_data(dataset, dev=0.000005):  # todo: integrate to the system and te
     return np.add(dataset, noise)
 
 
+def _cut_real_movemet_data(raw):
+    from pandas import DataFrame, concat
+    raw.load_data()
+    events, _ = mne.events_from_annotations(raw, event_id='auto')
+    df = DataFrame(events, columns=['time', 'none', 'id'])
+    resp = df[df.id == 1001]
+    start = df[df.id == 16]
+    ev = concat((resp, start))
+    ev = ev.to_numpy()
+    if np.size(ev, 0) > 10:
+        t = ev[3, 0] / raw.info['sfreq']
+        raw.crop(tmin=t)
+    return raw
+
+
 def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto',
                           prefilter_signal=False, f_type='butter', f_order=5, l_freq=1, h_freq=None,
-                          get_fs=False):
+                          get_fs=False, cut_real_movement_tasks=False):
     """Generate epochs from files.
 
     Parameters
@@ -324,6 +339,9 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
         raw.append(r)
     del raws
     raw.rename_channels(lambda x: x.strip('.').capitalize())
+
+    if cut_real_movement_tasks:
+        raw = _cut_real_movemet_data(raw)
 
     if prefilter_signal:
         raw.load_data()
@@ -667,7 +685,7 @@ class OfflineDataPreprocessor:
                 filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj)
 
             epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
-                                                     get_fs=True)
+                                                     get_fs=True, cut_real_movement_tasks=True)
             subject_data = self._get_windowed_features(epochs)
             self._save_preprocessed_subject_data(subject_data, subj)
 
@@ -680,7 +698,8 @@ class OfflineDataPreprocessor:
         assert filename is not None, 'No source files were selected. Cannot play BCI game.'
 
         task_dict = self.convert_task()
-        epochs, self._fs = get_epochs_from_files(filename, task_dict, self._epoch_tmin, self._epoch_tmax, get_fs=True)
+        epochs, self._fs = get_epochs_from_files(filename, task_dict, self._epoch_tmin, self._epoch_tmax, get_fs=True,
+                                                 cut_real_movement_tasks=True)
         self._data_set[0] = self._get_windowed_features(epochs)
 
     def _get_windowed_features(self, epochs, task=None):
