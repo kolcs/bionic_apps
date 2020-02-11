@@ -1,5 +1,5 @@
-import logging
 import datetime
+import logging
 import socket
 from struct import unpack
 
@@ -8,6 +8,10 @@ from preprocess import make_dir
 UDP_IP = '127.0.0.1'
 UDP_PORT = 8053
 BUFFER_SIZE = 36
+
+SESSION_START = 16
+SESSION_END = 12
+# trigger task converter is needed
 
 
 class GameLogger(object):
@@ -18,6 +22,7 @@ class GameLogger(object):
         self._player = player - 1
         self._bv_rcc = bv_rcc
         self._prev_state = -1
+        self._starting_game = True
 
     def _log(self, exp_sig):
         if self._bv_rcc is not None:
@@ -26,16 +31,26 @@ class GameLogger(object):
                 self._prev_state = exp_sig
 
     def run(self):
-        import time
         while True:
-            t = time.time()
-            data = self._soc.recv(BUFFER_SIZE)
-            game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig = unpack(
-                'ffifififi', data)
-            exp_sig = [p1_exp_sig, p2_exp_sig, p3_exp_sig, p4_exp_sig]
-            exp_sig = exp_sig[self._player] % 10  # remove player number
-            self._log(exp_sig)
-            # print(time.time() - t)
+            try:
+                data = self._soc.recv(BUFFER_SIZE)
+
+                if self._starting_game:
+                    self._log(SESSION_START)
+                    self._starting_game = False
+                    self._soc.settimeout(.5)
+
+                game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig = unpack(
+                    'ffifififi', data)
+                exp_sig = [p1_exp_sig, p2_exp_sig, p3_exp_sig, p4_exp_sig]
+                exp_sig = exp_sig[self._player] % 10  # remove player number
+                self._log(exp_sig)
+
+            except socket.timeout:
+                self._log(SESSION_END)
+                self._starting_game = True
+                self._soc.settimeout(None)
+
 
 
 def setup_logger(logger_name, log_file='', log_dir='log/', level=logging.INFO, log_to_stream=False):
