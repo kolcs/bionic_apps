@@ -6,6 +6,7 @@ from time import sleep
 TCP_IP = '127.0.0.1'
 TCP_PORT = 6700
 BUFFER_SIZE = 1024
+
 REMOTE_CONTROL_SERVER_PATH = r'C:\Vision\RemoteControlServer\RemoteControlServer.exe'
 
 APPLICATION_SATE = 'AP'
@@ -14,9 +15,6 @@ ACQUISITION_SATE = 'AQ'
 
 ANS_WAITING_TIME = 0.1  # sec
 
-
-# TODO: start remote control server, make annotations --> log,
-# TODO: step into next sate if previous state is done...
 
 class RemoteControlClient(object):
     def __init__(self, start_remote_control_server=True):
@@ -32,13 +30,13 @@ class RemoteControlClient(object):
         self._listen_thread.start()
         self.ask_msg_protocol()
 
-    def _send_message(self, msg, state=None, code=None):
-        self._waiting_for_state(state, code)
+    def _send_message(self, msg, required_state=None, code=None):
+        self._waiting_for_required_state(required_state, code)
         self._sent_msg = msg
         msg += '\r'
         self._sock.send(msg.encode())
 
-    def _waiting_for_state(self, state=None, code=None):
+    def _waiting_for_required_state(self, state=None, code=None):
         if state is not None:
             code = str(code)
             while self._state[state] != code:
@@ -105,13 +103,13 @@ class RemoteControlClient(object):
         self._send_message('D')
 
     def request_recorder_state(self):
-        self._send_message('RS')
+        self._send_message(RECORDER_STATE)
 
     def request_application_state(self):
-        self._send_message('AP')
+        self._send_message(APPLICATION_SATE)
 
     def request_acquisition_state(self):
-        self._send_message('AQ')
+        self._send_message(ACQUISITION_SATE)
 
     def send_annotation(self, annotation, ann_type='Stimulus'):
         self._send_message('AN:{};{}'.format(annotation, ann_type))
