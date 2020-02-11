@@ -113,7 +113,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            svm = self._init_svm(C=1, random_state=12)
+            svm = self._init_svm(C=1)
             svm.fit(train_x, train_y)
 
             t = time.time() - t
@@ -142,7 +142,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            svm = self._init_svm(C=1, random_state=12)  # , class_weight='balanced')
+            svm = self._init_svm(C=1)  # , class_weight='balanced')
             svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -358,7 +358,7 @@ class BCISystem(object):
         print('Training...')
         t = time.time()
         data, labels = self._proc.get_subject_data(0)
-        svm = self._init_svm(C=1, random_state=12)
+        svm = self._init_svm(C=1)
         svm.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
