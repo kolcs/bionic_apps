@@ -64,6 +64,8 @@ class RemoteControlClient(object):
             print(msg)
 
     def __del__(self):
+        self.stop_rec()
+        self.close_recorder()
         self._sock.close()
 
     def ask_msg_protocol(self):

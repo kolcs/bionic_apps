@@ -2,6 +2,7 @@ import datetime
 import logging
 import socket
 from struct import unpack
+from threading import Thread
 
 from preprocess import make_dir
 
@@ -11,14 +12,17 @@ BUFFER_SIZE = 36
 
 SESSION_START = 16
 SESSION_END = 12
+
+
 # trigger task converter is needed
 
 
-class GameLogger(object):
+class GameLogger(Thread):
 
-    def __init__(self, bv_rcc=None, player=1):
-        self._soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._soc.bind((UDP_IP, UDP_PORT))
+    def __init__(self, bv_rcc=None, player=1, daemon=True):
+        Thread.__init__(self, daemon=daemon)
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind((UDP_IP, UDP_PORT))
         self._player = player - 1
         self._bv_rcc = bv_rcc
         self._prev_state = -1
@@ -33,12 +37,12 @@ class GameLogger(object):
     def run(self):
         while True:
             try:
-                data = self._soc.recv(BUFFER_SIZE)
+                data = self._sock.recv(BUFFER_SIZE)
 
                 if self._starting_game:
                     self._log(SESSION_START)
                     self._starting_game = False
-                    self._soc.settimeout(.5)
+                    self._sock.settimeout(.5)
 
                 game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig = unpack(
                     'ffifififi', data)
@@ -49,8 +53,11 @@ class GameLogger(object):
             except socket.timeout:
                 self._log(SESSION_END)
                 self._starting_game = True
-                self._soc.settimeout(None)
+                self._sock.settimeout(None)
 
+    def __del__(self):
+        del self._bv_rcc
+        self._sock.close()
 
 
 def setup_logger(logger_name, log_file='', log_dir='log/', level=logging.INFO, log_to_stream=False):
@@ -108,8 +115,9 @@ def log_info(logger_name, msg):
 
 if __name__ == '__main__':
     from brainvision import *
+
     rcc = RemoteControlClient()
     rcc.open_recorder()
     rcc.check_impedance()
-    logger = GameLogger(rcc)
-    logger.run()
+    logger = GameLogger(rcc, daemon=False)
+    logger.start()
