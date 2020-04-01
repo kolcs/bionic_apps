@@ -68,7 +68,7 @@ def _get_light_segment(length):
     dark_end = np.random.randint(length - DARK_RND, length + 1)
     dark_length = dark_end - dark_start
     dark_length = np.random.randint(dark_length - DARK_RND, dark_length + 1)
-    return _get_segment(length,
+    return _get_segment(length=length,
                         dark_start=dark_start,
                         dark_end=dark_end,
                         dark_length=dark_length)
@@ -126,16 +126,16 @@ class TrackGenerator:
                 self._update_stat(STRAIGHT_ZONE, length)
 
     def print_stat(self):
+        self.calculate_statistics()
         for zone, data in self._stat.items():
             print(zone)
             print('\t{}: {}'.format(COUNT, data[COUNT]))
             print('\t{}: {}'.format(LENGTH, data[LENGTH]))
-        print('Total length: {}'.format(self.total_length))
+        print('Total length: {}\n'.format(self.total_length))
 
     def load_from_file(self, filename):
         with open(filename) as json_file:
             self._track = json.load(json_file)
-        self.calculate_statistics()
 
     def _generate_turn_seqs(self):
         turns = [LEFT_ZONE] * self._zone_numbers[LEFT_ZONE] + [RIGHT_ZONE] * self._zone_numbers[RIGHT_ZONE]
@@ -152,11 +152,12 @@ class TrackGenerator:
         self._track[SEGMENTS].append(segment)
 
     def _get_zone_length(self, zone, shorten=.0):
-        if self._stat[zone][COUNT] + 1 < self._zone_numbers[zone]:
+        self.calculate_statistics()
+        zone_full_length = TRACK_LENGTH / 4 - shorten
+        if self._stat[zone][COUNT] + 1 < self._zone_numbers[zone]:  # one before last
             return 2 * LENGTH_RND * np.random.random_sample() - LENGTH_RND + \
-                   (TRACK_LENGTH - shorten) / 4 / self._zone_numbers[zone]
-        else:
-            return (TRACK_LENGTH - shorten) / 4 - self._stat[zone][LENGTH]
+                   zone_full_length / self._zone_numbers[zone]
+        return zone_full_length - self._stat[zone][LENGTH]  # last
 
     def generate(self):
         turns = self._generate_turn_seqs()
@@ -164,9 +165,7 @@ class TrackGenerator:
 
         last_is_straight = False
 
-        self._add_segment_to_track(_get_straight_segment(INIT_END_ZONE))
         while len(turns) > 0:
-            self.calculate_statistics()
             turn = turns.pop(0)
             if turn == LEFT_ZONE:
                 length = self._get_zone_length(LEFT_ZONE)
@@ -180,12 +179,13 @@ class TrackGenerator:
                 self._add_segment_to_track(_get_light_segment(length))
             elif straight == STRAIGHT_ZONE:
                 if len(straights) == 0:
-                    length = self._get_zone_length(STRAIGHT_ZONE)
+                    length = self._get_zone_length(STRAIGHT_ZONE, INIT_END_ZONE)
                     last_is_straight = True
                 else:
                     length = self._get_zone_length(STRAIGHT_ZONE, INIT_END_ZONE * 2)
                 self._add_segment_to_track(_get_straight_segment(length))
 
+        self._track[SEGMENTS].insert(0, _get_straight_segment(INIT_END_ZONE))
         if not last_is_straight:
             self._add_segment_to_track(_get_straight_segment(INIT_END_ZONE))
 
@@ -194,5 +194,4 @@ if __name__ == '__main__':
     gen = TrackGenerator()
     # gen.load_from_file(r'D:\Users\Csabi\Desktop\BrainDriver_V1.6.1\trackData.json')
     gen.generate()
-    gen.calculate_statistics()
     gen.print_stat()
