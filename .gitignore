@@ -27,3 +27,4 @@ log/
 *.csv
 *.xls
 *.xlsx
+*trackData.json

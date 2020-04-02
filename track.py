@@ -4,7 +4,7 @@ import numpy as np
 
 TRACK_LENGTH = 500.0  # m
 RADIUS_VALUE = 17.829999923706056
-DARK_RND = 4
+DARK_RND = 6
 LENGTH_RND = 2
 INIT_END_ZONE = 10
 
@@ -22,13 +22,15 @@ RIGHT_ZONE = 'Right zone'
 LIGHT_ZONE = 'Light zone'
 STRAIGHT_ZONE = 'Straight zone'
 
+FILE_NAME = 'trackData.json'
+
 
 def calculate_arc_length(angle, radius):
     return np.abs(radius * np.pi / 180.0 * angle)
 
 
 def calculate_arc_angle(length, radius):
-    return length * 180.0 / np.pi / radius
+    return np.abs(length * 180.0 / np.pi / radius)
 
 
 def get_track_length(length, angle, radius):
@@ -189,9 +191,18 @@ class TrackGenerator:
         if not last_is_straight:
             self._add_segment_to_track(_get_straight_segment(INIT_END_ZONE))
 
+    def save_to_path(self, path='./'):
+        if path[-1] not in ('/', '\\'):
+            path += '/'
+        from pathlib import Path
+        file = Path(path + FILE_NAME)
+        with open(file, 'w') as outfile:
+            json.dump(self._track, outfile, indent='\t')
+
 
 if __name__ == '__main__':
     gen = TrackGenerator()
-    # gen.load_from_file(r'D:\Users\Csabi\Desktop\BrainDriver_V1.6.1\trackData.json')
+    # gen.load_from_file()
     gen.generate()
     gen.print_stat()
+    # gen.save_to_path()
