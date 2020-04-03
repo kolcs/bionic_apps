@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+from sys import argv
 
 import numpy as np
 
@@ -192,12 +194,10 @@ class TrackGenerator:
             self._add_segment_to_track(_get_straight_segment(INIT_END_ZONE))
 
     def save_to_path(self, path='./'):
-        if path[-1] not in ('/', '\\'):
-            path += '/'
-        from pathlib import Path
-        file = Path(path + FILE_NAME)
+        file = Path(path).joinpath(FILE_NAME)
         with open(file, 'w') as outfile:
             json.dump(self._track, outfile, indent='\t')
+        print('Track generated on path: {} with filename {}'.format(file.resolve().parent, file.name))
 
 
 if __name__ == '__main__':
@@ -205,4 +205,6 @@ if __name__ == '__main__':
     # gen.load_from_file()
     gen.generate()
     gen.print_stat()
-    # gen.save_to_path()
+
+    path = argv[1] if len(argv) == 2 else '.'
+    gen.save_to_path(path)
