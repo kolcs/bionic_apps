@@ -6,14 +6,12 @@ tflog/
 .idea/
 tmp/
 log/
-
+sandbox/
 
 # code files
-*sandbox.py
 *.log
 *.cfg
 *.[oa]
-
 
 # other files
 .directory
@@ -28,3 +26,6 @@ log/
 *.xls
 *.xlsx
 *trackData.json
+
+# all with
+*sandbox*
