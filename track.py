@@ -1,8 +1,9 @@
-import json
 from pathlib import Path
 from sys import argv
 
 import numpy as np
+
+from preprocess import save_to_json
 
 TRACK_LENGTH = 500.0  # m
 RADIUS_VALUE = 17.829999923706056
@@ -137,10 +138,6 @@ class TrackGenerator:
             print('\t{}: {}'.format(LENGTH, data[LENGTH]))
         print('Total length: {}\n'.format(self.total_length))
 
-    def load_from_file(self, filename):
-        with open(filename) as json_file:
-            self._track = json.load(json_file)
-
     def _generate_turn_seqs(self):
         turns = [LEFT_ZONE] * self._zone_numbers[LEFT_ZONE] + [RIGHT_ZONE] * self._zone_numbers[RIGHT_ZONE]
         while _out_of_repetition_limit(turns):
@@ -195,8 +192,7 @@ class TrackGenerator:
 
     def save_to_path(self, path='./'):
         file = Path(path).joinpath(FILE_NAME)
-        with open(file, 'w') as outfile:
-            json.dump(self._track, outfile, indent='\t')
+        save_to_json(file, self._track)
         print('Track generated on path: {} with filename {}'.format(file.resolve().parent, file.name))
 
 

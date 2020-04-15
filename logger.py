@@ -1,6 +1,7 @@
 import datetime
 import logging
 import socket
+from enum import Enum
 from struct import unpack
 from threading import Thread
 
@@ -17,6 +18,8 @@ PLAYER = 'player'
 PROGRESS = 'progress'
 EXPECTED_SIG = 'exp_sig'
 
+STATE = Enum('GameState', 'INIT RUN')
+
 
 # trigger task converter is needed
 
@@ -30,55 +33,63 @@ class GameLogger(Thread):
         self._player = player
         self._bv_rcc = bv_rcc
         self._prev_state = int()
-        self._starting_game = bool()
-        self._game_state = tuple()
+        self._game_state = STATE.INIT
+        self._players_state = tuple()
         self._init_game()
 
     def _init_game(self):
         # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
         self._prev_state = -1
-        self._starting_game = True
-        self._game_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
+        self._game_state = STATE.INIT
+        self._players_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
 
     def get_game_time(self):
-        return self._game_state[0]
+        return self._players_state[0]
 
     def get_progress(self, player):
         assert player in range(1, 5), 'Player number should be between 1 and 4!'
-        return self._game_state[player * 2 - 1]
+        return self._players_state[player * 2 - 1]
 
     def get_expected_signal(self, player):
-        assert player in range(1, 5), 'Player number should be between 1 and 4!'
-        return self._game_state[player * 2] % 10  # remove player number
+        assert player in range(1, 5), 'Player number should be between 1 and 4! {} were given'.format(player)
+        return self._players_state[player * 2] % 10  # remove player number
 
-    def _log(self, exp_sig):
-        make_log = False
-        if exp_sig != self._prev_state:
-            make_log = True
-            self._prev_state = exp_sig
-        if make_log:
+    def _log_exp_sig(self, exp_sig):
+        if self._game_state != STATE.INIT:
+            make_log = False
+            if exp_sig != self._prev_state:
+                make_log = True
+                self._prev_state = exp_sig
+            if make_log:
+                if self._bv_rcc is not None:
+                    self._bv_rcc.send_annotation(exp_sig)
+                else:
+                    print(exp_sig)
+
+    def log(self, msg):
+        if self._game_state != STATE.INIT:
             if self._bv_rcc is not None:
-                self._bv_rcc.send_annotation(exp_sig)
+                self._bv_rcc.send_annotation(msg)
             else:
-                print(exp_sig)
+                print(msg)
 
     def run(self):
         while True:
             try:
                 data = self._sock.recv(BUFFER_SIZE)
 
-                if self._starting_game:
-                    self._log(SESSION_START)
-                    self._starting_game = False
+                if self._game_state == STATE.INIT:
+                    self._game_state = STATE.RUN
+                    self._log_exp_sig(SESSION_START)
                     self._sock.settimeout(.5)
 
                 # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
-                self._game_state = unpack('ffifififi', data)
+                self._players_state = unpack('ffifififi', data)
                 exp_sig = self.get_expected_signal(self._player)
-                self._log(exp_sig)
+                self._log_exp_sig(exp_sig)
 
             except socket.timeout:
-                self._log(SESSION_END)
+                self._log_exp_sig(SESSION_END)
                 self._init_game()
                 self._sock.settimeout(None)
 

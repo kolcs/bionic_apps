@@ -1,3 +1,4 @@
+import json
 import pickle
 import time
 from os import makedirs
@@ -376,6 +377,17 @@ def _generate_window_list_from_epoch_list(epoch_list):
     for d in epoch_list:
         win_list.extend(d)
     return win_list
+
+
+def load_from_json(file):
+    with open(file) as json_file:
+        data_dict = json.load(json_file)
+    return data_dict
+
+
+def save_to_json(file, data_dict):
+    with open(file, 'w') as outfile:
+        json.dump(data_dict, outfile, indent='\t')
 
 
 class SubjectKFold(object):
