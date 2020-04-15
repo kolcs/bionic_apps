@@ -13,6 +13,10 @@ BUFFER_SIZE = 36
 SESSION_START = 16
 SESSION_END = 12
 
+PLAYER = 'player'
+PROGRESS = 'progress'
+EXPECTED_SIG = 'exp_sig'
+
 
 # trigger task converter is needed
 
@@ -23,16 +27,40 @@ class GameLogger(Thread):
         Thread.__init__(self, daemon=daemon)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.bind((UDP_IP, UDP_PORT))
-        self._player = player - 1
+        self._player = player
         self._bv_rcc = bv_rcc
+        self._prev_state = int()
+        self._starting_game = bool()
+        self._game_state = tuple()
+        self._init_game()
+
+    def _init_game(self):
+        # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
         self._prev_state = -1
         self._starting_game = True
+        self._game_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
+
+    def get_game_time(self):
+        return self._game_state[0]
+
+    def get_progress(self, player):
+        assert player in range(1, 5), 'Player number should be between 1 and 4!'
+        return self._game_state[player * 2 - 1]
+
+    def get_expected_signal(self, player):
+        assert player in range(1, 5), 'Player number should be between 1 and 4!'
+        return self._game_state[player * 2] % 10  # remove player number
 
     def _log(self, exp_sig):
-        if self._bv_rcc is not None:
-            if exp_sig != self._prev_state:
+        make_log = False
+        if exp_sig != self._prev_state:
+            make_log = True
+            self._prev_state = exp_sig
+        if make_log:
+            if self._bv_rcc is not None:
                 self._bv_rcc.send_annotation(exp_sig)
-                self._prev_state = exp_sig
+            else:
+                print(exp_sig)
 
     def run(self):
         while True:
@@ -44,15 +72,14 @@ class GameLogger(Thread):
                     self._starting_game = False
                     self._sock.settimeout(.5)
 
-                game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig = unpack(
-                    'ffifififi', data)
-                exp_sig = [p1_exp_sig, p2_exp_sig, p3_exp_sig, p4_exp_sig]
-                exp_sig = exp_sig[self._player] % 10  # remove player number
+                # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
+                self._game_state = unpack('ffifififi', data)
+                exp_sig = self.get_expected_signal(self._player)
                 self._log(exp_sig)
 
             except socket.timeout:
                 self._log(SESSION_END)
-                self._starting_game = True
+                self._init_game()
                 self._sock.settimeout(None)
 
     def __del__(self):
@@ -114,10 +141,8 @@ def log_info(logger_name, msg):
 
 
 if __name__ == '__main__':
-    from brainvision import *
-
-    rcc = RemoteControlClient()
-    rcc.open_recorder()
-    rcc.check_impedance()
-    logger = GameLogger(rcc, daemon=False)
+    # rcc = RemoteControlClient()
+    # rcc.open_recorder()
+    # rcc.check_impedance()
+    logger = GameLogger(bv_rcc=None, daemon=False)
     logger.start()
