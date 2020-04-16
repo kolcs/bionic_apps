@@ -126,6 +126,17 @@ class RandomPlayer(Player):
             self.turn_right()
 
 
+class RandomBinaryPlayer(Player):
+
+    def __init__(self, player_num, reaction_time=1, daemon=True):
+        super().__init__(player_num, None, reaction_time, daemon)
+
+    def control_protocol(self):
+        cmd_list = [ACTIVE, 'none']
+        cmd = cmd_list[randint(2)]
+        self.control_game_with_2_opt(cmd)
+
+
 def run_demo(make_log=False):
     from pynput.keyboard import Key, Listener
 
