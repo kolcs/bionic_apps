@@ -1,4 +1,5 @@
 import time
+from enum import Enum
 from warnings import warn, simplefilter
 
 import numpy as np
@@ -11,19 +12,22 @@ from config import REST
 from logger import setup_logger, log_info
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
     init_base_config, calculate_fft_power, calculate_fft_range, \
-    FFT_RANGE, AVG_COLUMN, FFT_POWER
+    Features
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
 
+
 # db selection options
-PHYSIONET = 'physionet'
-PILOT_PAR_A = 'pilot_par_a'
-PILOT_PAR_B = 'pilot_par_b'
-TTK = 'ttk'
-GAME = 'game'
-GAME_PAR_C = 'game_par_c'
-GAME_PAR_D = 'game_par_d'
+class Databases(Enum):
+    PHYSIONET = 'physionet'
+    PILOT_PAR_A = 'pilot_par_a'
+    PILOT_PAR_B = 'pilot_par_b'
+    TTK = 'ttk'
+    GAME = 'game'
+    GAME_PAR_C = 'game_par_c'
+    GAME_PAR_D = 'game_par_d'
+
 
 # method selection options
 CROSS_SUBJECT_X_VALIDATE = 'crossSubjectXvalidate'
@@ -35,26 +39,14 @@ LOG_COLS = ['Database', 'Method', 'Feature', 'Subject', 'Epoch tmin', 'Epoch tma
             'FFT low', 'FFT high', 'FFT step', 'Accuracy list', 'Avg. Acc']
 
 
-# LOG_DB_NAME = 'Database'
-# LOG_METHOD = 'Method'
-# LOG_FEATURE = 'Feature'
-# LOG_SUBJECT = 'Subject'
-# LOG_EPOCH_TMIN = 'Epoch tmin'
-# LOG_EPOCH_TMAX = 'Epoch tmax'
-# LOG_WINDOW_LENGTH = 'Window length'
-# LOG_WINDOW_STEP = 'Window step'
-# LOG_FFT_LOW = 'FFT low'
-# LOG_FFT_HIGH = 'FFT high'
-# LOG_FFT_STEP = 'FFT step'
-
 class BCISystem(object):
 
-    def __init__(self, feature=FFT_POWER, window_length=0.5, window_step=0.25, make_logs=False):
+    def __init__(self, feature=Features.FFT_POWER, window_length=0.5, window_step=0.25, make_logs=False):
         """ Constructor for BCI system
 
         Parameters
         ----------
-        feature : {'avg_column', 'fft_power', 'fft_range'}
+        feature : Features
             The feature which will be created.
         window_length: float
             length of eeg processor window in seconds
@@ -97,7 +89,7 @@ class BCISystem(object):
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
     def _init_svm(self, C=1, cache_size=2000, random_state=None):
-        if self._feature == FFT_RANGE:
+        if self._feature == Features.FFT_RANGE:
             return ai.MultiSVM(C=C, cache_size=cache_size, random_state=random_state)
         return ai.SVM(C=C, cache_size=cache_size, random_state=random_state)
 
@@ -174,7 +166,7 @@ class BCISystem(object):
 
         Parameters
         ----------
-         db_name : {'physionet', 'pilot_parA', 'pilot_parB', 'ttk'}
+         db_name : Databases
             Database to work on...
         epoch_tmin : int
             Defining epoch start from trigger in seconds.
@@ -196,21 +188,21 @@ class BCISystem(object):
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load,
                                                  make_binary_classification, subject, play_game)
-            if db_name == PHYSIONET:
+            if db_name == Databases.PHYSIONET:
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
-            elif db_name == PILOT_PAR_A:
+            elif db_name == Databases.PILOT_PAR_A:
                 self._proc.use_pilot_par_a()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
-            elif db_name == PILOT_PAR_B:
+            elif db_name == Databases.PILOT_PAR_B:
                 self._proc.use_pilot_par_b()
-            elif db_name == TTK:
+            elif db_name == Databases.TTK:
                 self._proc.use_ttk_db()
-            elif db_name == GAME:
+            elif db_name == Databases.GAME:
                 self._proc.use_game_data()
-            elif db_name == GAME_PAR_C:
+            elif db_name == Databases.GAME_PAR_C:
                 self._proc.use_game_par_c()
-            elif db_name == GAME_PAR_D:
+            elif db_name == Databases.GAME_PAR_D:
                 self._proc.use_game_par_d()
 
             else:
@@ -221,19 +213,19 @@ class BCISystem(object):
 
     def _feature_extraction(self, data, fft_low=7, fft_high=13, fs=500):
 
-        if self._feature == AVG_COLUMN:
+        if self._feature == Features.AVG_COLUMN:
             data = np.average(data, axis=-1)
             data = data.reshape((1, -1))
-        elif self._feature == FFT_POWER:
+        elif self._feature == Features.FFT_POWER:
             data = calculate_fft_power(data, fs, fft_low, fft_high)
-        elif self._feature == FFT_RANGE:
+        elif self._feature == Features.FFT_RANGE:
             data = calculate_fft_range(data, fs, fft_low, fft_high)
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self._feature))
 
         return data
 
-    def offline_processing(self, db_name=PHYSIONET, feature=None, fft_low=7, fft_high=13, fft_step=2,
+    def offline_processing(self, db_name=Databases.PHYSIONET, feature=None, fft_low=7, fft_high=13, fft_step=2,
                            fft_width=2, method=CROSS_SUBJECT_X_VALIDATE, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=None, use_drop_subject_list=True, fast_load=False,
                            subj_n_fold_num=None, make_binary_classification=False):
@@ -270,7 +262,7 @@ class BCISystem(object):
 
         Parameters
         ----------
-        db_name : {'physionet', 'pilot_parA', 'pilot_parB', 'ttk'}
+        db_name : Databases
             Database to work on...
         test_subject : int
             Test subject number, which was not included in ai training.
@@ -338,7 +330,7 @@ class BCISystem(object):
 
         return y_preds, y_real, raw
 
-    def play_game(self, db_name=GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3,
+    def play_game(self, db_name=Databases.GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3,
                   window_length=None, window_step=None, command_in_each_sec=0.5, make_binary_classification=False):
         if feature is not None:
             self._feature = feature
@@ -346,7 +338,7 @@ class BCISystem(object):
             self._window_length = window_length
         if window_step is not None:
             self._window_step = window_step
-        if db_name == GAME_PAR_D:
+        if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
 
         self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
@@ -429,4 +421,4 @@ def calc_online_acc(y_pred, y_real, raw):
 
 if __name__ == '__main__':
     bci = BCISystem()
-    bci.offline_processing(db_name=PILOT_PAR_B, feature=FFT_POWER, method=CROSS_SUBJECT_X_VALIDATE)
+    bci.offline_processing(db_name=Databases.GAME_PAR_D, feature=Features.FFT_POWER, method=CROSS_SUBJECT_X_VALIDATE)

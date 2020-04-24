@@ -1,6 +1,7 @@
 import json
 import pickle
 import time
+from enum import Enum, auto
 from os import makedirs
 from os.path import exists, realpath, dirname, join
 
@@ -8,17 +9,21 @@ import mne
 import numpy as np
 from sklearn.model_selection import KFold
 
-from config import *
+from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
+    CALM, ACTIVE, REST, DIR_FEATURE_DB
 from preprocess.feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range
 
 EPOCH_DB = 'preprocessed_database'
 
+
 # features
-SPATIAL = 'spatial'
-AVG_COLUMN = 'avg_column'
-COLUMN = 'column'
-FFT_POWER = 'fft_power'
-FFT_RANGE = 'fft_range'
+class Features(Enum):
+    SPATIAL = auto()
+    AVG_COLUMN = auto()
+    COLUMN = auto()
+    FFT_POWER = auto()
+    FFT_RANGE = auto()
+
 
 # config options
 CONFIG_FILE = 'bci_system.cfg'
@@ -748,18 +753,18 @@ class OfflineDataPreprocessor:
             ep = epochs.copy()
             ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
 
-            if self._feature == SPATIAL:
+            if self._feature == Features.SPATIAL:
                 data, self._interp = calculate_spatial_data(self._interp, ep)
-            elif self._feature == AVG_COLUMN:
+            elif self._feature == Features.AVG_COLUMN:
                 data = ep.get_data()
                 data = np.average(data, axis=-1)  # average window
-            elif self._feature == COLUMN:
+            elif self._feature == Features.COLUMN:
                 data = ep.get_data()
                 (epoch, channel, time) = np.shape(data)
                 data = np.reshape(data, (epoch, channel * time))
-            elif self._feature == FFT_POWER:
+            elif self._feature == Features.FFT_POWER:
                 data = calculate_fft_power(ep.get_data(), self._fs, self._fft_low, self._fft_high)
-            elif self._feature == FFT_RANGE:
+            elif self._feature == Features.FFT_RANGE:
                 data = calculate_fft_range(ep.get_data(), self._fs, self._fft_low, self._fft_high, self._fft_step,
                                            self._fft_width)
             else:
@@ -915,7 +920,7 @@ if __name__ == '__main__':
     base_dir = init_base_config('../')
 
     preprocessor = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot_par_a()
-    preprocessor.run(feature=FFT_POWER)
+    preprocessor.run(feature=Features.FFT_POWER)
 
     # this is how SubjectKFold works:
     subj_k_fold = SubjectKFold(10)
