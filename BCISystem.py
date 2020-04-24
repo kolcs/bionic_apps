@@ -421,4 +421,14 @@ def calc_online_acc(y_pred, y_real, raw):
 
 if __name__ == '__main__':
     bci = BCISystem()
-    bci.offline_processing(db_name=Databases.GAME_PAR_D, feature=Features.FFT_POWER, method=CROSS_SUBJECT_X_VALIDATE)
+    bci.offline_processing(db_name=Databases.GAME_PAR_D,
+                           feature=Features.FFT_RANGE,
+                           fast_load=False,
+                           epoch_tmin=0, epoch_tmax=4,
+                           fft_low=2, fft_high=40, fft_step=2, fft_width=2,
+                           window_length=1, window_step=.1,
+                           method=SUBJECT_X_VALIDATE,
+                           subject=1,
+                           use_drop_subject_list=True,
+                           subj_n_fold_num=None,
+                           make_binary_classification=True)
