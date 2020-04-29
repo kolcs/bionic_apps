@@ -13,13 +13,14 @@ LOGGER_NAME = 'GameControl'
 class GameControl(object):
 
     def __init__(self, player_num=1, udp_ip='localhost', udp_port=GAME_CONTROL_PORT,
-                 make_log=False, log_to_stream=False):
+                 make_log=False, log_to_stream=False, game_logger=None):
         self.udp_ip = udp_ip
         self.udp_port = udp_port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.player_num = player_num
         self._log = make_log
-        self._command_menu = cycle([self.turn_left, self.turn_right, self.turn_light_on])
+        self._command_menu = cycle([ControlCommand.LEFT, ControlCommand.RIGHT, ControlCommand.HEADLIGHT])
+        self._game_logger = game_logger
         if make_log:
             setup_logger(LOGGER_NAME, log_file='game', log_to_stream=log_to_stream)
 
@@ -61,12 +62,14 @@ class GameControl(object):
         else:
             raise NotImplementedError('Command {} is not implemented'.format(command))
 
+        if self._log and self._game_logger is not None:
+            self._game_logger.log_toggle_switch(command)
+
     def control_game_with_2_opt(self, state):
+        cmd = ControlCommand.STRAIGHT
         if state == ACTIVE:
-            command = next(self._command_menu)
-            command()
-        else:
-            self.go_straight()
+            cmd = next(self._command_menu)
+        self.control_game(cmd)
 
 
 def run_demo(make_log=False):

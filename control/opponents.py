@@ -10,9 +10,8 @@ from control import GameControl
 class Player(GameControl, Thread):
 
     def __init__(self, player_num, game_logger, reaction_time=1, daemon=True):
-        GameControl.__init__(self, player_num=player_num)
+        GameControl.__init__(self, player_num=player_num, game_logger=game_logger)
         Thread.__init__(self, daemon=daemon)
-        self.game_logger = game_logger
         self._reaction_time = reaction_time
 
     def control_protocol(self):
@@ -27,7 +26,7 @@ class Player(GameControl, Thread):
 class MasterPlayer(Player):
 
     def control_protocol(self):
-        cmd = ControlCommand(self.game_logger.get_expected_signal(self.player_num))
+        cmd = ControlCommand(self._game_logger.get_expected_signal(self.player_num))
         self.control_game(cmd)
 
 

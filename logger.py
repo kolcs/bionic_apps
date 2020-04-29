@@ -5,6 +5,7 @@ from enum import Enum
 from struct import unpack
 from threading import Thread
 
+from config import ControlCommand
 from preprocess import make_dir
 
 UDP_IP = '127.0.0.1'
@@ -13,15 +14,14 @@ BUFFER_SIZE = 36
 
 SESSION_START = 16
 SESSION_END = 12
+ACTIVE = 5
+CALM = 7
 
 PLAYER = 'player'
 PROGRESS = 'progress'
 EXPECTED_SIG = 'exp_sig'
 
 STATE = Enum('GameState', 'INIT RUN')
-
-
-# trigger task converter is needed
 
 
 class GameLogger(Thread):
@@ -32,16 +32,20 @@ class GameLogger(Thread):
         self._sock.bind((UDP_IP, UDP_PORT))
         self._player = player
         self._bv_rcc = bv_rcc
-        self._prev_state = int()
         self._game_state = STATE.INIT
+        self._prev_state = int()
+        self._command_reached = bool()
         self._players_state = tuple()
+        # self._players_prev_state = tuple()
         self._init_game()
 
     def _init_game(self):
         # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
         self._prev_state = -1
         self._game_state = STATE.INIT
+        self._command_reached = False
         self._players_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
+        # self._players_prev_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
 
     def get_game_time(self):
         return self._players_state[0]
@@ -54,17 +58,20 @@ class GameLogger(Thread):
         assert player in range(1, 5), 'Player number should be between 1 and 4! {} were given'.format(player)
         return self._players_state[player * 2] % 10  # remove player number
 
+    # def get_speed(self, player):
+    #     assert player in range(1, 5), 'Player number should be between 1 and 4! {} were given'.format(player)
+    #     if self._game_state == STATE.INIT:
+    #         return 0
+    #     return (self._players_state[player * 2 - 1] - self._players_prev_state[player * 2 - 1]) / \
+    #            (self._players_state[0] - self._players_prev_state[0])
+
     def _log_exp_sig(self, exp_sig):
-        if self._game_state != STATE.INIT:
-            make_log = False
-            if exp_sig != self._prev_state:
-                make_log = True
-                self._prev_state = exp_sig
-            if make_log:
-                if self._bv_rcc is not None:
-                    self._bv_rcc.send_annotation(exp_sig)
-                else:
-                    print(exp_sig)
+        make_log = False
+        if exp_sig != self._prev_state:
+            make_log = True
+            self._prev_state = exp_sig
+        if make_log:
+            self.log(exp_sig)
 
     def log(self, msg):
         if self._game_state != STATE.INIT:
@@ -73,7 +80,33 @@ class GameLogger(Thread):
             else:
                 print(msg)
 
+    def log_toggle_switch(self, command):
+        exp_sig = self.get_expected_signal(self._player)
+        exp_cmd = ControlCommand(exp_sig)
+
+        if exp_cmd == ControlCommand.STRAIGHT:
+            self._command_reached = False
+            if command == ControlCommand.STRAIGHT:
+                self.log(CALM)  # calm
+            # else:
+            #     print("Wrong command!")
+        else:
+            if exp_cmd == command:
+                self._command_reached = True
+                self.log(ACTIVE)  # active
+            elif self._command_reached:
+                if command == ControlCommand.STRAIGHT:
+                    self.log(CALM)
+                else:
+                    self._command_reached = False
+                    # print("Wrong command!")
+            elif command != ControlCommand.STRAIGHT:
+                self.log(ACTIVE)
+            # else:
+            #     print("Wrong command!")
+
     def run(self):
+        """ Thread function for self._player """
         while True:
             try:
                 data = self._sock.recv(BUFFER_SIZE)
@@ -83,10 +116,10 @@ class GameLogger(Thread):
                     self._log_exp_sig(SESSION_START)
                     self._sock.settimeout(.5)
 
-                # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
+                # self._players_prev_state = self._players_state
                 self._players_state = unpack('ffifififi', data)
                 exp_sig = self.get_expected_signal(self._player)
-                self._log_exp_sig(exp_sig)
+                # self._log_exp_sig(exp_sig)
 
             except socket.timeout:
                 self._log_exp_sig(SESSION_END)
