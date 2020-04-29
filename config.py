@@ -51,6 +51,7 @@ BASELINE = 'baseline'
 class GameDB:
     DIR = "Game/mixed"
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+
     TRIGGER_TASK_CONVERTER = {  # imagined
         REST: 1,
         RIGHT_HAND: 5,
@@ -90,7 +91,7 @@ class Game_ParadigmC:
     }
 
     COMMAND_CONV = {
-        REST: ControlCommand.STRAIGHT,
+        CALM: ControlCommand.STRAIGHT,
         RIGHT_HAND: ControlCommand.RIGHT,
         LEFT_HAND: ControlCommand.LEFT,
         BOTH_LEGS: ControlCommand.HEADLIGHT
