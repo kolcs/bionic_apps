@@ -1,1 +1,2 @@
-from .control import GameControl, ControlCommand, RandomPlayer, MasterPlayer, RandomBinaryPlayer
+from .control import GameControl, ControlCommand
+from .opponents import RandomPlayer, MasterPlayer, RandomBinaryPlayer
