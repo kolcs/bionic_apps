@@ -3,8 +3,8 @@ from time import sleep
 
 from numpy.random import randint
 
-from config import ACTIVE
-from control import GameControl, ControlCommand
+from config import ACTIVE, ControlCommand
+from control import GameControl
 
 
 class Player(GameControl, Thread):
@@ -12,7 +12,6 @@ class Player(GameControl, Thread):
     def __init__(self, player_num, game_logger, reaction_time=1, daemon=True):
         GameControl.__init__(self, player_num=player_num)
         Thread.__init__(self, daemon=daemon)
-        # super(Process, self).__init__(daemon=daemon)
         self.game_logger = game_logger
         self._reaction_time = reaction_time
 
@@ -29,12 +28,7 @@ class MasterPlayer(Player):
 
     def control_protocol(self):
         cmd = ControlCommand(self.game_logger.get_expected_signal(self.player_num))
-        if cmd == ControlCommand.HEADLIGHT:
-            self.turn_light_on()
-        elif cmd == ControlCommand.LEFT:
-            self.turn_left()
-        elif cmd == ControlCommand.RIGHT:
-            self.turn_right()
+        self.control_game(cmd)
 
 
 class RandomPlayer(Player):
@@ -44,18 +38,10 @@ class RandomPlayer(Player):
 
     def control_protocol(self):
         cmd = ControlCommand(randint(4))
-        if cmd == ControlCommand.HEADLIGHT:
-            self.turn_light_on()
-        elif cmd == ControlCommand.LEFT:
-            self.turn_left()
-        elif cmd == ControlCommand.RIGHT:
-            self.turn_right()
+        self.control_game(cmd)
 
 
-class RandomBinaryPlayer(Player):
-
-    def __init__(self, player_num, reaction_time=1, daemon=True):
-        super().__init__(player_num, None, reaction_time, daemon)
+class RandomBinaryPlayer(RandomPlayer):
 
     def control_protocol(self):
         cmd_list = [ACTIVE, 'none']

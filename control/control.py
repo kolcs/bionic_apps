@@ -1,19 +1,10 @@
 import socket
-from enum import Enum
 from itertools import cycle
 
 from numpy import uint8
 
-from config import TURN_LEFT, TURN_RIGHT, LIGHT_ON, GO_STRAIGHT, ACTIVE
+from config import ControlCommand, ACTIVE
 from logger import setup_logger, log_info
-
-
-class ControlCommand(Enum):
-    LEFT = 1
-    RIGHT = 3
-    HEADLIGHT = 2
-    STRAIGHT = 0
-
 
 GAME_CONTROL_PORT = 5555
 LOGGER_NAME = 'GameControl'
@@ -59,13 +50,13 @@ class GameControl(object):
         self._log_message('Game started!')
 
     def control_game(self, command):
-        if command == TURN_LEFT:
+        if command == ControlCommand.LEFT:
             self.turn_left()
-        elif command == TURN_RIGHT:
+        elif command == ControlCommand.RIGHT:
             self.turn_right()
-        elif command == LIGHT_ON:
+        elif command == ControlCommand.HEADLIGHT:
             self.turn_light_on()
-        elif command == GO_STRAIGHT:
+        elif command == ControlCommand.STRAIGHT:
             self.go_straight()
         else:
             raise NotImplementedError('Command {} is not implemented'.format(command))

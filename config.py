@@ -1,6 +1,7 @@
 """
 Configuration for databases
 """
+from enum import Enum
 
 # Task types: if you modify it you have to rerun the preprocess!
 EYE_OPEN = 'eye open'
@@ -17,11 +18,13 @@ CALM = 'calm'
 
 SUBJECT = 'subject'
 
-# control commands
-TURN_LEFT = 'turn left'
-TURN_RIGHT = 'turn right'
-LIGHT_ON = 'light on'
-GO_STRAIGHT = 'go straight'
+
+class ControlCommand(Enum):
+    LEFT = 1
+    RIGHT = 3
+    HEADLIGHT = 2
+    STRAIGHT = 0
+
 
 DIR_FEATURE_DB = 'tmp/'
 
@@ -29,6 +32,7 @@ DIR_FEATURE_DB = 'tmp/'
 IMAGINED_MOVEMENT = "imagined"
 REAL_MOVEMENT = "real"
 BASELINE = 'baseline'
+
 
 # class SourceDB: # JUST a template!!!
 #     DIR = ""
@@ -42,51 +46,6 @@ BASELINE = 'baseline'
 #     TRIGGER_TASK_CONVERTER
 #
 #     DROP_SUBJECTS = list()
-
-class PilotBo:
-    DIR = "PilotBo/"
-    TRIGGER_TASK_CONVERTER = {  # imagined
-        REST: 1,
-        RIGHT_HAND: 5,
-        LEFT_HAND: 7,
-        # RIGHT_LEG: 9,
-        # LEFT_LEG: 11
-        # BOTH_HANDS: 9,
-        BOTH_LEGS: 11
-    }
-
-    COMMAND_CONV = {
-        REST: GO_STRAIGHT,
-        RIGHT_HAND: TURN_RIGHT,
-        LEFT_HAND: TURN_LEFT,
-        BOTH_LEGS: LIGHT_ON
-    }
-
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-    DROP_SUBJECTS = []
-
-
-class PilotCs:
-    DIR = "PilotCs/"
-    TRIGGER_TASK_CONVERTER = {  # imagined
-        REST: 1,
-        RIGHT_HAND: 5,
-        LEFT_HAND: 7,
-        # RIGHT_LEG: 9,
-        # LEFT_LEG: 11
-        # BOTH_HANDS: 9,
-        BOTH_LEGS: 11
-    }
-
-    COMMAND_CONV = {
-        REST: GO_STRAIGHT,
-        RIGHT_HAND: TURN_RIGHT,
-        LEFT_HAND: TURN_LEFT,
-        BOTH_LEGS: LIGHT_ON
-    }
-
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-    DROP_SUBJECTS = []
 
 
 class GameDB:
@@ -103,10 +62,10 @@ class GameDB:
     }
 
     COMMAND_CONV = {
-        REST: GO_STRAIGHT,
-        RIGHT_HAND: TURN_RIGHT,
-        LEFT_HAND: TURN_LEFT,
-        BOTH_LEGS: LIGHT_ON
+        REST: ControlCommand.STRAIGHT,
+        RIGHT_HAND: ControlCommand.RIGHT,
+        LEFT_HAND: ControlCommand.LEFT,
+        BOTH_LEGS: ControlCommand.HEADLIGHT
     }
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
@@ -131,15 +90,15 @@ class Game_ParadigmC:
     }
 
     COMMAND_CONV = {
-        CALM: GO_STRAIGHT,
-        RIGHT_HAND: TURN_RIGHT,
-        LEFT_HAND: TURN_LEFT,
-        BOTH_LEGS: LIGHT_ON
+        REST: ControlCommand.STRAIGHT,
+        RIGHT_HAND: ControlCommand.RIGHT,
+        LEFT_HAND: ControlCommand.LEFT,
+        BOTH_LEGS: ControlCommand.HEADLIGHT
     }
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
+    DROP_SUBJECTS = []
 
 
 class Game_ParadigmD:
@@ -161,7 +120,7 @@ class Game_ParadigmD:
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
+    DROP_SUBJECTS = []
 
 
 class PilotDB_ParadigmA:
