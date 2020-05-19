@@ -490,7 +490,7 @@ class OfflineDataPreprocessor:
         self._play_game = play_game
 
         self._fs = int()
-        self._feature = str()
+        self._feature = Features.FFT_RANGE
         self._fft_low = int()
         self._fft_high = int()
         self._fft_step = int()
@@ -555,7 +555,7 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self, feature='avg_column', fft_low=7, fft_high=13, fft_step=2, fft_width=2):
+    def run(self, feature=Features.FFT_RANGE, fft_low=7, fft_high=13, fft_step=2, fft_width=2):
         """Runs the Database preprocessor with the given features.
 
         Parameters
@@ -768,7 +768,7 @@ class OfflineDataPreprocessor:
                 data = calculate_fft_range(ep.get_data(), self._fs, self._fft_low, self._fft_high, self._fft_step,
                                            self._fft_width)
             else:
-                raise NotImplementedError('{} feature creation is not implemented'.format(self._feature))
+                raise NotImplementedError('{} feature creation is not implemented'.format(self._feature.name))
 
             self._update_and_label_win_epochs(win_epochs, data, tasks)
         return win_epochs
@@ -785,9 +785,11 @@ class OfflineDataPreprocessor:
             win_epochs["{}{}".format(tsk, i)].append((data[i], laben_conv(tsk)))
 
     def init_processed_db_path(self, feature=None):
-        if feature is not None:
+        if feature is not None and feature not in Features:
+            raise NotImplementedError('Feature {} is not implemented'.format(feature))
+        if feature in Features:
             self._feature = feature
-        self.proc_db_path = "{}{}{}{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, self._feature)
+        self.proc_db_path = "{}{}{}{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, self._feature.name)
 
     def _create_db(self):
         """Base db creator function."""
@@ -797,7 +799,7 @@ class OfflineDataPreprocessor:
         self._data_set = dict()
         tic = time.time()
         self.init_processed_db_path()
-        self._proc_db_source = self.proc_db_path + self._feature + '.db'
+        self._proc_db_source = self.proc_db_path + self._feature.name + '.db'
         make_dir(self.proc_db_path)
 
         def print_creation_message():
