@@ -1,14 +1,12 @@
 import numpy as np
-from sklearn import svm
-from sklearn.preprocessing import OneHotEncoder, normalize
 # from sklearn.utils import compute_class_weight
 # from svmutil import *
 # import sys
 # import os
 # from subprocess import *
 from joblib import Parallel, delayed
-
-from preprocess import make_dir
+from sklearn import svm
+from sklearn.preprocessing import OneHotEncoder, normalize
 
 
 def _one_hot_encode_example():
@@ -122,16 +120,24 @@ class MultiSVM(object):
 
         """
         X = np.array(X)
-        n_svms = np.array(X).shape[1]
+        n_svms = X.shape[1]
         # self._svms = [SVM(*self._svm_args) for _ in range(n_svms)]  # serial: 3 times slower
         # for i in range(len(self._svms)):
         #     self._fit_svm(i, X[:, i, :], y)
         svms = Parallel(n_jobs=-2)(delayed(self._fit_one_svm)(X[:, i, :], y, i) for i in range(n_svms))
         self._svms = dict(svms)
 
+        # d = len(self._svms)
+        # n_svms = X.shape[2]
+        # svms = Parallel(n_jobs=-2)(delayed(self._fit_one_svm)(X[:, :, i], y, i) for i in range(n_svms))
+        # self._svms.update(svms)
+
     def predict(self, X):
         X = np.array(X)
-        votes = [self._predict(i, X[:, i, :]) for i in range(len(self._svms))]
+        votes = [self._predict(i, X[:, i, :]) for i in range(X.shape[1])]
+        # votes.extend([self._predict(X.shape[1] + i, X[:, :, i]) for i in range(X.shape[2])])
+        # votes = [self._predict(i, X[:, :, i]) for i in range(X.shape[2])]
+
         # votes = Parallel(n_jobs=-2)(delayed(self._predict)(i, X[:, i, :]) for i in range(len(self._svms)))
         votes = np.array(votes)
         res = list()
