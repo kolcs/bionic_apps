@@ -240,7 +240,7 @@ class BCISystem(object):
         self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
 
         if self._log:
-            self._df_base_data = [db_name, method, self._feature.name, subject, epoch_tmin, epoch_tmax,
+            self._df_base_data = [db_name.name, method, self._feature.name, subject, epoch_tmin, epoch_tmax,
                                   self._window_length,
                                   self._window_step, fft_low, fft_high, fft_step]
 
