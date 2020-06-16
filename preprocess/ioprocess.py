@@ -11,7 +11,8 @@ from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     CALM, ACTIVE, REST, DIR_FEATURE_DB
-from preprocess.feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range
+from preprocess.feature_extraction import calculate_spatial_data, calculate_fft_power, calculate_fft_range, \
+    calculate_multi_fft_power
 
 EPOCH_DB = 'preprocessed_database'
 
@@ -23,6 +24,7 @@ class Features(Enum):
     COLUMN = auto()
     FFT_POWER = auto()
     FFT_RANGE = auto()
+    MULTI_FFT_POWER = auto()
 
 
 # config options
@@ -767,6 +769,8 @@ class OfflineDataPreprocessor:
             elif self._feature == Features.FFT_RANGE:
                 data = calculate_fft_range(ep.get_data(), self._fs, self._fft_low, self._fft_high, self._fft_step,
                                            self._fft_width)
+            elif self._feature == Features.MULTI_FFT_POWER:
+                data = calculate_multi_fft_power(ep.get_data(), self._fs, self._fft_low)
             else:
                 raise NotImplementedError('{} feature creation is not implemented'.format(self._feature.name))
 

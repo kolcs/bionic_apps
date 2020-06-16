@@ -89,7 +89,7 @@ class BCISystem(object):
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
     def _init_svm(self, C=1, cache_size=2000, random_state=None):
-        if self._feature == Features.FFT_RANGE:
+        if self._feature in [Features.FFT_RANGE, Features.MULTI_FFT_POWER]:
             return ai.MultiSVM(C=C, cache_size=cache_size, random_state=random_state)
         return ai.SVM(C=C, cache_size=cache_size, random_state=random_state)
 
@@ -421,12 +421,25 @@ def calc_online_acc(y_pred, y_real, raw):
 
 
 if __name__ == '__main__':
+    # bci = BCISystem()
+    # bci.offline_processing(db_name=Databases.GAME_PAR_D,
+    #                        feature=Features.FFT_RANGE,
+    #                        fast_load=False,
+    #                        epoch_tmin=0, epoch_tmax=4,
+    #                        fft_low=2, fft_high=40, fft_step=2, fft_width=2,
+    #                        window_length=1, window_step=.1,
+    #                        method=SUBJECT_X_VALIDATE,
+    #                        subject=1,
+    #                        use_drop_subject_list=True,
+    #                        subj_n_fold_num=None,
+    #                        make_binary_classification=True)
+    fft_powers = [(f, f+2) for f in range(2,10)]
     bci = BCISystem()
     bci.offline_processing(db_name=Databases.GAME_PAR_D,
-                           feature=Features.FFT_RANGE,
+                           feature=Features.MULTI_FFT_POWER,
                            fast_load=False,
                            epoch_tmin=0, epoch_tmax=4,
-                           fft_low=2, fft_high=40, fft_step=2, fft_width=2,
+                           fft_low=fft_powers, fft_high=40, fft_step=2, fft_width=2,
                            window_length=1, window_step=.1,
                            method=SUBJECT_X_VALIDATE,
                            subject=1,
