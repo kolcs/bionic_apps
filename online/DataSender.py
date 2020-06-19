@@ -2,8 +2,9 @@
 with proper meta-data to LSL."""
 
 import time
-from pylsl import StreamInfo, StreamOutlet, local_clock
+
 import numpy as np
+from pylsl import StreamInfo, StreamOutlet, local_clock
 
 from preprocess.ioprocess import open_raw_file, init_base_config
 
@@ -48,7 +49,7 @@ def get_data_with_labels(raw):  # only for pilot data
     return data, ev, raw
 
 
-def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236'):
+def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236', add_extra_data=False):
     raw = open_raw_file(filename)
 
     # strip channel names of "." characters
@@ -69,7 +70,8 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
     if get_labels:
         electrodes.append('trigger')
 
-    info = StreamInfo('MNE', 'EEG', len(electrodes), FS, 'double64', host)
+    ch_num = len(electrodes) if not add_extra_data else len(electrodes) + 1
+    info = StreamInfo('MNE', 'EEG', ch_num, FS, 'double64', host)
 
     # append some meta-data
     info.desc().append_child_value("manufacturer", "MNE")
@@ -80,6 +82,12 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
             .append_child_value("label", c) \
             .append_child_value("unit", "microvolts") \
             .append_child_value("type", "EEG")
+
+    if add_extra_data:
+        channels.append_child("channel") \
+            .append_child_value("label", "tmp") \
+            .append_child_value("unit", "microvolts") \
+            .append_child_value("type", "TMP")
 
     # next make an outlet; we set the transmission chunk size to 32 samples and
     # the outgoing buffer size to 360 seconds (max.)
@@ -94,8 +102,14 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
         else:
             data = raw.get_data()
 
+    if add_extra_data:
+        d = data
+        ch, t = d.shape
+        data = np.zeros((ch + 1, t))
+        data[:-1, :] = d
+
     stim = 1
-    prevstamp = local_clock() - 0.125 - 1/FS
+    prevstamp = local_clock() - 0.125 - 1 / FS
     stims = list()
     for t in range(np.size(data, axis=1)):
         # tic = time.time()
@@ -125,13 +139,14 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
     diffstim = set(stims)
     d = {st: 0 for st in diffstim}
     for st in stims:
-        d[st]+=1
+        d[st] += 1
     print('sent stim:', d)
 
 
 if __name__ == '__main__':
     from gui_handler import select_file_in_explorer
+
     base_dir = init_base_config('../')
     file = select_file_in_explorer(base_dir)
 
-    run(file, get_labels=False)
+    run(file, get_labels=False, add_extra_data=True)

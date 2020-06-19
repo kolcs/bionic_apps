@@ -11,8 +11,7 @@ import online
 from config import REST
 from logger import setup_logger, log_info
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
-    init_base_config, calculate_fft_power, calculate_fft_range, \
-    Features
+    init_base_config, Features, make_feature_extraction
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -211,20 +210,6 @@ class BCISystem(object):
     def clear_db_processor(self):
         self._proc = None
 
-    def _feature_extraction(self, data, fft_low=7, fft_high=13, fs=500):
-
-        if self._feature == Features.AVG_COLUMN:
-            data = np.average(data, axis=-1)
-            data = data.reshape((1, -1))
-        elif self._feature == Features.FFT_POWER:
-            data = calculate_fft_power(data, fs, fft_low, fft_high)
-        elif self._feature == Features.FFT_RANGE:
-            data = calculate_fft_range(data, fs, fft_low, fft_high)
-        else:
-            raise NotImplementedError('{} feature is not implemented'.format(self._feature))
-
-        return data
-
     def offline_processing(self, db_name=Databases.PHYSIONET, feature=None, fft_low=7, fft_high=13, fft_step=2,
                            fft_width=2, method=CROSS_SUBJECT_X_VALIDATE, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=None, use_drop_subject_list=True, fast_load=False,
@@ -313,7 +298,7 @@ class BCISystem(object):
 
             self._prev_timestamp = timestamps
 
-            data = self._feature_extraction(data, dsp.fs)
+            data = make_feature_extraction(self._feature, data, dsp.fs)
 
             y_pred = svm.predict(data)
 
@@ -368,7 +353,8 @@ class BCISystem(object):
             if timestamp is not None:
                 tic = time.time()
                 eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
-                data = self._feature_extraction(eeg, fft_low, fft_high, fs=dsp.fs)
+
+                data = make_feature_extraction(self._feature, eeg, fs=dsp.fs, fft_low=fft_low, fft_high=fft_high)
                 y_pred = svm.predict(data)[0]
 
                 if make_binary_classification:
@@ -421,19 +407,10 @@ def calc_online_acc(y_pred, y_real, raw):
 
 
 if __name__ == '__main__':
-    # bci = BCISystem()
-    # bci.offline_processing(db_name=Databases.GAME_PAR_D,
-    #                        feature=Features.FFT_RANGE,
-    #                        fast_load=False,
-    #                        epoch_tmin=0, epoch_tmax=4,
-    #                        fft_low=2, fft_high=40, fft_step=2, fft_width=2,
-    #                        window_length=1, window_step=.1,
-    #                        method=SUBJECT_X_VALIDATE,
-    #                        subject=1,
-    #                        use_drop_subject_list=True,
-    #                        subj_n_fold_num=None,
-    #                        make_binary_classification=True)
-    fft_powers = [(f, f+2) for f in range(2,10)]
+    # only for MULTI_FFT_POWER, tested by grid-search...
+    fft_powers = [(14, 36), (18, 32), (18, 36), (22, 28),
+                  (22, 32), (22, 36), (26, 32), (26, 36)]
+
     bci = BCISystem()
     bci.offline_processing(db_name=Databases.GAME_PAR_D,
                            feature=Features.MULTI_FFT_POWER,
@@ -444,5 +421,5 @@ if __name__ == '__main__':
                            method=SUBJECT_X_VALIDATE,
                            subject=1,
                            use_drop_subject_list=True,
-                           subj_n_fold_num=None,
+                           subj_n_fold_num=5,
                            make_binary_classification=True)

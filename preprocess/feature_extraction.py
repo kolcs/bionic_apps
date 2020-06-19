@@ -1,4 +1,16 @@
+from enum import Enum, auto
+
 import numpy as np
+
+
+# features
+class Features(Enum):
+    SPATIAL = auto()
+    AVG_COLUMN = auto()
+    COLUMN = auto()
+    FFT_POWER = auto()
+    FFT_RANGE = auto()
+    MULTI_FFT_POWER = auto()
 
 
 def _init_interp(interp, epochs, ch_type='eeg'):
@@ -189,4 +201,21 @@ def calculate_multi_fft_power(data, fs, fft_ranges):
         data = np.append(data, fft_power, axis=1)
         n_fft += 1
     data = data.reshape((n_data_point, n_fft, n_channel))
+    return data
+
+
+def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_width=2, fft_step=2):
+    if feature == Features.AVG_COLUMN:
+        if len(data.shape) == 2:
+            data = np.expand_dims(data, 0)
+        data = np.average(data, axis=-1)
+    elif feature == Features.FFT_POWER:
+        data = calculate_fft_power(data, fs, fft_low, fft_high)
+    elif feature == Features.FFT_RANGE:
+        data = calculate_fft_range(data, fs, fft_low, fft_high, fft_step, fft_width)
+    elif feature == Features.MULTI_FFT_POWER:
+        data = calculate_multi_fft_power(data, fs, fft_low)
+    else:
+        raise NotImplementedError('{} feature is not implemented'.format(feature))
+
     return data
