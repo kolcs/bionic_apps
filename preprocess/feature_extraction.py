@@ -93,13 +93,13 @@ def calculate_spatial_data(interp, epochs, crop=True):
     return spatial_list, interp
 
 
-def calculate_fft_power(data, fs, fft_low, fft_high):
+def _calculate_fft_power(data, fs, fft_low, fft_high):
     """Calculating fft power for eeg data
 
     Parameters
     ----------
     data : numpy.array
-        eeg data shape: (n_datapoint, n_channels, n_timepoint) or (n_channels, n_timepoint)
+        eeg data shape: (n_datapoint, n_channels, n_timepoint)
     fs : int
         Sampling frequency.
     fft_low : int
@@ -112,16 +112,16 @@ def calculate_fft_power(data, fs, fft_low, fft_high):
     numpy.array
         Feature extracted data.
     """
-    return calculate_multi_fft_power(data, fs, [(fft_low, fft_high)])[:, 0, :]
+    return _calculate_multi_fft_power(data, fs, [(fft_low, fft_high)])[:, 0, :]
 
 
-def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
+def _calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
     """Calculating fft power all ranges between fft_low and fft_high.
 
     Parameters
     ----------
     data : numpy.array
-        eeg data shape: (data_points, n_channels, n_timeponts) or (n_channels, n_timepoint)
+        eeg data shape: (data_points, n_channels, n_timeponts)
     fs : int
         Sampling frequency.
     fft_low : int
@@ -140,31 +140,28 @@ def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
 
     """
     fft_ranges = [(f, f + fft_width) for f in np.arange(fft_low, fft_high, fft_step)]
-    return calculate_multi_fft_power(data, fs, fft_ranges)
+    return _calculate_multi_fft_power(data, fs, fft_ranges)
 
 
-def calculate_multi_fft_power(data, fs, fft_ranges):
+def _calculate_multi_fft_power(data, fs, fft_ranges):
     """Calculating fft power in all ranges given in fft_ranges. (General case of FFT_RANGE)
 
         Parameters
         ----------
         data : numpy.array
-            eeg data shape: (data_points, n_channels, n_timeponts) or (n_channels, n_timepoint)
+            eeg data shape: (data_points, n_channels, n_timeponts)
         fs : int
             Sampling frequency.
         fft_ranges : list of tuple
-            a list of frequency ranges. Each each element of the list is a touple, where the
+            a list of frequency ranges. Each each element of the list is a tuple, where the
             first element corresponds to fft_min and the second is fft_max
 
         Returns
         -------
         numpy.array
-            Feature extracted data. Shape: (n_data_points, n_fft, n_channels)
+            Feature extracted data. Shape: (data_points, n_fft, n_channels)
 
     """
-    if len(data.shape) == 2:
-        data = np.expand_dims(data, 0)
-
     n_data_point, n_channel, n_timeponts = data.shape
     fft_res = np.abs(np.fft.rfft(data))
     # fft_res = fft_res**2
@@ -183,17 +180,18 @@ def calculate_multi_fft_power(data, fs, fft_ranges):
 
 
 def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_width=2, fft_step=2):
+    if len(data.shape) == 2:
+        data = np.expand_dims(data, 0)
+
     if feature == Features.AVG_COLUMN:
-        if len(data.shape) == 2:
-            data = np.expand_dims(data, 0)
         data = np.average(data, axis=-1)
     elif feature == Features.FFT_POWER:
-        data = calculate_fft_power(data, fs, fft_low, fft_high)
+        data = _calculate_fft_power(data, fs, fft_low, fft_high)
     elif feature == Features.FFT_RANGE:
-        data = calculate_fft_range(data, fs, fft_low, fft_high, fft_step, fft_width)
+        data = _calculate_fft_range(data, fs, fft_low, fft_high, fft_step, fft_width)
     elif feature == Features.MULTI_FFT_POWER:
         assert type(fft_low) is list and type(fft_low[0]) is tuple, 'Invalid argument for MULTI_FFT_POWER'
-        data = calculate_multi_fft_power(data, fs, fft_low)
+        data = _calculate_multi_fft_power(data, fs, fft_low)
     else:
         raise NotImplementedError('{} feature is not implemented'.format(feature))
 
