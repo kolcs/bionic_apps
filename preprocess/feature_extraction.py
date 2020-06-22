@@ -112,15 +112,7 @@ def calculate_fft_power(data, fs, fft_low, fft_high):
     numpy.array
         Feature extracted data.
     """
-    if len(data.shape) == 2:
-        data = np.expand_dims(data, 0)
-    n = np.size(data, -1)
-    fft_res = np.abs(np.fft.rfft(data))
-    # fft_res = fft_res**2
-    freqs = np.linspace(0, fs / 2, int(n / 2) + 1)
-    ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
-    data = np.average(fft_res[:, :, ind], axis=-1)
-    return data
+    return calculate_multi_fft_power(data, fs, [(fft_low, fft_high)])[:, 0, :]
 
 
 def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
@@ -147,8 +139,6 @@ def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
         Feature extracted data.
 
     """
-    # freqs = np.linspace(0, fs / 2, int(data.shape[-1] / 2) + 1)
-    # assert freqs[1] - freqs[0] <= fft_width, 'Can not generate feature. Increase fft_width or window_length!'
     fft_ranges = [(f, f + fft_width) for f in np.arange(fft_low, fft_high, fft_step)]
     return calculate_multi_fft_power(data, fs, fft_ranges)
 
@@ -184,6 +174,7 @@ def calculate_multi_fft_power(data, fs, fft_ranges):
 
     for fft_low, fft_high in fft_ranges:
         ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
+        assert len(ind) > 0, 'Empty frequency range between {} and {} Hz'.format(fft_low, fft_high)
         fft_power = np.average(fft_res[:, :, ind], axis=-1)
         data.append(fft_power)
 
