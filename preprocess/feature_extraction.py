@@ -147,23 +147,10 @@ def calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
         Feature extracted data.
 
     """
-    if len(data.shape) == 2:
-        data = np.expand_dims(data, 0)
-
-    n_data_point, n_channel, n_timeponts = data.shape
-    fft_res = np.abs(np.fft.rfft(data))
-    freqs = np.linspace(0, fs / 2, int(n_timeponts / 2) + 1)
-    assert freqs[1] - freqs[0] <= fft_width, 'Can not generate feature. Increase fft_width or window_length!'
-    data = np.array([[]] * n_data_point)
-
-    n_fft = 0
-    for flow in range(fft_low, fft_high, fft_step):
-        ind = [i for i, f in enumerate(freqs) if flow <= f <= flow + fft_width]
-        fft_power = np.average(fft_res[:, :, ind], axis=-1)
-        data = np.append(data, fft_power, axis=1)
-        n_fft += 1
-    data = data.reshape((n_data_point, n_fft, n_channel))  # checked
-    return data
+    # freqs = np.linspace(0, fs / 2, int(data.shape[-1] / 2) + 1)
+    # assert freqs[1] - freqs[0] <= fft_width, 'Can not generate feature. Increase fft_width or window_length!'
+    fft_ranges = [(f, f + fft_width) for f in np.arange(fft_low, fft_high, fft_step)]
+    return calculate_multi_fft_power(data, fs, fft_ranges)
 
 
 def calculate_multi_fft_power(data, fs, fft_ranges):
@@ -182,7 +169,7 @@ def calculate_multi_fft_power(data, fs, fft_ranges):
         Returns
         -------
         numpy.array
-            Feature extracted data.
+            Feature extracted data. Shape: (n_data_points, n_fft, n_channels)
 
     """
     if len(data.shape) == 2:
@@ -190,17 +177,17 @@ def calculate_multi_fft_power(data, fs, fft_ranges):
 
     n_data_point, n_channel, n_timeponts = data.shape
     fft_res = np.abs(np.fft.rfft(data))
+    # fft_res = fft_res**2
     freqs = np.linspace(0, fs / 2, int(n_timeponts / 2) + 1)
 
-    data = np.array([[]] * n_data_point)
+    data = list()
 
-    n_fft = 0
     for fft_low, fft_high in fft_ranges:
         ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
         fft_power = np.average(fft_res[:, :, ind], axis=-1)
-        data = np.append(data, fft_power, axis=1)
-        n_fft += 1
-    data = data.reshape((n_data_point, n_fft, n_channel))
+        data.append(fft_power)
+
+    data = np.transpose(data, (1, 0, 2))
     return data
 
 
@@ -214,6 +201,7 @@ def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_widt
     elif feature == Features.FFT_RANGE:
         data = calculate_fft_range(data, fs, fft_low, fft_high, fft_step, fft_width)
     elif feature == Features.MULTI_FFT_POWER:
+        assert type(fft_low) is list and type(fft_low[0]) is tuple, 'Invalid argument for MULTI_FFT_POWER'
         data = calculate_multi_fft_power(data, fs, fft_low)
     else:
         raise NotImplementedError('{} feature is not implemented'.format(feature))
