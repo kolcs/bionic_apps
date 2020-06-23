@@ -11,6 +11,7 @@ class Features(Enum):
     FFT_POWER = auto()
     FFT_RANGE = auto()
     MULTI_FFT_POWER = auto()
+    # CHANNEL_SEL = auto()
 
 
 def _init_interp(interp, epochs, ch_type='eeg'):
@@ -179,9 +180,18 @@ def _calculate_multi_fft_power(data, fs, fft_ranges):
     return data
 
 
-def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_width=2, fft_step=2):
+# def _channel_selection_test(data, fs, fft_ranges, channel):
+#     if channel is None:
+#         channel = 0
+#     return _calculate_multi_fft_power(data, fs, fft_ranges)[:, :, channel]
+
+
+def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_width=2, fft_step=2, channel_list=None):
     if len(data.shape) == 2:
         data = np.expand_dims(data, 0)
+    if channel_list is not None:
+        data = data[:, channel_list, :]
+        print('It is assumed that the reference electrode is POz!!!')
 
     if feature == Features.AVG_COLUMN:
         data = np.average(data, axis=-1)
@@ -192,6 +202,10 @@ def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_widt
     elif feature == Features.MULTI_FFT_POWER:
         assert type(fft_low) is list and type(fft_low[0]) is tuple, 'Invalid argument for MULTI_FFT_POWER'
         data = _calculate_multi_fft_power(data, fs, fft_low)
+
+    # elif feature == Features.CHANNEL_SEL:
+    #     data = _channel_selection_test(data, fs, fft_low, channel_list)
+
     else:
         raise NotImplementedError('{} feature is not implemented'.format(feature))
 

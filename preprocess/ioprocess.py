@@ -485,6 +485,7 @@ class OfflineDataPreprocessor:
         self._fft_step = int()
         self._fft_width = int()
         self._data_set = dict()
+        self._channel_list = None
 
         self._interp = None
         self._data_path = None
@@ -544,7 +545,7 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self, feature=Features.FFT_RANGE, fft_low=7, fft_high=13, fft_step=2, fft_width=2):
+    def run(self, feature=Features.FFT_RANGE, fft_low=7, fft_high=13, fft_step=2, fft_width=2, channel=None):
         """Runs the Database preprocessor with the given features.
 
         Parameters
@@ -558,6 +559,7 @@ class OfflineDataPreprocessor:
         self._fft_high = fft_high
         self._fft_step = fft_step
         self._fft_width = fft_width
+        self._channel_list = channel
         self._create_db()
 
     """
@@ -746,7 +748,7 @@ class OfflineDataPreprocessor:
                 data, self._interp = calculate_spatial_data(self._interp, ep)
             else:
                 data = make_feature_extraction(self._feature, ep.get_data(), self._fs, self._fft_low, self._fft_high,
-                                               self._fft_width, self._fft_step)
+                                               self._fft_width, self._fft_step, self._channel_list)
 
             self._update_and_label_win_epochs(win_epochs, data, tasks)
         return win_epochs

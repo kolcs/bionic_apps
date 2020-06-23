@@ -213,7 +213,7 @@ class BCISystem(object):
     def offline_processing(self, db_name=Databases.PHYSIONET, feature=None, fft_low=7, fft_high=13, fft_step=2,
                            fft_width=2, method=CROSS_SUBJECT_X_VALIDATE, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=None, use_drop_subject_list=True, fast_load=False,
-                           subj_n_fold_num=None, make_binary_classification=False):
+                           subj_n_fold_num=None, make_binary_classification=False, channel_list=None):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
@@ -222,7 +222,7 @@ class BCISystem(object):
             self._window_step = window_step
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, self._window_length, self._window_step,
                                 use_drop_subject_list, fast_load, make_binary_classification, subject)
-        self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width)
+        self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width, channel_list)
 
         if self._log:
             self._df_base_data = [db_name.name, method, self._feature.name, subject, epoch_tmin, epoch_tmax,
