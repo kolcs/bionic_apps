@@ -113,7 +113,7 @@ def _calculate_fft_power(data, fs, fft_low, fft_high):
     numpy.array
         Feature extracted data.
     """
-    return _calculate_multi_fft_power(data, fs, [(fft_low, fft_high)])[:, 0, :]
+    return _calculate_multi_fft_power(data, fs, [(fft_low, fft_high)])
 
 
 def _calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
@@ -184,7 +184,6 @@ def _calculate_multi_fft_power(data, fs, fft_ranges):
 #     if channel is None:
 #         channel = 0
 #     return _calculate_multi_fft_power(data, fs, fft_ranges)[:, :, channel]
-
 
 def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_width=2, fft_step=2, channel_list=None):
     if len(data.shape) == 2:

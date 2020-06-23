@@ -87,11 +87,6 @@ class BCISystem(object):
             print(self._df)
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
-    def _init_svm(self, C=1, cache_size=2000, random_state=None):
-        if self._feature in [Features.FFT_RANGE, Features.MULTI_FFT_POWER]:
-            return ai.MultiSVM(C=C, cache_size=cache_size, random_state=random_state)
-        return ai.SVM(C=C, cache_size=cache_size, random_state=random_state)
-
     def _subject_corssvalidate(self, subject=None, k_fold_num=10):
         if subject is None:
             subject = 1
@@ -104,7 +99,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            svm = self._init_svm(C=1)
+            svm = ai.MultiSVM(C=1, cache_size=2000)
             svm.fit(train_x, train_y)
 
             t = time.time() - t
@@ -133,7 +128,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            svm = self._init_svm(C=1)  # , class_weight='balanced')
+            svm = ai.MultiSVM(C=1, cache_size=2000)
             svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -336,7 +331,7 @@ class BCISystem(object):
         print('Training...')
         t = time.time()
         data, labels = self._proc.get_subject_data(0)
-        svm = self._init_svm(C=1)
+        svm = ai.MultiSVM(C=1, cache_size=2000)
         svm.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
