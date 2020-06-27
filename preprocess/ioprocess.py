@@ -751,6 +751,7 @@ class OfflineDataPreprocessor:
                                                self._fft_width, self._fft_step, self._channel_list)
 
             self._update_and_label_win_epochs(win_epochs, data, tasks)
+            # self._update_and_label_win_epochs(win_epochs, ep.get_data(), tasks)
         return win_epochs
 
     def _update_and_label_win_epochs(self, win_epochs, data, labels):

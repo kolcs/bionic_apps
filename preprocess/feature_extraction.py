@@ -11,6 +11,7 @@ class Features(Enum):
     FFT_POWER = auto()
     FFT_RANGE = auto()
     MULTI_FFT_POWER = auto()
+    SIMPLE_TIME_DOMAIN = auto()
     # CHANNEL_SEL = auto()
 
 
@@ -185,6 +186,18 @@ def _calculate_multi_fft_power(data, fs, fft_ranges):
 #         channel = 0
 #     return _calculate_multi_fft_power(data, fs, fft_ranges)[:, :, channel]
 
+def _calculate_variance(data):
+    n_data_point, n_channel, n_timeponts = data.shape
+    n_variance = int(n_timeponts / 2)
+    data = np.array([np.var(data[:, :, i - n_variance:i], axis=-1) for i in range(n_variance, n_timeponts)])
+    data = np.transpose(data, (1, 2, 0))
+    return data
+
+
+def _calculate_time_domain_features(data, fs):
+    return _calculate_variance(data)
+
+
 def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_width=2, fft_step=2, channel_list=None):
     if len(data.shape) == 2:
         data = np.expand_dims(data, 0)
@@ -201,6 +214,9 @@ def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_widt
     elif feature == Features.MULTI_FFT_POWER:
         assert type(fft_low) is list and type(fft_low[0]) is tuple, 'Invalid argument for MULTI_FFT_POWER'
         data = _calculate_multi_fft_power(data, fs, fft_low)
+
+    elif feature == Features.SIMPLE_TIME_DOMAIN:
+        data = _calculate_time_domain_features(data, fs)
 
     # elif feature == Features.CHANNEL_SEL:
     #     data = _channel_selection_test(data, fs, fft_low, channel_list)

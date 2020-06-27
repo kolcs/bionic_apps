@@ -99,6 +99,13 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
+            # train_x = make_feature_extraction(self._feature, train_x, self._proc._fs, self._proc._fft_low,
+            #                                   self._proc._fft_high, self._proc._fft_width, self._proc._fft_step,
+            #                                   self._proc._channel_list)
+            # test_x = make_feature_extraction(self._feature, test_x, self._proc._fs, self._proc._fft_low,
+            #                                   self._proc._fft_high, self._proc._fft_width, self._proc._fft_step,
+            #                                   self._proc._channel_list)
+
             svm = ai.MultiSVM(C=1, cache_size=2000)
             svm.fit(train_x, train_y)
 
