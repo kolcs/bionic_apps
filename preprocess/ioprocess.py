@@ -545,7 +545,8 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self, feature=Features.FFT_RANGE, fft_low=7, fft_high=13, fft_step=2, fft_width=2, channel=None):
+    def run(self, feature=Features.FFT_RANGE, fft_low=7, fft_high=13, fft_step=2, fft_width=2, channel=None,
+            reuse_data=False):
         """Runs the Database preprocessor with the given features.
 
         Parameters
@@ -554,13 +555,14 @@ class OfflineDataPreprocessor:
             The feature which will be created.
 
         """
-        self._feature = feature
-        self._fft_low = fft_low
-        self._fft_high = fft_high
-        self._fft_step = fft_step
-        self._fft_width = fft_width
-        self._channel_list = channel
-        self._create_db()
+        if not reuse_data or len(self._data_set) == 0:
+            self._feature = feature
+            self._fft_low = fft_low
+            self._fft_high = fft_high
+            self._fft_step = fft_step
+            self._fft_width = fft_width
+            self._channel_list = channel
+            self._create_db()
 
     """
     Database functions

@@ -35,7 +35,7 @@ CROSS_SUBJECT_X_AND_SAVE_SVM = 'crossSubXandTrainSVM'
 
 # LOG, pandas columns
 LOG_COLS = ['Database', 'Method', 'Feature', 'Subject', 'Epoch tmin', 'Epoch tmax', 'Window length', 'Window step',
-            'FFT low', 'FFT high', 'FFT step', 'Accuracy list', 'Avg. Acc']
+            'FFT low', 'FFT high', 'FFT step', 'svm_C', 'svm_gamma', 'Accuracy list', 'Avg. Acc']
 
 
 class BCISystem(object):
@@ -62,6 +62,7 @@ class BCISystem(object):
         self._ai_model = dict()
         self._log = make_logs
         self._feature = feature
+        self._svm_kwargs = dict()
 
         self._df = None
         self._df_base_data = list()
@@ -106,7 +107,7 @@ class BCISystem(object):
             #                                   self._proc._fft_high, self._proc._fft_width, self._proc._fft_step,
             #                                   self._proc._channel_list)
 
-            svm = ai.MultiSVM(C=1, cache_size=2000)
+            svm = ai.MultiSVM(**self._svm_kwargs)
             svm.fit(train_x, train_y)
 
             t = time.time() - t
@@ -215,21 +216,27 @@ class BCISystem(object):
     def offline_processing(self, db_name=Databases.PHYSIONET, feature=None, fft_low=7, fft_high=13, fft_step=2,
                            fft_width=2, method=CROSS_SUBJECT_X_VALIDATE, epoch_tmin=0, epoch_tmax=3, window_length=0.5,
                            window_step=0.25, subject=None, use_drop_subject_list=True, fast_load=False,
-                           subj_n_fold_num=None, make_binary_classification=False, channel_list=None):
+                           subj_n_fold_num=None, make_binary_classification=False, channel_list=None, reuse_data=False,
+                           **svm_kwargs):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
             self._window_length = window_length
         if window_step is not None:
             self._window_step = window_step
+        self._svm_kwargs = svm_kwargs
+
         self._init_db_processor(db_name, epoch_tmin, epoch_tmax, self._window_length, self._window_step,
                                 use_drop_subject_list, fast_load, make_binary_classification, subject)
-        self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width, channel_list)
+
+        self._proc.run(self._feature, fft_low, fft_high, fft_step, fft_width, channel_list, reuse_data)
 
         if self._log:
             self._df_base_data = [db_name.name, method, self._feature.name, subject, epoch_tmin, epoch_tmax,
-                                  self._window_length,
-                                  self._window_step, fft_low, fft_high, fft_step]
+                                  self._window_length, self._window_step,
+                                  fft_low, fft_high, fft_step,
+                                  svm_kwargs.get('C'), svm_kwargs.get('gamma')
+                                  ]
 
         if method == CROSS_SUBJECT_X_VALIDATE:
             self._crosssubject_crossvalidate(subj_n_fold_num)
