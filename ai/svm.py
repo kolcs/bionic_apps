@@ -1,8 +1,29 @@
 import numpy as np
 from joblib import Parallel, delayed
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Normalizer
 from sklearn.svm import SVC
+
+
+class OnlinePipeline(Pipeline):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._init_fit = True
+
+    def fit(self, X, y=None, **fit_params):
+        if self._init_fit:
+            super().fit(X, y, **fit_params)
+            self._init_fit = False
+        else:
+            for i, step in enumerate(self.steps):
+                name, est = step
+                if i < len(self.steps) - 1:
+                    X = est.transform(X)
+                else:
+                    est.partial_fit(X, y)
+
+        return self
 
 
 class MultiSVM(object):
@@ -16,7 +37,7 @@ class MultiSVM(object):
         self._svms = dict()
 
     def _fit_one_svm(self, data, label, num):
-        svm = make_pipeline(Normalizer(), SVC(*self._svm_args))  # or StandardScaler()
+        svm = Pipeline([('norm', Normalizer()), ('svm', SVC(*self._svm_args))])  # or StandardScaler()
         svm.fit(data, label)
         return num, svm
 
