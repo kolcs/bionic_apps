@@ -17,9 +17,11 @@ ANS_WAITING_TIME = 0.1  # sec
 
 
 class RemoteControlClient(object):
-    def __init__(self, start_remote_control_server=True):
+    def __init__(self, start_remote_control_server=True, print_received_messages=True):
         if start_remote_control_server:
             startfile(REMOTE_CONTROL_SERVER_PATH)
+
+        self._print_answers = print_received_messages
 
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.connect((TCP_IP, TCP_PORT))
@@ -61,7 +63,8 @@ class RemoteControlClient(object):
                 self._state[ans[0]] = ans[1]
                 # print(ans[0], self._state[ans[0]], ans[1])
 
-            print(msg)
+            if self._print_answers:
+                print(msg)
 
     def __del__(self):
         self.stop_rec()

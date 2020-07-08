@@ -8,8 +8,10 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 
 import ai
 import online
+from brainvision import RemoteControlClient
 from config import REST
-from logger import setup_logger, log_info
+from control import GameControl
+from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
     init_base_config, Features, make_feature_extraction
 
@@ -326,7 +328,8 @@ class BCISystem(object):
         return y_preds, y_real, raw
 
     def play_game(self, db_name=Databases.GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3,
-                  window_length=None, window_step=None, command_in_each_sec=0.5, make_binary_classification=False):
+                  window_length=None, window_step=None, command_in_each_sec=0.5, make_binary_classification=False,
+                  use_binary_game_logger=False):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
@@ -349,10 +352,17 @@ class BCISystem(object):
         svm.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
+        game_log = None
+        if use_binary_game_logger:
+            rcc = RemoteControlClient(print_received_messages=False)
+            rcc.open_recorder()
+            rcc.check_impedance()
+            game_log = GameLogger(bv_rcc=rcc)
+            game_log.start()
+
         dsp = online.DSP()
 
-        from control import GameControl
-        controller = GameControl(make_log=True, log_to_stream=True)
+        controller = GameControl(make_log=True, log_to_stream=True, game_logger=game_log)
         command_converter = self._proc.get_command_converter() if not make_binary_classification else dict()
 
         print("Starting game control...")

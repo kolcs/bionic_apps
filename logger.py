@@ -12,10 +12,13 @@ UDP_IP = '127.0.0.1'
 UDP_PORT = 8053
 BUFFER_SIZE = 36
 
-SESSION_START = 16
-SESSION_END = 12
-ACTIVE = 5
-CALM = 7
+
+class Trigger(Enum):
+    SESSION_START = 'S 16'
+    SESSION_END = 'S 12'
+    ACTIVE = 'S  5'
+    CALM = 'S  7'
+
 
 PLAYER = 'player'
 PROGRESS = 'progress'
@@ -87,21 +90,21 @@ class GameLogger(Thread):
         if exp_cmd == ControlCommand.STRAIGHT:
             self._command_reached = False
             if command == ControlCommand.STRAIGHT:
-                self.log(CALM)  # calm
+                self.log(Trigger.CALM.value)  # calm
             # else:
             #     print("Wrong command!")
         else:
             if exp_cmd == command:
                 self._command_reached = True
-                self.log(ACTIVE)  # active
+                self.log(Trigger.ACTIVE.value)  # active
             elif self._command_reached:
                 if command == ControlCommand.STRAIGHT:
-                    self.log(CALM)
+                    self.log(Trigger.CALM.value)
                 else:
                     self._command_reached = False
                     # print("Wrong command!")
             elif command != ControlCommand.STRAIGHT:
-                self.log(ACTIVE)
+                self.log(Trigger.ACTIVE.value)
             # else:
             #     print("Wrong command!")
 
@@ -113,7 +116,7 @@ class GameLogger(Thread):
 
                 if self._game_state == STATE.INIT:
                     self._game_state = STATE.RUN
-                    self._log_exp_sig(SESSION_START)
+                    self._log_exp_sig(Trigger.SESSION_START.value)
                     self._sock.settimeout(.5)
 
                 # self._players_prev_state = self._players_state
@@ -122,7 +125,7 @@ class GameLogger(Thread):
                 # self._log_exp_sig(exp_sig)
 
             except socket.timeout:
-                self._log_exp_sig(SESSION_END)
+                self._log_exp_sig(Trigger.SESSION_END.value)
                 self._init_game()
                 self._sock.settimeout(None)
 

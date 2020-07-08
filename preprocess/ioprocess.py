@@ -346,7 +346,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     events, _ = mne.events_from_annotations(raw, event_id)
     # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
     epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
-                        tmax=epoch_tmax, preload=False)
+                        tmax=epoch_tmax, preload=False, on_missing='warning')
 
     if get_fs:
         return epochs, fs
