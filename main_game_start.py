@@ -2,6 +2,9 @@ from BCISystem import BCISystem, Features, Databases
 
 CMD_IN = 1.6  # sec
 
+FFT_POWERS = [(14, 36), (18, 32), (18, 36), (22, 28),
+              (22, 32), (22, 36), (26, 32), (26, 36)]
+
 if __name__ == '__main__':
     print('Starting BCI System for game play...')
     inp = input('Select paradigm for pilots (C -- 4 way, D -- binary):    C / D\n')
@@ -12,9 +15,9 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError('Can not run BCI System with paradigm {}'.format(inp))
 
-    bci = BCISystem(feature=Features.FFT_RANGE)
+    bci = BCISystem(feature=Features.MULTI_FFT_POWER)
     bci.play_game(db_name=db_name,
-                  fft_low=2, fft_high=40,
+                  fft_low=FFT_POWERS,
                   window_length=1,
                   window_step=0.1,
                   epoch_tmax=4,
