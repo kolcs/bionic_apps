@@ -21,4 +21,5 @@ if __name__ == '__main__':
                   window_length=1,
                   window_step=0.1,
                   epoch_tmax=4,
-                  command_in_each_sec=CMD_IN)
+                  command_in_each_sec=CMD_IN,
+                  use_binary_game_logger=True)
