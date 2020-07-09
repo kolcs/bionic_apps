@@ -8,7 +8,6 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 
 import ai
 import online
-from brainvision import RemoteControlClient
 from config import REST
 from control import GameControl
 from logger import setup_logger, log_info, GameLogger
@@ -354,6 +353,7 @@ class BCISystem(object):
 
         game_log = None
         if use_binary_game_logger:
+            from brainvision import RemoteControlClient
             rcc = RemoteControlClient(print_received_messages=False)
             rcc.open_recorder()
             rcc.check_impedance()
