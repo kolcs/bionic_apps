@@ -2,8 +2,7 @@ from BCISystem import BCISystem, Features, Databases
 
 CMD_IN = 1.6  # sec
 
-FFT_POWERS = [(14, 36), (18, 32), (18, 36), (22, 28),
-              (22, 32), (22, 36), (26, 32), (26, 36)]
+FFT_POWERS = [(22, 30), (24, 40), (24, 34)]
 
 if __name__ == '__main__':
     print('Starting BCI System for game play...')
