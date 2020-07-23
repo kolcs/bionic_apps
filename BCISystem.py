@@ -9,11 +9,10 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 
 import ai
 import online
-from config import REST
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
-from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
-    init_base_config, Features, make_feature_extraction
+from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, init_base_config, Features, \
+    make_feature_extraction
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -39,6 +38,28 @@ CROSS_SUBJECT_X_AND_SAVE_SVM = 'crossSubXandTrainSVM'
 LOG_COLS = ['Database', 'Method', 'Feature', 'Subject', 'Epoch tmin', 'Epoch tmax', 'Window length', 'Window step',
             'FFT low', 'FFT high', 'FFT step', 'svm_C', 'svm_gamma', 'Accuracy list', 'Avg. Acc']
 
+SUM_NAME = 'weight_sum'
+
+
+def _generate_table(eeg, filter_list, acc_from=.6, acc_to=1, acc_diff=.01):
+    d = pd.DataFrame(eeg[filter_list].groupby(filter_list).count())  # data permutation
+
+    new_cols = list()
+    for flow, fhigh in [(l, l + acc_diff) for l in np.arange(acc_from, acc_to, acc_diff)[::-1]]:
+        new_cols.append(np.round(flow, 3))
+        d[np.round(flow, 3)] = \
+            eeg[(eeg['Avg. Acc'] >= flow) & (eeg['Avg. Acc'] < fhigh)].groupby(filter_list, sort=True).count()[
+                'Avg. Acc']
+
+    d = d.fillna(0)
+    d[SUM_NAME] = np.sum(
+        np.array([d[col].array * (col - min(new_cols)) / (max(new_cols) - min(new_cols)) for col in new_cols]),
+        axis=0)
+
+    new_cols.insert(0, SUM_NAME)
+    d = d.sort_values(new_cols, ascending=[False] * len(new_cols))
+    return d
+
 
 class BCISystem(object):
 
@@ -62,7 +83,7 @@ class BCISystem(object):
         self._proc = None
         self._prev_timestamp = [0]
         self._ai_model = dict()
-        self._log = make_logs
+        self._log = False
         self._feature = feature
         self._svm_kwargs = dict()
 
@@ -70,8 +91,12 @@ class BCISystem(object):
         self._df_base_data = list()
 
         if make_logs:
-            setup_logger(LOGGER_NAME)
-            self._df = pd.DataFrame(columns=LOG_COLS)
+            self._init_log()
+
+    def _init_log(self):
+        setup_logger(LOGGER_NAME)
+        self._df = pd.DataFrame(columns=LOG_COLS)
+        self._log = True
 
     def _log_and_print(self, msg):
         if self._log:
@@ -138,7 +163,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            svm = ai.MultiSVM(C=1, cache_size=2000)
+            svm = ai.MultiSVM(**self._svm_kwargs)
             svm.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -163,7 +188,7 @@ class BCISystem(object):
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, window_lenght=None, window_step=None,
                            use_drop_subject_list=True, fast_load=True, make_binary_classification=False,
-                           subject=None, play_game=False):
+                           subject=None, play_game=False, game_file=None):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -180,8 +205,12 @@ class BCISystem(object):
             Whether to use drop subject list from config file or not?
         fast_load : bool
             Handle with extreme care! It loads the result of a previous preprocess task.
-        subject : int or list of int
+        subject : int, list of int
             Data preprocess is made on these subjects.
+        play_game : bool
+            Make it True if this function is called during live game.
+        game_file : str, None
+            Absolute file path used for parameter selection.
         """
         if self._proc is None:
             if window_lenght is not None:
@@ -191,7 +220,7 @@ class BCISystem(object):
 
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load,
-                                                 make_binary_classification, subject, play_game)
+                                                 make_binary_classification, subject, play_game, game_file)
             if db_name == Databases.PHYSIONET:
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
@@ -252,84 +281,120 @@ class BCISystem(object):
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
-    def online_processing(self, db_name, test_subject, feature=None, get_real_labels=False, data_sender=None):
-        """Online accuracy check.
+    # def online_processing(self, db_name, test_subject, feature=None, get_real_labels=False, data_sender=None):
+    #     """Online accuracy check.
+    #
+    #     This is an example code, how the online classification can be done.
+    #
+    #     Parameters
+    #     ----------
+    #     db_name : Databases
+    #         Database to work on...
+    #     test_subject : int
+    #         Test subject number, which was not included in ai training.
+    #     feature : {'avg_column'}, optional
+    #         Feature created from EEG window
+    #     get_real_labels : bool, optional
+    #         Load real labels from file to test accuracy.
+    #     data_sender : multiprocess.Process, optional
+    #         Process object which sends the signals for simulating realtime work.
+    #     """
+    #     if feature is not None:
+    #         self._feature = feature
+    #     self._init_db_processor(db_name)
+    #     self._proc.init_processed_db_path(self._feature)
+    #     if len(self._ai_model) == 0:
+    #         self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
+    #     svm = self._ai_model[test_subject]
+    #     self._ai_model = None
+    #     dsp = online.DSP()
+    #     # dsp.start_parallel_signal_recording(rec_type='chunk')  # todo: have it or not?
+    #     sleep_time = 1 / dsp.fs
+    #
+    #     y_preds = list()
+    #     y_real = list()
+    #     label = None
+    #     drop_count = 0
+    #     dstim = {1: 0, 5: 0, 7: 0, 1001: 0, 9: 0, 11: 0, 12: 0, 15: 0}
+    #
+    #     while data_sender is None or data_sender.is_alive():
+    #         # t = time.time()
+    #
+    #         if get_real_labels:
+    #             timestamps, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
+    #             # dstim[label] += 1
+    #         else:
+    #             timestamps, data = dsp.get_eeg_window(self._window_length)
+    #
+    #         sh = np.shape(data)
+    #         if len(sh) < 2 or sh[1] / dsp.fs < self._window_length or timestamps == self._prev_timestamp:
+    #             # The data is still not big enough for window.
+    #             # time.sleep(1/dsp.fs)
+    #             drop_count += 1
+    #             continue
+    #
+    #         # print('Dropped: {}\n time diff: {}'.format(drop_count, (timestamps[0]-self._prev_timestamp[0])*dsp.fs))
+    #         drop_count = 0
+    #
+    #         self._prev_timestamp = timestamps
+    #
+    #         data = make_feature_extraction(self._feature, data, dsp.fs)
+    #
+    #         y_pred = svm.predict(data)
+    #
+    #         y_real.append(label)
+    #         y_preds.append(y_pred)
+    #         # time.sleep(max(0, sleep_time - (time.time() - t)))  # todo: Do not use - not real time...
+    #
+    #     raw = np.array(dsp._eeg)
+    #     stims = raw[:, -1]
+    #     # check_received_signal(raw[:, :-1], file)
+    #
+    #     for s in stims:
+    #         dstim[s] += 1
+    #     print('received stim', dstim)
+    #
+    #     return y_preds, y_real, raw
 
-        This is an example code, how the online classification can be done.
+    def _search_for_fft_params(self, db_name,
+                               fft_min, fft_max, fft_search_step,
+                               epoch_tmin, epoch_tmax,
+                               make_binary_classification,
+                               best_n_fft=7):
 
-        Parameters
-        ----------
-        db_name : Databases
-            Database to work on...
-        test_subject : int
-            Test subject number, which was not included in ai training.
-        feature : {'avg_column'}, optional
-            Feature created from EEG window
-        get_real_labels : bool, optional
-            Load real labels from file to test accuracy.
-        data_sender : multiprocess.Process, optional
-            Process object which sends the signals for simulating realtime work.
-        """
-        if feature is not None:
-            self._feature = feature
-        self._init_db_processor(db_name)
-        self._proc.init_processed_db_path(self._feature)
-        if len(self._ai_model) == 0:
-            self._ai_model = load_pickle_data(self._proc.proc_db_path + AI_MODEL)
-        svm = self._ai_model[test_subject]
-        self._ai_model = None
-        dsp = online.DSP()
-        # dsp.start_parallel_signal_recording(rec_type='chunk')  # todo: have it or not?
-        sleep_time = 1 / dsp.fs
+        train_file = None
+        for fft_low in range(fft_min, fft_max - 2, fft_search_step):
+            for fft_high in range(fft_min + 2, fft_max, fft_search_step):
+                self._df_base_data = [fft_low, fft_high]
+                self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
+                                        window_lenght=self._window_length, window_step=self._window_step,
+                                        use_drop_subject_list=False, fast_load=False,
+                                        make_binary_classification=make_binary_classification,
+                                        play_game=True, game_file=train_file)
+                self._proc.run(Features.FFT_POWER, fft_low, fft_high)
+                train_file = self._proc.game_file
+                self._subject_corssvalidate(subject=0, k_fold_num=5)
+                self.clear_db_processor()
 
-        y_preds = list()
-        y_real = list()
-        label = None
-        drop_count = 0
-        dstim = {1: 0, 5: 0, 7: 0, 1001: 0, 9: 0, 11: 0, 12: 0, 15: 0}
+        res = _generate_table(self._df[['FFT low', 'FFT high', 'Avg. Acc']],
+                              ['FFT low', 'FFT high'])
+        fft_list = [res.index[i] for i in range(min(len(res.index), best_n_fft))]
 
-        while data_sender is None or data_sender.is_alive():
-            # t = time.time()
+        return train_file, fft_list
 
-            if get_real_labels:
-                timestamps, data, label = dsp.get_eeg_window(self._window_length, get_real_labels)
-                # dstim[label] += 1
-            else:
-                timestamps, data = dsp.get_eeg_window(self._window_length)
+    def play_game(self, db_name=Databases.GAME, feature=None,
+                  fft_low=7, fft_high=13,
+                  epoch_tmin=0, epoch_tmax=0,
+                  window_length=None, window_step=None,
+                  command_in_each_sec=0.5,
+                  make_binary_classification=False,
+                  use_binary_game_logger=False,
+                  make_opponents=False,
+                  make_fft_param_selection=False,
+                  fft_search_min=14, fft_search_max=40, fft_search_step=4,
+                  best_n_fft=7,
+                  **svm_kwargs):
 
-            sh = np.shape(data)
-            if len(sh) < 2 or sh[1] / dsp.fs < self._window_length or timestamps == self._prev_timestamp:
-                # The data is still not big enough for window.
-                # time.sleep(1/dsp.fs)
-                drop_count += 1
-                continue
-
-            # print('Dropped: {}\n time diff: {}'.format(drop_count, (timestamps[0]-self._prev_timestamp[0])*dsp.fs))
-            drop_count = 0
-
-            self._prev_timestamp = timestamps
-
-            data = make_feature_extraction(self._feature, data, dsp.fs)
-
-            y_pred = svm.predict(data)
-
-            y_real.append(label)
-            y_preds.append(y_pred)
-            # time.sleep(max(0, sleep_time - (time.time() - t)))  # todo: Do not use - not real time...
-
-        raw = np.array(dsp._eeg)
-        stims = raw[:, -1]
-        # check_received_signal(raw[:, :-1], file)
-
-        for s in stims:
-            dstim[s] += 1
-        print('received stim', dstim)
-
-        return y_preds, y_real, raw
-
-    def play_game(self, db_name=Databases.GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3,
-                  window_length=None, window_step=None, command_in_each_sec=0.5, make_binary_classification=False,
-                  use_binary_game_logger=False, make_opponents=False, **svm_kwargs):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
@@ -340,11 +405,20 @@ class BCISystem(object):
             make_binary_classification = True
         self._svm_kwargs = svm_kwargs
 
+        train_file = None
+        if make_fft_param_selection and self._feature == Features.MULTI_FFT_POWER:
+            self._init_log()
+            train_file, fft_low = self._search_for_fft_params(db_name, fft_min=fft_search_min, fft_max=fft_search_max,
+                                                              fft_search_step=fft_search_step,
+                                                              epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
+                                                              make_binary_classification=make_binary_classification,
+                                                              best_n_fft=best_n_fft)
+
         self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                 window_lenght=self._window_length, window_step=self._window_step,
                                 use_drop_subject_list=False, fast_load=False,
                                 make_binary_classification=make_binary_classification,
-                                play_game=True)
+                                play_game=True, game_file=train_file)
         self._proc.run(self._feature, fft_low, fft_high)
         print('Training...')
         t = time.time()
@@ -394,40 +468,40 @@ class BCISystem(object):
                     warn('Classification took longer than command giving limit!')
 
 
-def check_received_signal(data, filename):
-    from preprocess import open_raw_file
-    raw = open_raw_file(filename)
-    info = raw.info
-    from online.DataSender import get_data_with_labels
-    _, _, orig = get_data_with_labels(raw)
-    orig.plot(title='Sent')
-    from mne.io import RawArray
-    raw = RawArray(np.transpose(data), info)
-    raw.plot(title='Received')
-    from matplotlib import pyplot as plt
-    plt.show()
-    print(orig.get_data().shape, raw.get_data().shape)
-    d_orig = orig.get_data()
-    d_raw = raw.get_data()
-    for t in range(len(raw)):
-        print('orig: {}\nreceived: {}\nmatch {}'.format(d_orig[:, t], d_raw[:, t], d_orig[:, t] == d_raw[:, t]))
-
-
-def calc_online_acc(y_pred, y_real, raw):
-    save_pickle_data(y_real, 'tmp/y_real.data')
-    save_pickle_data(y_pred, 'tmp/y_pred.data')
-    save_pickle_data(raw, 'tmp/eeg.data')
-    from config import PilotDB_ParadigmA
-    conv = {val: key for key, val in PilotDB_ParadigmA.TRIGGER_TASK_CONVERTER.items()}
-    y_real = [conv.get(y, REST) for y in y_real]
-    print('\nDiff labels: {}\n'.format(set(np.array(y_pred).flatten())))
-    class_report = classification_report(y_real, y_pred)
-    conf_martix = confusion_matrix(y_real, y_pred)
-    acc = accuracy_score(y_real, y_pred)
-
-    print("%s\n" % class_report)
-    print("Confusion matrix:\n%s\n" % conf_martix)
-    print("Accuracy score: {}\n".format(acc))
+# def check_received_signal(data, filename):
+#     from preprocess import open_raw_file
+#     raw = open_raw_file(filename)
+#     info = raw.info
+#     from online.DataSender import get_data_with_labels
+#     _, _, orig = get_data_with_labels(raw)
+#     orig.plot(title='Sent')
+#     from mne.io import RawArray
+#     raw = RawArray(np.transpose(data), info)
+#     raw.plot(title='Received')
+#     from matplotlib import pyplot as plt
+#     plt.show()
+#     print(orig.get_data().shape, raw.get_data().shape)
+#     d_orig = orig.get_data()
+#     d_raw = raw.get_data()
+#     for t in range(len(raw)):
+#         print('orig: {}\nreceived: {}\nmatch {}'.format(d_orig[:, t], d_raw[:, t], d_orig[:, t] == d_raw[:, t]))
+#
+#
+# def calc_online_acc(y_pred, y_real, raw):
+#     save_pickle_data(y_real, 'tmp/y_real.data')
+#     save_pickle_data(y_pred, 'tmp/y_pred.data')
+#     save_pickle_data(raw, 'tmp/eeg.data')
+#     from config import PilotDB_ParadigmA
+#     conv = {val: key for key, val in PilotDB_ParadigmA.TRIGGER_TASK_CONVERTER.items()}
+#     y_real = [conv.get(y, REST) for y in y_real]
+#     print('\nDiff labels: {}\n'.format(set(np.array(y_pred).flatten())))
+#     class_report = classification_report(y_real, y_pred)
+#     conf_martix = confusion_matrix(y_real, y_pred)
+#     acc = accuracy_score(y_real, y_pred)
+#
+#     print("%s\n" % class_report)
+#     print("Confusion matrix:\n%s\n" % conf_martix)
+#     print("Accuracy score: {}\n".format(acc))
 
 
 if __name__ == '__main__':

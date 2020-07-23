@@ -10,6 +10,7 @@ from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     CALM, ACTIVE, REST, DIR_FEATURE_DB
+from gui_handler import select_file_in_explorer
 from preprocess.feature_extraction import Features, make_feature_extraction, calculate_spatial_data
 
 EPOCH_DB = 'preprocessed_database'
@@ -466,7 +467,8 @@ class OfflineDataPreprocessor:
     """
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None, play_game=False):
+                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None, play_game=False,
+                 game_file=None):
 
         self._base_dir = base_dir
         self._epoch_tmin = epoch_tmin
@@ -477,6 +479,7 @@ class OfflineDataPreprocessor:
         self._make_binary_label = make_binary_label
         self._subject_list = [subject] if type(subject) is int else subject
         self._play_game = play_game
+        self.game_file = game_file
 
         self._fs = int()
         self._feature = Features.FFT_RANGE
@@ -703,12 +706,14 @@ class OfflineDataPreprocessor:
 
     def _create_game_db(self):
         """Game database creation"""
-        from gui_handler import select_file_in_explorer
-        filename = select_file_in_explorer(self._base_dir)
-        assert filename is not None, 'No source files were selected. Cannot play BCI game.'
+        if self.game_file is None:
+            self.game_file = select_file_in_explorer(self._base_dir)
+            assert self.game_file is not None, 'No source files were selected. Cannot play BCI game.'
 
         task_dict = self.convert_task()
-        epochs, self._fs = get_epochs_from_files(filename, task_dict, self._epoch_tmin, self._epoch_tmax, get_fs=True,
+        epochs, self._fs = get_epochs_from_files(self.game_file, task_dict,
+                                                 self._epoch_tmin, self._epoch_tmax,
+                                                 get_fs=True,
                                                  cut_real_movement_tasks=True)
         self._data_set[0] = self._get_windowed_features(epochs)
 
