@@ -329,7 +329,7 @@ class BCISystem(object):
 
     def play_game(self, db_name=Databases.GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3,
                   window_length=None, window_step=None, command_in_each_sec=0.5, make_binary_classification=False,
-                  use_binary_game_logger=False, make_opponents=False):
+                  use_binary_game_logger=False, make_opponents=False, **svm_kwargs):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
@@ -338,6 +338,7 @@ class BCISystem(object):
             self._window_step = window_step
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
+        self._svm_kwargs = svm_kwargs
 
         self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                 window_lenght=self._window_length, window_step=self._window_step,
@@ -348,7 +349,7 @@ class BCISystem(object):
         print('Training...')
         t = time.time()
         data, labels = self._proc.get_subject_data(0)
-        svm = ai.MultiSVM(C=1, cache_size=2000)
+        svm = ai.MultiSVM(**self._svm_kwargs)
         svm.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
