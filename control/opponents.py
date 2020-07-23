@@ -1,3 +1,5 @@
+from enum import Enum, auto
+from random import shuffle
 from threading import Thread
 from time import sleep
 
@@ -5,11 +7,18 @@ from numpy.random import randint
 
 from config import ACTIVE, ControlCommand
 from control import GameControl
+from logger import GameLogger
+
+
+class PlayerType(Enum):
+    MASTER = auto()
+    RANDOM = auto()
+    RANDOM_BINARY = auto()
 
 
 class Player(GameControl, Thread):
 
-    def __init__(self, player_num, game_logger, reaction_time=1, daemon=True):
+    def __init__(self, player_num, game_logger, reaction_time=1.0, daemon=True):
         GameControl.__init__(self, player_num=player_num, game_logger=game_logger)
         Thread.__init__(self, daemon=daemon)
         self._reaction_time = reaction_time
@@ -48,9 +57,47 @@ class RandomBinaryPlayer(RandomPlayer):
         self.control_game_with_2_opt(cmd)
 
 
-if __name__ == '__main__':
-    from logger import GameLogger
+def create_opponents(main_player=1, players=None, game_logger=None, reaction=1.0):
+    """ Function for player creation.
 
+    Creating required type of bot players.
+
+    Parameters
+    ----------
+    main_player: int
+        the number of main player
+    players: list of string, list of PlayerType, None
+        List of player types. Should contain 4 values.
+    game_logger: GameLogger, None
+        Optional predefined GameLogger object
+    reaction: float
+        Player reaction time in seconds.
+
+    """
+    if players in None:
+        players = [PlayerType.MASTER, PlayerType.RANDOM, PlayerType.RANDOM_BINARY]
+        shuffle(players)
+    assert len(players) == 4, '4 player type is required {} is given instead'.format(len(players))
+
+    player_numbers = list(range(1, 5))
+    player_numbers.remove(main_player)
+
+    for num, pl_type in zip(player_numbers, players):
+        if pl_type is PlayerType.MASTER:
+            if game_logger is None:
+                game_logger = GameLogger()
+                game_logger.start()
+            bot = MasterPlayer(num, game_logger)
+        elif pl_type is PlayerType.RANDOM:
+            bot = RandomPlayer(num, reaction_time=reaction)
+        elif pl_type is PlayerType.RANDOM_BINARY:
+            bot = RandomBinaryPlayer(num, reaction_time=reaction)
+        else:
+            raise NotImplementedError('{} player is not implemented'.format(pl_type))
+        bot.start()
+
+
+if __name__ == '__main__':
     reaction = 2
     game_logger = GameLogger(daemon=False)
     game_logger.start()

@@ -1,5 +1,6 @@
 import time
 from enum import Enum
+from sys import platform
 from warnings import warn, simplefilter
 
 import numpy as np
@@ -9,7 +10,7 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 import ai
 import online
 from config import REST
-from control import GameControl
+from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, load_pickle_data, \
     init_base_config, Features, make_feature_extraction
@@ -328,7 +329,7 @@ class BCISystem(object):
 
     def play_game(self, db_name=Databases.GAME, feature=None, fft_low=7, fft_high=13, epoch_tmin=0, epoch_tmax=3,
                   window_length=None, window_step=None, command_in_each_sec=0.5, make_binary_classification=False,
-                  use_binary_game_logger=False):
+                  use_binary_game_logger=False, make_opponents=False):
         if feature is not None:
             self._feature = feature
         if window_length is not None:
@@ -352,13 +353,16 @@ class BCISystem(object):
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
         game_log = None
-        if use_binary_game_logger:
+        if use_binary_game_logger and platform.startswith('win'):
             from brainvision import RemoteControlClient
             rcc = RemoteControlClient(print_received_messages=False)
             rcc.open_recorder()
             rcc.check_impedance()
             game_log = GameLogger(bv_rcc=rcc)
             game_log.start()
+
+        if make_opponents:
+            create_opponents(main_player=1, game_logger=game_log, reaction=command_in_each_sec)
 
         dsp = online.DSP()
 
