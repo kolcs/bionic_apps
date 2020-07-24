@@ -467,8 +467,8 @@ class OfflineDataPreprocessor:
     """
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None, play_game=False,
-                 game_file=None):
+                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None, select_eeg_file=False,
+                 eeg_file=None):
 
         self._base_dir = base_dir
         self._epoch_tmin = epoch_tmin
@@ -478,8 +478,8 @@ class OfflineDataPreprocessor:
         self._fast_load = fast_load
         self._make_binary_label = make_binary_label
         self._subject_list = [subject] if type(subject) is int else subject
-        self._play_game = play_game
-        self.game_file = game_file
+        self._select_one_file = select_eeg_file
+        self.eeg_file = eeg_file
 
         self._fs = int()
         self._feature = Features.FFT_RANGE
@@ -704,14 +704,12 @@ class OfflineDataPreprocessor:
 
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
-    def _create_game_db(self):
+    def _create_db_from_file(self):
         """Game database creation"""
-        if self.game_file is None:
-            self.game_file = select_file_in_explorer(self._base_dir)
-            assert self.game_file is not None, 'No source files were selected. Cannot play BCI game.'
-
+        if self.eeg_file is None:
+            self.eeg_file = select_file_in_explorer(self._base_dir)
         task_dict = self.convert_task()
-        epochs, self._fs = get_epochs_from_files(self.game_file, task_dict,
+        epochs, self._fs = get_epochs_from_files(self.eeg_file, task_dict,
                                                  self._epoch_tmin, self._epoch_tmax,
                                                  get_fs=True,
                                                  cut_real_movement_tasks=True)
@@ -802,21 +800,23 @@ class OfflineDataPreprocessor:
                 self._data_set.pop(subj, 'No error!')
 
         elif self._db_type is Physionet:
+            if self._select_one_file or self.eeg_file is not None:
+                raise NotImplementedError('EEG file selection for Physionet is not implemented!')
             print_creation_message()
             self._create_physionet_db()
 
-        elif not self._play_game:  # self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB]:
+        elif not self._select_one_file and self.eeg_file is None:
             print_creation_message()
             self._create_ttk_db()
 
         elif self._db_type in [GameDB, Game_ParadigmC]:
             print_creation_message()
-            self._create_game_db()
+            self._create_db_from_file()
 
         elif self._db_type is Game_ParadigmD:
             print_creation_message()
             self._make_binary_label = True
-            self._create_game_db()
+            self._create_db_from_file()
 
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))

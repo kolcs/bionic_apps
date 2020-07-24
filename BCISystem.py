@@ -154,7 +154,7 @@ class BCISystem(object):
 
         self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
         self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
-        self._save_params((cross_acc, np.mean(cross_acc)))  # todo: print result...
+        self._save_params((cross_acc, np.mean(cross_acc)))
 
     def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
         kfold = SubjectKFold(subj_n_fold_num)
@@ -188,7 +188,7 @@ class BCISystem(object):
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=3, window_lenght=None, window_step=None,
                            use_drop_subject_list=True, fast_load=True, make_binary_classification=False,
-                           subject=None, play_game=False, game_file=None):
+                           subject=None, select_eeg_file=False, game_file=None):
         """Database initializer.
 
         Initialize the database preprocessor for the required db, which handles the configuration.
@@ -207,7 +207,7 @@ class BCISystem(object):
             Handle with extreme care! It loads the result of a previous preprocess task.
         subject : int, list of int
             Data preprocess is made on these subjects.
-        play_game : bool
+        select_eeg_file : bool
             Make it True if this function is called during live game.
         game_file : str, None
             Absolute file path used for parameter selection.
@@ -220,7 +220,7 @@ class BCISystem(object):
 
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  self._window_length, self._window_step, fast_load,
-                                                 make_binary_classification, subject, play_game, game_file)
+                                                 make_binary_classification, subject, select_eeg_file, game_file)
             if db_name == Databases.PHYSIONET:
                 self._proc.use_physionet()
                 # labels = [REST, LEFT_HAND, RIGHT_HAND, BOTH_LEGS, BOTH_HANDS]
@@ -361,18 +361,22 @@ class BCISystem(object):
                                epoch_tmin, epoch_tmax,
                                make_binary_classification,
                                best_n_fft=7):
-
-        train_file = None
+        from gui_handler import select_file_in_explorer
+        train_file = select_file_in_explorer(self._base_dir)
         for fft_low in range(fft_min, fft_max - 2, fft_search_step):
-            for fft_high in range(fft_min + 2, fft_max, fft_search_step):
-                self._df_base_data = [fft_low, fft_high]
+            for fft_high in range(fft_low + 2, fft_max, fft_search_step):
+                self._df_base_data = [db_name.name, SUBJECT_X_VALIDATE, self._feature.name, 0, epoch_tmin, epoch_tmax,
+                                      self._window_length, self._window_step,
+                                      fft_low, fft_high, 2,
+                                      self._svm_kwargs.get('C'), self._svm_kwargs.get('gamma')
+                                      ]
                 self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                         window_lenght=self._window_length, window_step=self._window_step,
                                         use_drop_subject_list=False, fast_load=False,
                                         make_binary_classification=make_binary_classification,
-                                        play_game=True, game_file=train_file)
+                                        select_eeg_file=True, game_file=train_file)
                 self._proc.run(Features.FFT_POWER, fft_low, fft_high)
-                train_file = self._proc.game_file
+                train_file = self._proc.eeg_file
                 self._subject_corssvalidate(subject=0, k_fold_num=5)
                 self.clear_db_processor()
 
@@ -408,17 +412,25 @@ class BCISystem(object):
         train_file = None
         if make_fft_param_selection and self._feature == Features.MULTI_FFT_POWER:
             self._init_log()
+            t = time.time()
             train_file, fft_low = self._search_for_fft_params(db_name, fft_min=fft_search_min, fft_max=fft_search_max,
                                                               fft_search_step=fft_search_step,
                                                               epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                                               make_binary_classification=make_binary_classification,
                                                               best_n_fft=best_n_fft)
+            print('Parameter selection took {:.2f} min'.format((time.time() - t) / 60))
+        elif make_fft_param_selection:
+            raise ValueError(
+                'FFT parameter selection only available for MULTI_FFT_POWER, {} were selected instead'.format(
+                    self._feature.name))
 
+        # print(train_file, fft_low)
+        # exit(12)
         self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                 window_lenght=self._window_length, window_step=self._window_step,
                                 use_drop_subject_list=False, fast_load=False,
                                 make_binary_classification=make_binary_classification,
-                                play_game=True, game_file=train_file)
+                                select_eeg_file=True, game_file=train_file)
         self._proc.run(self._feature, fft_low, fft_high)
         print('Training...')
         t = time.time()
