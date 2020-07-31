@@ -822,6 +822,13 @@ class OfflineDataPreprocessor:
             win_epochs["{}{}".format(tsk, i)].append((data[i], laben_conv(tsk)))
 
     def init_processed_db_path(self, feature=None):
+        """Initialize the path of preprocessed database.
+
+        Parameters
+        ----------
+        feature : Features, optional
+            Feature used in preprocess.
+        """
         if feature is not None and feature not in Features:
             raise NotImplementedError('Feature {} is not implemented'.format(feature))
         if feature in Features:
