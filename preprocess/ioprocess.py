@@ -21,12 +21,19 @@ BASE_DIR = 'base_dir'
 
 
 def open_raw_file(filename, preload=True):
-    """
-    Wrapper function to open either edf or brainvision files.
+    """Wrapper function to open either edf or brainvision files.
 
-    :param filename: filename of raw file
-    :param preload: load data to memory
-    :return: raw mne file
+    Parameters
+    ----------
+    filename : str
+        Absolute path and filename of raw file.
+    preload : bool
+        Load data to memory.
+
+    Returns
+    -------
+    mne.Raw
+        Raw mne file.
     """
     ext = filename.split('.')[-1]
 
@@ -41,13 +48,26 @@ def open_raw_file(filename, preload=True):
 
 
 def get_filenames_in(path, ext='', recursive=True):
-    """
-    Searches for files in the given path with specified extension
+    """Searches for files in the given path with specified extension
 
-    :param path: path where to do the search
-    :param ext: file extension to search for
-    :return: list of filenames
-    :raises FileNotFoundError if no files were found
+    Parameters
+    ----------
+    path : str
+        path where to do the search
+    ext : str
+        file extension to search for
+    recursive : bool
+        Search should be recursive or not
+
+    Returns
+    -------
+    list of str
+        Result of search.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no files were found.
     """
     import glob
     if ext is None:
@@ -59,10 +79,11 @@ def get_filenames_in(path, ext='', recursive=True):
 
 
 def make_dir(path):
-    """
-    Creates dir if it does not exists on given path
+    """Creates dir if it does not exists on given path
 
-    :param path: str
+    Parameters
+    ----------
+    path : str
         path to new dir
     """
     if not exists(path):
@@ -70,14 +91,23 @@ def make_dir(path):
 
 
 def filter_filenames(files, subject, runs):
-    """
-    Filter file names for one subject and for given record numbers
-    Only for Physionet data
+    """Filter file names for one subject and for given record numbers.
 
-    :param files: list of str
-    :param subject: int
-    :param runs: list of int
-    :return: list of str
+    Only for Physionet data.
+
+    Parameters
+    ----------
+    files : list of str
+        Filenames to filter.
+    subject : int
+        Filter files to this subject.
+    runs : list of int
+        Filter files to this run.
+
+    Returns
+    -------
+    list of str
+        Filtered file list.
     """
     rec = list()
     subj = [f for f in files if subject == get_subject_number(f)]
@@ -317,6 +347,17 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
         Start time before event. If nothing is provided, defaults to -0.2
     epoch_tmax : float
         End time after event. If nothing is provided, defaults to 0.5
+    baseline : None or (float, float) or (None, float) or (float, None)
+        The time interval to apply baseline correction. If None do not apply
+        it. If baseline is (a, b) the interval is between "a (s)" and "b (s)".
+        If a is None the beginning of the data is used and if b is None then b
+        is set to the end of the interval. If baseline is equal to (None, None)
+        all the time interval is used. Correction is applied by computing mean
+        of the baseline period and subtracting it from the data. The baseline
+        (a, b) includes both endpoints, i.e. all timepoints t such that
+        a <= t <= b.
+    prefilter_signal : bool
+        Make signal filtering before preprocess.
 
     Returns
     -------
@@ -354,7 +395,8 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     return epochs
 
 
-def _reduce_max_label(data, labels):
+def _reduce_max_label(data, labels):  # Todo: rethink
+    """Try to balance labels"""
     label_count = {lab: labels.count(lab) for lab in set(labels)}
     max_label = max(label_count, key=lambda key: label_count[key])
     max_count = label_count[max_label]
@@ -368,6 +410,7 @@ def _reduce_max_label(data, labels):
 
 
 def _generate_window_list_from_epoch_list(epoch_list):
+    """Creates a list of windows from list of list of windows"""
     win_list = list()
     for d in epoch_list:
         win_list.extend(d)
@@ -504,9 +547,7 @@ class OfflineDataPreprocessor:
             self._base_dir = base_dir + '/'
 
     def _use_db(self, db_type):
-        """
-        Loads a specified database.
-        """
+        """Loads a specified database."""
         self._data_path = self._base_dir + db_type.DIR
         assert exists(self._data_path), "Path {} does not exists.".format(self._data_path)
         self._db_type = db_type
@@ -554,9 +595,16 @@ class OfflineDataPreprocessor:
 
         Parameters
         ----------
-        feature: 'spatial' | 'avg_column' | 'column' | None (default 'spatial')
-            The feature which will be created.
-
+        feature : Features
+            Specify the features which will be created in the preprocessing phase.
+        fft_low : float or list of (float, float)
+            FFT parameters for frequency features. If list of tuples of 2 floats is given
+            it is interpreted as a list of specified frequency ranges with low and high
+            boundaries.
+        fft_high, fft_width, fft_step: float
+            FFT parameters for frequency features.
+        reuse_data : bool
+            Preprocess methods will be omitted if True. Use it for classifier
         """
         if not reuse_data or len(self._data_set) == 0:
             self._feature = feature
@@ -639,6 +687,7 @@ class OfflineDataPreprocessor:
         # save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _get_subject_num(self):
+        """Returns the number of available subjects in Database"""
         if self._db_type is Physionet:
             return self._db_type.SUBJECT_NUM
         try:
@@ -649,6 +698,7 @@ class OfflineDataPreprocessor:
         return subject_num
 
     def _get_subject_list(self):  # todo: rethink
+        """Returns the list of subjects and removes the unwanted ones."""
         subject_num = self._get_subject_num()
         if self._subject_list is not None:
             for subj in self._subject_list:
@@ -760,6 +810,7 @@ class OfflineDataPreprocessor:
         return win_epochs
 
     def _update_and_label_win_epochs(self, win_epochs, data, labels):
+        """Adds data to container and labels it."""
         assert len(data) == len(labels), 'Number of data points are nor equal to number of labels'
 
         def laben_conv(label):
