@@ -3,9 +3,8 @@ from pathlib import PurePath
 
 from pandas import DataFrame, concat
 
-from BCISystem import Databases
 from paramsel import _make_one_fft_test, _generate_table, parallel_search_for_fft_params
-from preprocess import init_base_config
+from preprocess import init_base_config, Databases
 
 
 # todo: use individual data for test_generate_table instead of generated

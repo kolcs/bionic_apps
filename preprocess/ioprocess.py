@@ -4,6 +4,7 @@ import pickle
 import time
 from os import makedirs
 from os.path import exists, realpath, dirname, join
+from enum import Enum
 
 import mne
 import numpy as np
@@ -19,6 +20,17 @@ EPOCH_DB = 'preprocessed_database'
 # config options
 CONFIG_FILE = 'bci_system.cfg'
 BASE_DIR = 'base_dir'
+
+
+# db selection options
+class Databases(Enum):
+    PHYSIONET = 'physionet'
+    PILOT_PAR_A = 'pilot_par_a'
+    PILOT_PAR_B = 'pilot_par_b'
+    TTK = 'ttk'
+    GAME = 'game'
+    GAME_PAR_C = 'game_par_c'
+    GAME_PAR_D = 'game_par_d'
 
 
 def open_raw_file(filename, preload=True):
@@ -430,6 +442,22 @@ def save_to_json(file, data_dict):
         json.dump(data_dict, outfile, indent='\t')
 
 
+def get_db_name_by_filename(filename):
+    if Game_ParadigmC.DIR in filename:
+        db_name = Databases.GAME_PAR_C
+    elif Game_ParadigmD.DIR in filename:
+        db_name = Databases.GAME_PAR_D
+    elif PilotDB_ParadigmA.DIR in filename:
+        db_name = Databases.PILOT_PAR_A
+    elif PilotDB_ParadigmB.DIR in filename:
+        db_name = Databases.PILOT_PAR_B
+    elif Physionet.DIR in filename:
+        db_name = Databases.PHYSIONET
+    else:
+        raise ValueError('No database defined with path {}'.format(filename))
+    return db_name
+
+
 class SubjectKFold(object):
     """
     Class to split subject database to train and test set, in an N-fold cross validation manner.
@@ -543,6 +571,25 @@ class OfflineDataPreprocessor:
 
         if not base_dir[-1] == '/':
             self._base_dir = base_dir + '/'
+
+    def use_db(self, db_name):
+        if db_name == Databases.PHYSIONET:
+            self.use_physionet()
+        elif db_name == Databases.PILOT_PAR_A:
+            self.use_pilot_par_a()
+        elif db_name == Databases.PILOT_PAR_B:
+            self.use_pilot_par_b()
+        elif db_name == Databases.TTK:
+            self.use_ttk_db()
+        elif db_name == Databases.GAME:
+            self.use_game_data()
+        elif db_name == Databases.GAME_PAR_C:
+            self.use_game_par_c()
+        elif db_name == Databases.GAME_PAR_D:
+            self.use_game_par_d()
+
+        else:
+            raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
 
     def _use_db(self, db_type):
         """Loads a specified database."""

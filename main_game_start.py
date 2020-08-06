@@ -1,7 +1,7 @@
-from BCISystem import BCISystem, FeatureType, Databases
-from paramsel import parallel_search_for_fft_params
-from preprocess import init_base_config
+from BCISystem import BCISystem, FeatureType
 from gui_handler import select_file_in_explorer
+from paramsel import parallel_search_for_fft_params
+from preprocess import init_base_config, get_db_name_by_filename
 
 CMD_IN = 1.6  # sec
 
@@ -13,17 +13,9 @@ C, GAMMA = 309.27089776753826, 0.3020223611011116
 if __name__ == '__main__':
     print('Starting BCI System for game play...')
 
-    # todo: define it from file selection....
-    inp = input('Select paradigm for pilots (C -- 4 way, D -- binary):    C / D\n')
-    if inp.upper() == 'C':
-        db_name = Databases.GAME_PAR_C
-    elif inp.upper() == 'D':
-        db_name = Databases.GAME_PAR_D
-    else:
-        raise NotImplementedError('Can not run BCI System with paradigm {}'.format(inp))
-
     eeg_file = select_file_in_explorer(init_base_config(),
                                        message='Select EEG file for training the BCI System!')
+    db_name = get_db_name_by_filename(eeg_file)
 
     classifier_kwargs = dict(C=C, gamma=GAMMA)
 

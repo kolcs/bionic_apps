@@ -12,21 +12,10 @@ import online
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, init_base_config, FeatureType, \
-    make_feature_extraction
+    make_feature_extraction, Databases
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
-
-
-# db selection options
-class Databases(Enum):
-    PHYSIONET = 'physionet'
-    PILOT_PAR_A = 'pilot_par_a'
-    PILOT_PAR_B = 'pilot_par_b'
-    TTK = 'ttk'
-    GAME = 'game'
-    GAME_PAR_C = 'game_par_c'
-    GAME_PAR_D = 'game_par_d'
 
 
 # method selection options
@@ -241,27 +230,10 @@ class BCISystem(object):
             if 'select_eeg_file' is True
         """
         if self._proc is None:
-
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  window_length, window_step, fast_load,
                                                  make_binary_classification, subject, select_eeg_file, train_file)
-            if db_name == Databases.PHYSIONET:
-                self._proc.use_physionet()
-            elif db_name == Databases.PILOT_PAR_A:
-                self._proc.use_pilot_par_a()
-            elif db_name == Databases.PILOT_PAR_B:
-                self._proc.use_pilot_par_b()
-            elif db_name == Databases.TTK:
-                self._proc.use_ttk_db()
-            elif db_name == Databases.GAME:
-                self._proc.use_game_data()
-            elif db_name == Databases.GAME_PAR_C:
-                self._proc.use_game_par_c()
-            elif db_name == Databases.GAME_PAR_D:
-                self._proc.use_game_par_d()
-
-            else:
-                raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
+            self._proc.use_db(db_name)
 
     def clear_db_processor(self):
         """Removes data preprocessor with all preprocessed data"""
@@ -308,7 +280,7 @@ class BCISystem(object):
         make_binary_classification : bool
             If true the labeling will be converted to binary labels.
         reuse_data : bool
-            Preprocess methods will be omitted if True. Use it for classifier 
+            Preprocess methods will be omitted if True. Use it for classifier
             hyper-parameter selection only.
         train_file : str, optional
             File to train on.
@@ -363,7 +335,7 @@ class BCISystem(object):
                   train_file=None,
                   classifier_kwargs=None):
         """Function for online BCI game and control.
-        
+
         Parameters
         ----------
         db_name : Databases
@@ -378,7 +350,7 @@ class BCISystem(object):
             Length of sliding window in the epochs in seconds.
         window_step : float
             Step of sliding window in seconds.
-        command_frequency : float 
+        command_frequency : float
             The frequency of given commands in second.
         make_binary_classification : bool
             If true the labeling will be converted to binary labels.
