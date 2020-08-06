@@ -4,7 +4,7 @@ import numpy as np
 
 
 # features
-class Features(Enum):
+class FeatureType(Enum):
     SPATIAL = auto()
     AVG_COLUMN = auto()
     COLUMN = auto()
@@ -12,7 +12,6 @@ class Features(Enum):
     FFT_RANGE = auto()
     MULTI_FFT_POWER = auto()
     SIMPLE_TIME_DOMAIN = auto()
-    # CHANNEL_SEL = auto()
 
 
 def _init_interp(interp, epochs, ch_type='eeg'):
@@ -76,8 +75,8 @@ def calculate_spatial_data(interp, epochs, crop=True):
     spatial_list = list()
     data3d = epochs.get_data()
 
-    for i in range(np.size(epochs, 0)):
-        ep = data3d[i, :, :]
+    for k in range(np.size(epochs, 0)):
+        ep = data3d[k, :, :]
         ep = np.average(ep, axis=1)  # average time for each channel
         interp.set_values(ep)
         spatial_data = interp()
@@ -95,12 +94,12 @@ def calculate_spatial_data(interp, epochs, crop=True):
     return spatial_list, interp
 
 
-def _calculate_fft_power(data, fs, fft_low, fft_high):
+def _calculate_fft_power(data, fs, fft_low, fft_high, **kwargs):
     """Calculating fft power for eeg data
 
     Parameters
     ----------
-    data : numpy.array
+    data : ndarray
         eeg data shape: (n_datapoint, n_channels, n_timepoint)
     fs : int
         Sampling frequency.
@@ -111,18 +110,18 @@ def _calculate_fft_power(data, fs, fft_low, fft_high):
 
     Returns
     -------
-    numpy.array
+    ndarray
         Feature extracted data.
     """
     return _calculate_multi_fft_power(data, fs, [(fft_low, fft_high)])
 
 
-def _calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
+def _calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2, **kwargs):
     """Calculating fft power all ranges between fft_low and fft_high.
 
     Parameters
     ----------
-    data : numpy.array
+    data : ndarray
         eeg data shape: (data_points, n_channels, n_timeponts)
     fs : int
         Sampling frequency.
@@ -137,7 +136,7 @@ def _calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
 
     Returns
     -------
-    numpy.array
+    ndarray
         Feature extracted data.
 
     """
@@ -145,25 +144,27 @@ def _calculate_fft_range(data, fs, fft_low, fft_high, fft_step=2, fft_width=2):
     return _calculate_multi_fft_power(data, fs, fft_ranges)
 
 
-def _calculate_multi_fft_power(data, fs, fft_ranges):
+def _calculate_multi_fft_power(data, fs, fft_ranges, **kwargs):
     """Calculating fft power in all ranges given in fft_ranges. (General case of FFT_RANGE)
 
         Parameters
         ----------
-        data : numpy.array
+        data : ndarray
             eeg data shape: (data_points, n_channels, n_timeponts)
         fs : int
             Sampling frequency.
-        fft_ranges : list of tuple
+        fft_ranges : list of (float, float)
             a list of frequency ranges. Each each element of the list is a tuple, where the
-            first element corresponds to fft_min and the second is fft_max
+            first element of a tuple corresponds to fft_min and the second is fft_max
 
         Returns
         -------
-        numpy.array
+        ndarray
             Feature extracted data. Shape: (data_points, n_fft, n_channels)
 
     """
+    assert type(fft_ranges) is list and type(fft_ranges[0]) is tuple, 'Invalid argument for MULTI_FFT_POWER'
+
     n_data_point, n_channel, n_timeponts = data.shape
     fft_res = np.abs(np.fft.rfft(data))
     # fft_res = fft_res**2
@@ -181,11 +182,6 @@ def _calculate_multi_fft_power(data, fs, fft_ranges):
     return data
 
 
-# def _channel_selection_test(data, fs, fft_ranges, channel):
-#     if channel is None:
-#         channel = 0
-#     return _calculate_multi_fft_power(data, fs, fft_ranges)[:, :, channel]
-
 def _calculate_variance(data):
     n_data_point, n_channel, n_timeponts = data.shape
     n_variance = int(n_timeponts / 2)
@@ -194,34 +190,53 @@ def _calculate_variance(data):
     return data
 
 
-def _calculate_time_domain_features(data, fs):
+def _calculate_time_domain_features(data, fs, **kwargs):
     return _calculate_variance(data)
 
 
-def make_feature_extraction(feature, data, fs, fft_low=14, fft_high=30, fft_width=2, fft_step=2, channel_list=None):
+def make_feature_extraction(feature_type, data, fs, *, channel_list=None, **feature_kwargs):
+    """Feature extraction function.
+
+    Makes the required feature extraction method.
+
+    Parameters
+    ----------
+    feature_type : FeatureType
+        Specify the features which will be created in the preprocessing phase.
+    data : ndarray
+        eeg data shape: (data_points, n_channels, n_timeponts) or (n_channels, n_timeponts)
+    fs : int
+        Sampling frequency.
+    channel_list : list of int, optional
+        Dummy eeg channel selection. Do not use it.
+    feature_kwargs
+        Arbitrary keyword arguments for feature extraction.
+
+    Returns
+    -------
+    ndarray
+        Feature extracted data.
+
+    """
     if len(data.shape) == 2:
         data = np.expand_dims(data, 0)
     if channel_list is not None:
         data = data[:, channel_list, :]
         print('It is assumed that the reference electrode is POz!!!')
 
-    if feature == Features.AVG_COLUMN:
+    if feature_type == FeatureType.AVG_COLUMN:
         data = np.average(data, axis=-1)
-    elif feature == Features.FFT_POWER:
-        data = _calculate_fft_power(data, fs, fft_low, fft_high)
-    elif feature == Features.FFT_RANGE:
-        data = _calculate_fft_range(data, fs, fft_low, fft_high, fft_step, fft_width)
-    elif feature == Features.MULTI_FFT_POWER:
-        assert type(fft_low) is list and type(fft_low[0]) is tuple, 'Invalid argument for MULTI_FFT_POWER'
-        data = _calculate_multi_fft_power(data, fs, fft_low)
+    elif feature_type == FeatureType.FFT_POWER:
+        data = _calculate_fft_power(data, fs, **feature_kwargs)
+    elif feature_type == FeatureType.FFT_RANGE:
+        data = _calculate_fft_range(data, fs, **feature_kwargs)
+    elif feature_type == FeatureType.MULTI_FFT_POWER:
+        data = _calculate_multi_fft_power(data, fs, **feature_kwargs)
 
-    elif feature == Features.SIMPLE_TIME_DOMAIN:
-        data = _calculate_time_domain_features(data, fs)
-
-    # elif feature == Features.CHANNEL_SEL:
-    #     data = _channel_selection_test(data, fs, fft_low, channel_list)
+    elif feature_type == FeatureType.SIMPLE_TIME_DOMAIN:
+        data = _calculate_time_domain_features(data, fs, **feature_kwargs)
 
     else:
-        raise NotImplementedError('{} feature is not implemented'.format(feature))
+        raise NotImplementedError('{} feature is not implemented'.format(feature_type))
 
     return data

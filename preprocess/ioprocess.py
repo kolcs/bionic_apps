@@ -1,4 +1,5 @@
 import json
+import pathlib
 import pickle
 import time
 from os import makedirs
@@ -11,7 +12,7 @@ from sklearn.model_selection import KFold
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     CALM, ACTIVE, REST, DIR_FEATURE_DB
 from gui_handler import select_file_in_explorer
-from preprocess.feature_extraction import Features, make_feature_extraction, calculate_spatial_data
+from preprocess.feature_extraction import FeatureType, make_feature_extraction, calculate_spatial_data
 
 EPOCH_DB = 'preprocessed_database'
 
@@ -35,12 +36,13 @@ def open_raw_file(filename, preload=True):
     mne.Raw
         Raw mne file.
     """
-    ext = filename.split('.')[-1]
+    filename = pathlib.PurePath(filename)
+    ext = filename.suffix
 
-    if ext == 'edf':
-        raw = mne.io.read_raw_edf(filename, preload=preload)
-    elif ext == 'vhdr':
-        raw = mne.io.read_raw_brainvision(filename, preload=preload)
+    if ext == '.edf':
+        raw = mne.io.read_raw_edf(filename.as_posix(), preload=preload)
+    elif ext == '.vhdr':
+        raw = mne.io.read_raw_brainvision(filename.as_posix(), preload=preload)
     else:
         raise NotImplementedError('{} file reading is not implemented.'.format(ext))
 
@@ -525,13 +527,9 @@ class OfflineDataPreprocessor:
         self.eeg_file = eeg_file
 
         self._fs = int()
-        self._feature = Features.FFT_RANGE
-        self._fft_low = int()
-        self._fft_high = int()
-        self._fft_step = int()
-        self._fft_width = int()
         self._data_set = dict()
-        self._channel_list = None
+        self._feature_type = FeatureType.FFT_RANGE
+        self._feature_kwargs = dict()
 
         self._interp = None
         self._data_path = None
@@ -589,30 +587,21 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
-    def run(self, feature=Features.FFT_RANGE, fft_low=7, fft_high=13, fft_step=2, fft_width=2, channel=None,
-            reuse_data=False):
+    def run(self, feature_type=FeatureType.FFT_RANGE, reuse_data=False, **feature_kwargs):
         """Runs the Database preprocessor with the given features.
 
         Parameters
         ----------
-        feature : Features
+        feature_type : FeatureType
             Specify the features which will be created in the preprocessing phase.
-        fft_low : float or list of (float, float)
-            FFT parameters for frequency features. If list of tuples of 2 floats is given
-            it is interpreted as a list of specified frequency ranges with low and high
-            boundaries.
-        fft_high, fft_width, fft_step: float
-            FFT parameters for frequency features.
         reuse_data : bool
             Preprocess methods will be omitted if True. Use it for classifier
+        feature_kwargs
+            Arbitrary keyword arguments for feature extraction.
         """
         if not reuse_data or len(self._data_set) == 0:
-            self._feature = feature
-            self._fft_low = fft_low
-            self._fft_high = fft_high
-            self._fft_step = fft_step
-            self._fft_width = fft_width
-            self._channel_list = channel
+            self._feature_type = feature_type
+            self._feature_kwargs = feature_kwargs
             self._create_db()
 
     """
@@ -799,11 +788,11 @@ class OfflineDataPreprocessor:
             ep = epochs.copy()
             ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
 
-            if self._feature == Features.SPATIAL:
+            if self._feature_type == FeatureType.SPATIAL:
                 data, self._interp = calculate_spatial_data(self._interp, ep)
             else:
-                data = make_feature_extraction(self._feature, ep.get_data(), self._fs, self._fft_low, self._fft_high,
-                                               self._fft_width, self._fft_step, self._channel_list)
+                data = make_feature_extraction(self._feature_type, ep.get_data(), self._fs,
+                                               **self._feature_kwargs)
 
             self._update_and_label_win_epochs(win_epochs, data, tasks)
             # self._update_and_label_win_epochs(win_epochs, ep.get_data(), tasks)
@@ -829,11 +818,12 @@ class OfflineDataPreprocessor:
         feature : Features, optional
             Feature used in preprocess.
         """
-        if feature is not None and feature not in Features:
+        if feature is not None and feature not in FeatureType:
             raise NotImplementedError('Feature {} is not implemented'.format(feature))
-        if feature in Features:
-            self._feature = feature
-        self.proc_db_path = "{}{}{}{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR, self._feature.name)
+        if feature in FeatureType:
+            self._feature_type = feature
+        self.proc_db_path = "{}{}{}{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR,
+                                               self._feature_type.name)
 
     def _create_db(self):
         """Base db creator function."""
@@ -843,7 +833,7 @@ class OfflineDataPreprocessor:
         self._data_set = dict()
         tic = time.time()
         self.init_processed_db_path()
-        self._proc_db_source = self.proc_db_path + self._feature.name + '.db'
+        self._proc_db_source = self.proc_db_path + self._feature_type.name + '.db'
         make_dir(self.proc_db_path)
 
         def print_creation_message():
@@ -968,7 +958,7 @@ if __name__ == '__main__':
     base_dir = init_base_config('../')
 
     preprocessor = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot_par_a()
-    preprocessor.run(feature=Features.FFT_POWER)
+    preprocessor.run(feature_type=FeatureType.FFT_POWER)
 
     # this is how SubjectKFold works:
     subj_k_fold = SubjectKFold(10)
