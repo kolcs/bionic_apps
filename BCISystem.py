@@ -46,8 +46,6 @@ class BCISystem(object):
             To make log files or not.
         """
         self._base_dir = init_base_config()
-        # self._window_length = window_length
-        # self._window_step = window_step
         self._proc = None
         self._ai_model = dict()
         self._log = False
