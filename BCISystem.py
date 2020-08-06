@@ -49,7 +49,6 @@ class BCISystem(object):
         self._proc = None
         self._ai_model = dict()
         self._log = False
-        self._classifier_kwargs = dict()
 
         self._df = None
         self._df_base_data = list()
@@ -98,7 +97,7 @@ class BCISystem(object):
             print(self._df)
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
-    def _subject_corssvalidate(self, subject=None, k_fold_num=10):
+    def _subject_corssvalidate(self, subject=None, k_fold_num=10, classifier_kwargs=None):
         """Method for cross-validate classifier results of one subject.
 
         In each iteration a new classifier is created and new segment of data is given
@@ -110,7 +109,11 @@ class BCISystem(object):
             Subject number in a given database.
         k_fold_num : int
             The number of cross-validation.
+        classifier_kwargs : dict, optional
+             Arbitrary keyword arguments for classifier.
         """
+        if classifier_kwargs is None:
+            classifier_kwargs = {}
         if subject is None:
             subject = 1
         kfold = SubjectKFold(k_fold_num)
@@ -129,7 +132,7 @@ class BCISystem(object):
             #                                   self._proc._fft_high, self._proc._fft_width, self._proc._fft_step,
             #                                   self._proc._channel_list)
 
-            classifier = ai.MultiSVM(**self._classifier_kwargs)
+            classifier = ai.MultiSVM(**classifier_kwargs)
             classifier.fit(train_x, train_y)
 
             t = time.time() - t
@@ -151,7 +154,7 @@ class BCISystem(object):
         self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
         self._save_params((cross_acc, np.mean(cross_acc)))
 
-    def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False):
+    def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False, classifier_kwargs=None):
         """Method for cross-validate classifier results between many subjects.
 
         In each iteration a new classifier is created and new segment of data is given
@@ -163,14 +166,18 @@ class BCISystem(object):
         subj_n_fold_num : int, optional
             The number of cross-validation. If None is given the cross-validation
             will be made between all subjects in the database.
+        classifier_kwargs : dict, optional
+             Arbitrary keyword arguments for classifier.
         """
+        if classifier_kwargs is None:
+            classifier_kwargs = {}
         kfold = SubjectKFold(subj_n_fold_num)
 
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
             t = time.time()
             print('Training...')
 
-            classifier = ai.MultiSVM(**self._classifier_kwargs)
+            classifier = ai.MultiSVM(**classifier_kwargs)
             classifier.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -285,8 +292,9 @@ class BCISystem(object):
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
         """
+        if classifier_kwargs is None:
+            classifier_kwargs = {}
         assert feature_params is not None, 'Feature parameters must be defined.'
-        self._classifier_kwargs = classifier_kwargs if classifier_kwargs is dict else dict()
 
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
@@ -312,13 +320,13 @@ class BCISystem(object):
                                   ]
 
         if method == XvalidateMethod.CROSS_SUBJECT:
-            self._crosssubject_crossvalidate(subj_n_fold_num)
+            self._crosssubject_crossvalidate(subj_n_fold_num, classifier_kwargs=classifier_kwargs)
 
         elif method == XvalidateMethod.CROSS_SUBJECT_AND_SAVE_SVM:
-            self._crosssubject_crossvalidate(save_model=True)
+            self._crosssubject_crossvalidate(save_model=True, classifier_kwargs=classifier_kwargs)
 
         elif method == XvalidateMethod.SUBJECT:
-            self._subject_corssvalidate(subject, subj_n_fold_num)
+            self._subject_corssvalidate(subject, subj_n_fold_num, classifier_kwargs)
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
@@ -362,8 +370,9 @@ class BCISystem(object):
              Arbitrary keyword arguments for classifier.
         """
 
+        if classifier_kwargs is None:
+            classifier_kwargs = {}
         assert feature_params is not None, 'Feature parameters must be defined.'
-        self._classifier_kwargs = classifier_kwargs if classifier_kwargs is dict else dict()
 
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
@@ -377,8 +386,8 @@ class BCISystem(object):
         print('Training...')
         t = time.time()
         data, labels = self._proc.get_subject_data(0)
-        svm = ai.MultiSVM(**self._classifier_kwargs)
-        svm.fit(data, labels)
+        classifier = ai.MultiSVM(**classifier_kwargs)
+        classifier.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
         game_log = None
@@ -407,7 +416,7 @@ class BCISystem(object):
                 eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
 
                 data = make_feature_extraction(data=eeg, fs=dsp.fs, **feature_params)
-                y_pred = svm.predict(data)[0]
+                y_pred = classifier.predict(data)[0]
 
                 if make_binary_classification:
                     controller.control_game_with_2_opt(y_pred)
