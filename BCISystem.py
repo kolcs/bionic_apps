@@ -125,12 +125,10 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            # train_x = make_feature_extraction(self._feature, train_x, self._proc._fs, self._proc._fft_low,
-            #                                   self._proc._fft_high, self._proc._fft_width, self._proc._fft_step,
-            #                                   self._proc._channel_list)
-            # test_x = make_feature_extraction(self._feature, test_x, self._proc._fs, self._proc._fft_low,
-            #                                   self._proc._fft_high, self._proc._fft_width, self._proc._fft_step,
-            #                                   self._proc._channel_list)
+            # train_x = make_feature_extraction(self._proc.feature_type, train_x, self._proc.fs,
+            #                                   **self._proc.feature_kwargs)
+            # test_x = make_feature_extraction(self._proc.feature_type, test_x, self._proc.fs,
+            #                                  **self._proc.feature_kwargs)
 
             classifier = ai.MultiSVM(**classifier_kwargs)
             classifier.fit(train_x, train_y)
@@ -197,7 +195,7 @@ class BCISystem(object):
             if save_model:
                 print("Saving AI model...")
                 self._ai_model[test_subject] = classifier
-                save_pickle_data(self._ai_model, self._proc.proc_db_path + AI_MODEL)
+                save_pickle_data(self._ai_model, str(self._proc.proc_db_path.joinpath(AI_MODEL)))
                 print("Done\n")
 
     def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=4, window_length=1, window_step=.25,

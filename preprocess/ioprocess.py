@@ -1,10 +1,8 @@
-import json
-import pathlib
-import pickle
-import time
-from os import makedirs
-from os.path import exists, realpath, dirname, join
 from enum import Enum
+from json import dump as json_dump, load as json_load
+from pathlib import Path
+from pickle import dump as pkl_dump, load as pkl_load
+from time import time
 
 import mne
 import numpy as np
@@ -33,7 +31,7 @@ class Databases(Enum):
     GAME_PAR_D = 'game_par_d'
 
 
-def open_raw_file(filename, preload=True):
+def open_raw_file(filename, preload=True, **mne_kwargs):
     """Wrapper function to open either edf or brainvision files.
 
     Parameters
@@ -42,36 +40,36 @@ def open_raw_file(filename, preload=True):
         Absolute path and filename of raw file.
     preload : bool
         Load data to memory.
+    mne_kwargs
+        Arbitrary keywords for mne file opener functions.
 
     Returns
     -------
     mne.Raw
         Raw mne file.
     """
-    filename = pathlib.PurePath(filename)
+    filename = Path(filename)
     ext = filename.suffix
 
     if ext == '.edf':
-        raw = mne.io.read_raw_edf(filename.as_posix(), preload=preload)
+        raw = mne.io.read_raw_edf(str(filename), preload=preload, **mne_kwargs)
     elif ext == '.vhdr':
-        raw = mne.io.read_raw_brainvision(filename.as_posix(), preload=preload)
+        raw = mne.io.read_raw_brainvision(str(filename), preload=preload, **mne_kwargs)
     else:
         raise NotImplementedError('{} file reading is not implemented.'.format(ext))
 
     return raw
 
 
-def get_filenames_in(path, ext='', recursive=True):
+def get_filenames_in(path, ext=''):
     """Searches for files in the given path with specified extension
 
     Parameters
     ----------
-    path : str
+    path : str or PurePath
         path where to do the search
     ext : str
         file extension to search for
-    recursive : bool
-        Search should be recursive or not
 
     Returns
     -------
@@ -83,25 +81,10 @@ def get_filenames_in(path, ext='', recursive=True):
     FileNotFoundError
         If no files were found.
     """
-    import glob
-    if ext is None:
-        ext = ''
-    files = glob.glob(path + '/**/*' + ext, recursive=recursive)
-    if not files:
+    files = sorted(Path(path).glob('**/*' + ext))
+    if len(files) == 0:
         raise FileNotFoundError('Files are not available in path: {}'.format(path))
     return files
-
-
-def make_dir(path):
-    """Creates dir if it does not exists on given path
-
-    Parameters
-    ----------
-    path : str
-        path to new dir
-    """
-    if not exists(path):
-        makedirs(path)
 
 
 def filter_filenames(files, subject, runs):
@@ -284,20 +267,20 @@ def get_subject_number(filename):
 
 
 def load_pickle_data(filename):
-    if not exists(filename):
+    if not Path(filename).exists():
         return None
 
     with open(filename, 'rb') as fin:
-        data = pickle.load(fin)
+        data = pkl_load(fin)
     return data
 
 
 def save_pickle_data(data, filename):
     with open(filename, 'wb') as f:
-        pickle.dump(data, f)
+        pkl_dump(data, f)
 
 
-def init_base_config(path='./'):
+def init_base_config(path='.'):
     """Loads base directory path from pickle data. It it does not exist it creates it.
 
     Parameters
@@ -310,8 +293,8 @@ def init_base_config(path='./'):
     str
         Base directory path.
     """
-    file_dir = dirname(realpath('__file__'))
-    file = join(file_dir, path + CONFIG_FILE)
+    file_dir = Path('.').resolve()
+    file = file_dir.joinpath(path, CONFIG_FILE)
     cfg_dict = load_pickle_data(file)
     if cfg_dict is None:
         from gui_handler import select_base_dir
@@ -348,7 +331,7 @@ def _cut_real_movemet_data(raw):
 
 def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto',
                           prefilter_signal=False, f_type='butter', f_order=5, l_freq=1, h_freq=None,
-                          get_fs=False, cut_real_movement_tasks=False):
+                          cut_real_movement_tasks=False):
     """Generate epochs from files.
 
     Parameters
@@ -384,8 +367,6 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     raws = [open_raw_file(file, preload=False) for file in filenames]
     raw = raws.pop(0)
 
-    fs = raw.info['sfreq']
-
     for r in raws:
         raw.append(r)
     del raws
@@ -404,8 +385,6 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
                         tmax=epoch_tmax, preload=False, on_missing='warning')
 
-    if get_fs:
-        return epochs, fs
     return epochs
 
 
@@ -433,13 +412,13 @@ def _generate_window_list_from_epoch_list(epoch_list):
 
 def load_from_json(file):
     with open(file) as json_file:
-        data_dict = json.load(json_file)
+        data_dict = json_load(json_file)
     return data_dict
 
 
 def save_to_json(file, data_dict):
     with open(file, 'w') as outfile:
-        json.dump(data_dict, outfile, indent='\t')
+        json_dump(data_dict, outfile, indent='\t')
 
 
 def get_db_name_by_filename(filename):
@@ -543,7 +522,7 @@ class OfflineDataPreprocessor:
                  window_step=0.25, fast_load=True, make_binary_label=False, subject=None, select_eeg_file=False,
                  eeg_file=None):
 
-        self._base_dir = base_dir
+        self._base_dir = Path(base_dir)
         self._epoch_tmin = epoch_tmin
         self._epoch_tmax = epoch_tmax  # seconds
         self._window_length = window_length  # seconds
@@ -552,25 +531,22 @@ class OfflineDataPreprocessor:
         self._make_binary_label = make_binary_label
         self._subject_list = [subject] if type(subject) is int else subject
         self._select_one_file = select_eeg_file
+        self._info = mne.Info()
         self.eeg_file = eeg_file
 
-        self._fs = int()
         self._data_set = dict()
-        self._feature_type = FeatureType.FFT_RANGE
-        self._feature_kwargs = dict()
+        self.feature_type = FeatureType.FFT_RANGE
+        self.feature_kwargs = dict()
 
         self._interp = None
-        self._data_path = None
+        self._data_path = Path()
         self._db_type = None  # Physionet / TTK
 
-        self.proc_db_path = ''
+        self.proc_db_path = Path()
         self._proc_db_filenames = list()
-        self._proc_db_source = ''
+        self._proc_db_source = str()
 
         self._drop_subject = set() if use_drop_subject_list else None
-
-        if not base_dir[-1] == '/':
-            self._base_dir = base_dir + '/'
 
     def use_db(self, db_name):
         if db_name == Databases.PHYSIONET:
@@ -593,8 +569,8 @@ class OfflineDataPreprocessor:
 
     def _use_db(self, db_type):
         """Loads a specified database."""
-        self._data_path = self._base_dir + db_type.DIR
-        assert exists(self._data_path), "Path {} does not exists.".format(self._data_path)
+        self._data_path = self._base_dir.joinpath(db_type.DIR)
+        assert self._data_path.exists(), "Path {} does not exists.".format(self._data_path)
         self._db_type = db_type
 
         if self._drop_subject is not None:
@@ -634,6 +610,10 @@ class OfflineDataPreprocessor:
     def _db_ext(self):
         return self._db_type.DB_EXT
 
+    @property
+    def fs(self):
+        return self._info['sfreq']
+
     def run(self, feature_type=FeatureType.FFT_RANGE, reuse_data=False, **feature_kwargs):
         """Runs the Database preprocessor with the given features.
 
@@ -647,8 +627,8 @@ class OfflineDataPreprocessor:
             Arbitrary keyword arguments for feature extraction.
         """
         if not reuse_data or len(self._data_set) == 0:
-            self._feature_type = feature_type
-            self._feature_kwargs = feature_kwargs
+            self.feature_type = feature_type
+            self.feature_kwargs = feature_kwargs
             self._create_db()
 
     """
@@ -700,7 +680,7 @@ class OfflineDataPreprocessor:
         """
         data = dict()
         for filename in source_files:
-            d = load_pickle_data(self.proc_db_path + filename)
+            d = load_pickle_data(str(self.proc_db_path.joinpath(filename)))
             data.update(d)
 
         return data
@@ -718,7 +698,7 @@ class OfflineDataPreprocessor:
         self._data_set[subj] = subject_data
 
         db_file = 'subject{}.data'.format(subj)
-        save_pickle_data({subj: subject_data}, self.proc_db_path + db_file)
+        save_pickle_data({subj: subject_data}, str(self.proc_db_path.joinpath(db_file)))
         self._proc_db_filenames.append(db_file)
         # save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
@@ -762,10 +742,10 @@ class OfflineDataPreprocessor:
             for task in keys:
                 recs = self.convert_rask_to_recs(task)
                 task_dict = self.convert_task(recs[0])
-                filenames = generate_physionet_filenames(self._data_path + self._db_type.FILE_PATH, subj,
+                filenames = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj,
                                                          recs)
-                epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
-                                                         get_fs=True)
+                epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
+                self._info = epochs.info
                 win_epochs = self._get_windowed_features(epochs, task)
 
                 subject_data.update(win_epochs)
@@ -779,12 +759,14 @@ class OfflineDataPreprocessor:
 
         for subj in self._get_subject_list():
             if self._db_type is TTK_DB:
-                filenames = generate_ttk_filenames(self._data_path + self._db_type.FILE_PATH, subj)
+                filenames = generate_ttk_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
             else:
-                filenames = generate_pilot_filenames(self._data_path + self._db_type.FILE_PATH, subj)
+                filenames = generate_pilot_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
 
-            epochs, self._fs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
-                                                     get_fs=True, cut_real_movement_tasks=True)
+            epochs = get_epochs_from_files(filenames, task_dict,
+                                           self._epoch_tmin, self._epoch_tmax,
+                                           cut_real_movement_tasks=True)
+            self._info = epochs.info
             subject_data = self._get_windowed_features(epochs)
             self._save_preprocessed_subject_data(subject_data, subj)
 
@@ -793,12 +775,12 @@ class OfflineDataPreprocessor:
     def _create_db_from_file(self):
         """Game database creation"""
         if self.eeg_file is None:
-            self.eeg_file = select_file_in_explorer(self._base_dir)
+            self.eeg_file = select_file_in_explorer(str(self._base_dir))
         task_dict = self.convert_task()
-        epochs, self._fs = get_epochs_from_files(self.eeg_file, task_dict,
-                                                 self._epoch_tmin, self._epoch_tmax,
-                                                 get_fs=True,
-                                                 cut_real_movement_tasks=True)
+        epochs = get_epochs_from_files(self.eeg_file, task_dict,
+                                       self._epoch_tmin, self._epoch_tmax,
+                                       cut_real_movement_tasks=True)
+        self._info = epochs.info
         self._data_set[0] = self._get_windowed_features(epochs)
 
     def _get_windowed_features(self, epochs, task=None):
@@ -827,7 +809,7 @@ class OfflineDataPreprocessor:
         tasks = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
         win_epochs = {'{}{}'.format(tsk, i): list() for i, tsk in enumerate(tasks)}
 
-        window_length = self._window_length - 1 / self._fs  # win length correction
+        window_length = self._window_length - 1 / self.fs  # win length correction
         win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
             if self._window_step > 0 else 1
 
@@ -835,11 +817,11 @@ class OfflineDataPreprocessor:
             ep = epochs.copy()
             ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
 
-            if self._feature_type == FeatureType.SPATIAL:
+            if self.feature_type == FeatureType.SPATIAL:
                 data, self._interp = calculate_spatial_data(self._interp, ep)
             else:
-                data = make_feature_extraction(self._feature_type, ep.get_data(), self._fs,
-                                               **self._feature_kwargs)
+                data = make_feature_extraction(self.feature_type, ep.get_data(), self.fs,
+                                               **self.feature_kwargs)
 
             self._update_and_label_win_epochs(win_epochs, data, tasks)
             # self._update_and_label_win_epochs(win_epochs, ep.get_data(), tasks)
@@ -868,9 +850,8 @@ class OfflineDataPreprocessor:
         if feature is not None and feature not in FeatureType:
             raise NotImplementedError('Feature {} is not implemented'.format(feature))
         if feature in FeatureType:
-            self._feature_type = feature
-        self.proc_db_path = "{}{}{}{}/".format(self._base_dir, DIR_FEATURE_DB, self._db_type.DIR,
-                                               self._feature_type.name)
+            self.feature_type = feature
+        self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, self.feature_type.name)
 
     def _create_db(self):
         """Base db creator function."""
@@ -878,10 +859,10 @@ class OfflineDataPreprocessor:
         assert self._db_type is not None, \
             'Define a database with .use_<db_name>() function before creating the database!'
         self._data_set = dict()
-        tic = time.time()
+        tic = time()
         self.init_processed_db_path()
-        self._proc_db_source = self.proc_db_path + self._feature_type.name + '.db'
-        make_dir(self.proc_db_path)
+        self._proc_db_source = str(self.proc_db_path.joinpath(self.feature_type.name + '.db'))
+        Path(self.proc_db_path).mkdir(exist_ok=True)
 
         def print_creation_message():
             print('{} file is not found. Creating database.'.format(file))
@@ -916,7 +897,7 @@ class OfflineDataPreprocessor:
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
 
-        print('Database initialization took {} seconds.'.format(int(time.time() - tic)))
+        print('Database initialization took {} seconds.'.format(int(time() - tic)))
 
     def get_subject_data(self, subject, reduce_rest=True, shuffle=True, random_seed=None):
         """Returns data for one subject.

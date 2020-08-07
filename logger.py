@@ -2,11 +2,11 @@ import datetime
 import logging
 import socket
 from enum import Enum
+from pathlib import Path
 from struct import unpack
 from threading import Thread
 
 from config import ControlCommand
-from preprocess import make_dir
 
 UDP_IP = '127.0.0.1'
 UDP_PORT = 8053
@@ -154,7 +154,7 @@ def setup_logger(logger_name, log_file='', log_dir='log/', level=logging.INFO, l
         Log info to the stream also.
 
     """
-    make_dir(log_dir)
+    Path(log_dir).mkdir(exist_ok=True)
     logger = logging.getLogger(logger_name)
     formatter = logging.Formatter('%(asctime)s : %(name)s %(levelname)s: %(message)s')
     file_handler = logging.FileHandler(
