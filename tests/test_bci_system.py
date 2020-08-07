@@ -1,6 +1,7 @@
 import unittest
 from multiprocessing import Process
-from pathlib import PurePath
+from pathlib import PurePath, Path
+from shutil import rmtree
 
 import timeout_decorator
 
@@ -12,8 +13,27 @@ from preprocess import init_base_config
 # @unittest.skip("Not interested")
 class TestOfflineBciSystem(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        path = init_base_config()
+        path = str(PurePath(path).joinpath('tmp'))
+        rmtree(path)
+
     def setUp(self):
         self.bci = BCISystem()
+
+    def test_physionet_subject_x_val(self):
+        feature_extraction = dict(
+            feature_type=FeatureType.FFT_POWER,
+            fft_low=14, fft_high=30
+        )
+        self.assertIsNone(self.bci.offline_processing(
+            Databases.PHYSIONET, feature_params=feature_extraction,
+            epoch_tmin=0, epoch_tmax=4,
+            window_length=1, window_step=.1,
+            method=XvalidateMethod.SUBJECT,
+            subject=1,
+        ))
 
     def test_subject_x_val_fft_power(self):
         feature_extraction = dict(
@@ -26,7 +46,6 @@ class TestOfflineBciSystem(unittest.TestCase):
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject=1,
-            make_binary_classification=True
         ))
 
     def test_subject_x_val_fft_range(self):
@@ -40,7 +59,6 @@ class TestOfflineBciSystem(unittest.TestCase):
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject=1,
-            make_binary_classification=True
         ))
 
     def test_subject_x_val_multi_fft_power(self):
@@ -55,10 +73,11 @@ class TestOfflineBciSystem(unittest.TestCase):
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject=1,
-            make_binary_classification=True
         ))
 
 
+@unittest.skipUnless(Path(init_base_config('..')).joinpath('Game', 'paradigmD', 'subject2', 'game01.vhdr').exists(),
+                     "No files found for live eeg simulation.")
 class TestOnlineBci(unittest.TestCase):
     _live_eeg_emulator = Process()
 

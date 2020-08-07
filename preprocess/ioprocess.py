@@ -862,7 +862,7 @@ class OfflineDataPreprocessor:
         tic = time()
         self.init_processed_db_path()
         self._proc_db_source = str(self.proc_db_path.joinpath(self.feature_type.name + '.db'))
-        Path(self.proc_db_path).mkdir(exist_ok=True)
+        Path(self.proc_db_path).mkdir(parents=True, exist_ok=True)
 
         def print_creation_message():
             print('{} file is not found. Creating database.'.format(file))
