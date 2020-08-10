@@ -1,7 +1,6 @@
 import mne
 import numpy as np
 from matplotlib import pyplot as plt
-from preprocess.ioprocess import OfflineDataPreprocessor, get_record_number, open_raw_file
 
 
 def plot_avg(epochs):
@@ -189,87 +188,5 @@ def test_plot_topomap(epochs, layout, ch_type='eeg', crop=True):
     plt.show()
 
 
-def filter_on_file(filename, proc, tmin=0, tmax=4, ref_channels=None):
-    """
-    Makes feature extraction methods on given file
-    Select feature extreaction method in for cycle.
-    Only for demonstration purpose...
-    """
-    raw = open_raw_file(filename)
-
-    """MUST HAVE!!! Otherwise error!"""
-    raw.rename_channels(lambda x: x.strip('.'))
-
-    if ref_channels is not None:
-        raw.set_eeg_reference(ref_channels=ref_channels)
-
-    rec_num = get_record_number(filename)
-    task_dict = proc.convert_task(rec_num)
-    layout = mne.channels.read_layout('EEG1005')
-
-    # raw_alpha = raw.copy()
-    # raw_beta = raw.copy()
-    # raw_alpha = raw_alpha.filter(7, 13)
-    # raw_beta = raw_beta.filter(14, 30)
-
-    events, _ = mne.events_from_annotations(raw, event_id=proc.get_trigger_event_id())
-
-    epochs = mne.Epochs(raw, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
-    # epoch_alpha = mne.Epochs(raw_alpha, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
-    # epoch_beta = mne.Epochs(raw_beta, events, event_id=task_dict, tmin=tmin, tmax=tmax, preload=True)
-
-    test_plot_topomap(epochs, layout)
-
-    filter_raw_butter(raw)
-    bands = [(i, i + 2, '{}-{} Hz'.format(i, i + 2)) for i in range(0, 40, 2)]
-
-    from config import EYE_OPEN, EYE_CLOSED
-    n_ = min([len(epochs[task]) for task in task_dict if task != EYE_OPEN and task != EYE_CLOSED])
-    n_ = 5
-    fignum = 1
-    for i in range(n_):
-        for task in task_dict:
-            ep = epochs[task]
-            if i < len(ep):
-                # wavelet_time_freq(ep[i], channels=['Cz', 'C3', 'C4'], title=task+str(i))
-                plot_topo_psd(ep[i], layout, title=task + str(i), bands=bands)
-                # plot_projs_topomap(epochs[task], layout=layout, title=task)
-                # ica_artefact_correction(ep, layout=layout, title=task + str(i))
-
-                # plt.savefig('fig{}.png'.format(fignum), format='png')
-                fignum += 1
-
-    # epoch_alpha['left hand'].plot(n_channels=len(raw.info['ch_names']) - 1, events=events, block=True)
-
-    # plot_avg(epoch_alpha)
-
-    # # CSP
-    # n_comp = 4
-    # plot_csp(epoch_alpha, layout, n_components=n_comp, title='alpha range')
-    # plot_csp(epoch_beta, layout, n_components=n_comp, title='beta range')
-
-    plt.show()
-
-
 if __name__ == '__main__':
-    base_dir = "D:/BCI_stuff/databases/"  # MTA TTK
-    # base_dir = 'D:/Csabi/'  # Home
-    # base_dir = "D:/Users/Csabi/data/"  # ITK
-    # base_dir = "/home/csabi/databases/"  # linux
-
-    proc = OfflineDataPreprocessor(base_dir)
-
-    subj = 2
-    rec = 8
-
-    db = 'pilot'  # 'physionet
-
-    if db == 'pilot':
-        file = '{}Cybathlon pilot/pilot{}/rec01.vhdr'.format(base_dir, subj)
-        proc.use_pilot_par_a()
-        filter_on_file(file, proc, ref_channels=['TP9', 'TP10'])
-    else:  # physionet
-        file = '{}physionet.org/physiobank/database/eegmmidb/S{:03d}/S{:03d}R{:02d}.edf'.format(base_dir, subj, subj,
-                                                                                                rec)
-        proc.use_physionet()
-        filter_on_file(file, proc)
+    pass
