@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from json import dump as json_dump, load as json_load
 from pathlib import Path
@@ -48,26 +49,27 @@ def open_raw_file(filename, preload=True, **mne_kwargs):
     mne.Raw
         Raw mne file.
     """
-    filename = Path(filename)
-    ext = filename.suffix
+    ext = Path(filename).suffix
 
     if ext == '.edf':
-        raw = mne.io.read_raw_edf(str(filename), preload=preload, **mne_kwargs)
+        raw = mne.io.read_raw_edf(filename, preload=preload, **mne_kwargs)
     elif ext == '.vhdr':
-        raw = mne.io.read_raw_brainvision(str(filename), preload=preload, **mne_kwargs)
+        raw = mne.io.read_raw_brainvision(filename, preload=preload, **mne_kwargs)
     else:
         raise NotImplementedError('{} file reading is not implemented.'.format(ext))
 
     return raw
 
 
-def get_filenames_in(path, ext=''):
+def get_filenames_in(path, pattern='**/*', ext=''):
     """Searches for files in the given path with specified extension
 
     Parameters
     ----------
     path : str or PurePath
         path where to do the search
+    pattern : str
+        Regex pattern to search for.
     ext : str
         file extension to search for
 
@@ -81,7 +83,7 @@ def get_filenames_in(path, ext=''):
     FileNotFoundError
         If no files were found.
     """
-    files = sorted(Path(path).glob('**/*' + ext))
+    files = sorted(Path(path).glob(pattern + ext))
     if len(files) == 0:
         raise FileNotFoundError('Files are not available in path: {}'.format(path))
     return files
@@ -713,7 +715,7 @@ class OfflineDataPreprocessor:
             subject_num = 0
         return subject_num
 
-    def _get_subject_list(self):  # todo: rethink
+    def _get_subject_list(self):  # todo: rethink...
         """Returns the list of subjects and removes the unwanted ones."""
         subject_num = self._get_subject_num()
         if self._subject_list is not None:
@@ -730,7 +732,7 @@ class OfflineDataPreprocessor:
                 print('Dropping subject {}'.format(subj))
         return subject_list
 
-    def _create_physionet_db(self):
+    def _create_physionet_db(self):  # todo: rethink...
         """Physionet feature db creator function"""
 
         keys = self._db_type.TASK_TO_REC.keys()
@@ -770,6 +772,43 @@ class OfflineDataPreprocessor:
             subject_data = self._get_windowed_features(epochs)
             self._save_preprocessed_subject_data(subject_data, subj)
 
+        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
+
+    def _create_brainvision_db(self):
+        """Brainvision feature db creator function"""
+        task_dict = self.convert_task()
+
+        filenames = sorted(Path(self._data_path).rglob('rec01.vhdr'))
+
+        subject_list = self._subject_list.copy()
+        if subject_list is not None:
+            assert set(subject_list) != self._drop_subject, 'All the selected subjects are in the drop list!'
+
+        for file in filenames:
+            file = str(file)
+
+            subj = re.findall(r'subject\d+|pilot\d+', file)[0]
+            subj = subj.replace('subject', '') if 'subject' in subj else subj.replace('pilot', '')
+            subj = int(subj)
+
+            if subj in self._drop_subject:
+                print('Dropping subject {}'.format(subj))
+                continue
+            if subject_list is not None:
+                if subj not in subject_list:
+                    continue
+                else:
+                    subject_list.remove(subj)
+
+            epochs = get_epochs_from_files(file, task_dict,
+                                           self._epoch_tmin, self._epoch_tmax,
+                                           cut_real_movement_tasks=True)
+            self._info = epochs.info
+            subject_data = self._get_windowed_features(epochs)
+            self._save_preprocessed_subject_data(subject_data, subj)
+
+        if subject_list is not None:
+            assert len(subject_list) == 0, 'The following subjects are not in the database: {}'.format(subject_list)
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_db_from_file(self):
@@ -884,6 +923,7 @@ class OfflineDataPreprocessor:
         elif not self._select_one_file and self.eeg_file is None:
             print_creation_message()
             self._create_ttk_db()
+            # self._create_brainvision_db()
 
         elif self._db_type in [GameDB, Game_ParadigmC]:
             print_creation_message()
