@@ -75,9 +75,6 @@ class GameDB:
 
 class Game_ParadigmC:
     DIR = "Game/paradigmC/"
-    CHANNEL_NUM = 63
-    FS = 500
-    DB_EXT = '.vhdr'
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -104,9 +101,6 @@ class Game_ParadigmC:
 
 class Game_ParadigmD:
     DIR = "Game/paradigmD/"
-    CHANNEL_NUM = 63
-    FS = 500
-    DB_EXT = '.vhdr'
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -126,9 +120,6 @@ class Game_ParadigmD:
 
 class PilotDB_ParadigmA:
     DIR = "Cybathlon_pilot/paradigmA/"
-    CHANNEL_NUM = 63
-    FS = 500
-    DB_EXT = '.vhdr'
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -148,9 +139,6 @@ class PilotDB_ParadigmA:
 
 class PilotDB_ParadigmB:
     DIR = "Cybathlon_pilot/paradigmB/"
-    CHANNEL_NUM = 63
-    FS = 500
-    DB_EXT = '.vhdr'
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -170,9 +158,6 @@ class PilotDB_ParadigmB:
 
 class TTK_DB:
     DIR = "TTK/"
-    CHANNEL_NUM = 63
-    FS = 500
-    DB_EXT = '.vhdr'
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
@@ -193,9 +178,6 @@ class TTK_DB:
 class Physionet:
     # What is FP region in channels???
     DIR = "physionet.org/"
-    CHANNEL_NUM = 64
-    FS = 160
-    DB_EXT = '.edf'
     SUBJECT_NUM = 109
     FILE_PATH = 'physiobank/database/eegmmidb/S{subj}/S{subj}R{rec}.edf'
 

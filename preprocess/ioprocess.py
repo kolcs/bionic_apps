@@ -1,4 +1,3 @@
-import re
 from enum import Enum
 from json import dump as json_dump, load as json_load
 from pathlib import Path
@@ -59,64 +58,6 @@ def open_raw_file(filename, preload=True, **mne_kwargs):
         raise NotImplementedError('{} file reading is not implemented.'.format(ext))
 
     return raw
-
-
-def get_filenames_in(path, pattern='**/*', ext=''):
-    """Searches for files in the given path with specified extension
-
-    Parameters
-    ----------
-    path : str or PurePath
-        path where to do the search
-    pattern : str
-        Regex pattern to search for.
-    ext : str
-        file extension to search for
-
-    Returns
-    -------
-    list of str
-        Result of search.
-
-    Raises
-    ------
-    FileNotFoundError
-        If no files were found.
-    """
-    files = sorted(Path(path).glob(pattern + ext))
-    if len(files) == 0:
-        raise FileNotFoundError('Files are not available in path: {}'.format(path))
-    return files
-
-
-def filter_filenames(files, subject, runs):
-    """Filter file names for one subject and for given record numbers.
-
-    Only for Physionet data.
-
-    Parameters
-    ----------
-    files : list of str
-        Filenames to filter.
-    subject : int
-        Filter files to this subject.
-    runs : list of int
-        Filter files to this run.
-
-    Returns
-    -------
-    list of str
-        Filtered file list.
-    """
-    rec = list()
-    subj = [f for f in files if subject == get_subject_number(f)]
-
-    for s in subj:
-        for i in runs:
-            if i == get_record_number(s):
-                rec.append(s)
-
-    return rec
 
 
 def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs, run_format_str):
@@ -223,49 +164,6 @@ def generate_ttk_filenames(file_path, subject, runs=1):
 
         """
     return _generate_filenames_for_subject(file_path, subject, '{:02d}', runs, '{:02d}')
-
-
-def get_num_with_predefined_char(filename, char, required_num='required'):
-    """
-    Searches for number in filename
-
-    :param char: character to search for
-    :param required_num: string to print in error message
-    :return: number after given char
-    :raises FileNotFoundError if none numbers were found
-    """
-    import re
-    num_list = re.findall(r'.*' + char + '\d+', filename)
-    if not num_list:
-        import warnings
-        warnings.warn("Can not give back {} number: filename '{}' does not contain '{}' character.".format(required_num,
-                                                                                                           filename,
-                                                                                                           char))
-        return None
-
-    num_str = num_list[0]
-    num_ind = num_str.rfind(char) - len(num_str) + 1
-    return int(num_str[num_ind:])
-
-
-def get_record_number(filename):
-    """
-    Only works if record number is stored in filename:
-        *R<record num>*
-
-    :return: record number from filename
-    """
-    return get_num_with_predefined_char(filename, 'R', "RECORD")
-
-
-def get_subject_number(filename):
-    """
-    Only works if subject number is stored in filename:
-        *S<record num>*
-
-    :return: record number from filename
-    """
-    return get_num_with_predefined_char(filename, 'S', "SUBJECT")
 
 
 def load_pickle_data(filename):
@@ -609,10 +507,6 @@ class OfflineDataPreprocessor:
         return self
 
     @property
-    def _db_ext(self):
-        return self._db_type.DB_EXT
-
-    @property
     def fs(self):
         return self._info['sfreq']
 
@@ -636,12 +530,6 @@ class OfflineDataPreprocessor:
     """
     Database functions
     """
-
-    def _get_filenames(self):
-        return get_filenames_in(self._data_path, self._db_ext)
-
-    def convert_type(self, record_number):
-        return self._db_type.TRIGGER_CONV_REC_TO_TYPE.get(record_number)
 
     def convert_task(self, record_number=None):
         if record_number is None:
@@ -708,11 +596,10 @@ class OfflineDataPreprocessor:
         """Returns the number of available subjects in Database"""
         if self._db_type is Physionet:
             return self._db_type.SUBJECT_NUM
-        try:
-            file = 'rec01.vhdr'
-            subject_num = len(get_filenames_in(self._data_path, file))
-        except FileNotFoundError:
-            subject_num = 0
+
+        file = 'rec01.vhdr'
+        subject_num = len(sorted(Path(self._data_path).rglob(file)))
+
         return subject_num
 
     def _get_subject_list(self):  # todo: rethink...
@@ -772,43 +659,6 @@ class OfflineDataPreprocessor:
             subject_data = self._get_windowed_features(epochs)
             self._save_preprocessed_subject_data(subject_data, subj)
 
-        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
-
-    def _create_brainvision_db(self):
-        """Brainvision feature db creator function"""
-        task_dict = self.convert_task()
-
-        filenames = sorted(Path(self._data_path).rglob('rec01.vhdr'))
-
-        subject_list = self._subject_list.copy()
-        if subject_list is not None:
-            assert set(subject_list) != self._drop_subject, 'All the selected subjects are in the drop list!'
-
-        for file in filenames:
-            file = str(file)
-
-            subj = re.findall(r'subject\d+|pilot\d+', file)[0]
-            subj = subj.replace('subject', '') if 'subject' in subj else subj.replace('pilot', '')
-            subj = int(subj)
-
-            if subj in self._drop_subject:
-                print('Dropping subject {}'.format(subj))
-                continue
-            if subject_list is not None:
-                if subj not in subject_list:
-                    continue
-                else:
-                    subject_list.remove(subj)
-
-            epochs = get_epochs_from_files(file, task_dict,
-                                           self._epoch_tmin, self._epoch_tmax,
-                                           cut_real_movement_tasks=True)
-            self._info = epochs.info
-            subject_data = self._get_windowed_features(epochs)
-            self._save_preprocessed_subject_data(subject_data, subj)
-
-        if subject_list is not None:
-            assert len(subject_list) == 0, 'The following subjects are not in the database: {}'.format(subject_list)
         save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_db_from_file(self):
@@ -923,7 +773,6 @@ class OfflineDataPreprocessor:
         elif not self._select_one_file and self.eeg_file is None:
             print_creation_message()
             self._create_ttk_db()
-            # self._create_brainvision_db()
 
         elif self._db_type in [GameDB, Game_ParadigmC]:
             print_creation_message()
