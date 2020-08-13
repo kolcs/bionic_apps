@@ -14,11 +14,23 @@ class FeatureType(Enum):
     SIMPLE_TIME_DOMAIN = auto()
 
 
+def _get_fft_power(data, fs, get_abs=True):
+    """Calculating the frequency power."""
+    n_data_point, n_channel, n_timeponts = data.shape
+    fft_res = np.fft.rfft(data)
+    if get_abs:
+        fft_res = np.abs(fft_res)
+    # fft_res = fft_res**2
+    freqs = np.fft.rfftfreq(n_timeponts, 1. / fs)
+    return fft_res, freqs
+
+
 def _init_interp(interp, epochs, ch_type='eeg'):
     """spatial data creator initializer
 
-    This function initialize the interpreter which can be used to generate spatially distributed data
-    from eeg signal if it is None. Otherwise returns it
+    This function initialize the interpreter which can be used to generate spatially
+    distributed data from eeg signal if it is None. Otherwise returns it.
+    This is the simplest solution to initialize the coordinates.
 
     Parameters
     ----------
@@ -30,16 +42,21 @@ def _init_interp(interp, epochs, ch_type='eeg'):
     Returns
     -------
     interp : mne.viz.topomap._GridData
-        interpreter for spatially distributed data creation
+        Interpreter for spatially distributed data creation, containing
+        CloughTocher2DInterpolator.
 
     """
     if interp is None:
-        from mne.channels import _get_ch_type, read_layout
+        from mne.channels import read_layout, make_eeg_layout
         from mne.viz import plot_topomap
         from mne.viz.topomap import _prepare_topo_plot
 
-        layout = read_layout('EEG1005')
-        ch_type = _get_ch_type(epochs, ch_type)
+        try:
+            layout = make_eeg_layout(epochs.info)
+        except RuntimeError:
+            layout = read_layout('EEG1005')
+
+        # ch_type = _get_ch_type(epochs, ch_type)
         picks, pos, merge_grads, names, ch_type = _prepare_topo_plot(
             epochs, ch_type, layout)
         data = epochs.get_data()[0, :, 0]
@@ -50,10 +67,45 @@ def _init_interp(interp, epochs, ch_type='eeg'):
     return interp
 
 
-def calculate_spatial_data(interp, epochs, crop=True):
-    """Spatial data from epochs
+def _calculate_spatial_interpolation(interp, data, crop=True):
+    """Spatial interpolation.
 
-    Creates spatially distributed data for each epoch.
+    This function mimics the mne.viz.plot_topomap() function, however it returns
+    with real data instead of a matplotlib instance.
+
+    Parameters
+    ----------
+    interp : mne.viz.topomap._GridData
+        Interpreter for spatially distributed data creation, containing
+        CloughTocher2DInterpolator.
+    data : ndarray
+        Data to interpolate. shape: (n,)
+    crop : bool
+        If crop true values will be zeroed out outside of middle circle.
+
+    Returns
+    -------
+    ndarray
+        Spatially interpolated data.
+
+    """
+    interp.set_values(data)
+    spatial_data = interp()
+
+    # removing data from the border - ROUND electrode system
+    if crop:
+        r = np.size(spatial_data, axis=0) / 2
+        for i in range(int(2 * r)):
+            for j in range(int(2 * r)):
+                if np.power(i - r, 2) + np.power(j - r, 2) > np.power(r, 2):
+                    spatial_data[i, j] = 0
+    return spatial_data
+
+
+def calculate_spatial_data(interp, epochs, crop=True):
+    """Spatial data from epochs.
+
+    Creates spatially distributed data for each epoch in the window.
 
     Parameters
     ----------
@@ -77,17 +129,9 @@ def calculate_spatial_data(interp, epochs, crop=True):
 
     for k in range(np.size(epochs, 0)):
         ep = data3d[k, :, :]
+        # todo: psd --> average freq. range
         ep = np.average(ep, axis=1)  # average time for each channel
-        interp.set_values(ep)
-        spatial_data = interp()
-
-        # removing data from the border - ROUND electrode system
-        if crop:
-            r = np.size(spatial_data, axis=0) / 2
-            for i in range(int(2 * r)):
-                for j in range(int(2 * r)):
-                    if np.power(i - r, 2) + np.power(j - r, 2) > np.power(r, 2):
-                        spatial_data[i, j] = 0
+        spatial_data = _calculate_spatial_interpolation(interp, ep, crop)
 
         spatial_list.append(spatial_data)
 
@@ -165,17 +209,13 @@ def _calculate_multi_fft_power(data, fs, fft_ranges, **kwargs):
     """
     assert type(fft_ranges) is list and type(fft_ranges[0]) is tuple, 'Invalid argument for MULTI_FFT_POWER'
 
-    n_data_point, n_channel, n_timeponts = data.shape
-    fft_res = np.abs(np.fft.rfft(data))
-    # fft_res = fft_res**2
-    freqs = np.linspace(0, fs / 2, int(n_timeponts / 2) + 1)
+    fft_res, freqs = _get_fft_power(data, fs)
 
     data = list()
-
     for fft_low, fft_high in fft_ranges:
-        ind = [i for i, f in enumerate(freqs) if fft_low <= f <= fft_high]
-        assert len(ind) > 0, 'Empty frequency range between {} and {} Hz'.format(fft_low, fft_high)
-        fft_power = np.average(fft_res[:, :, ind], axis=-1)
+        fft_mask = (freqs >= fft_low) & (freqs <= fft_high)
+        assert np.any(fft_mask), 'Empty frequency range between {} and {} Hz'.format(fft_low, fft_high)
+        fft_power = np.average(fft_res[:, :, fft_mask], axis=-1)
         data.append(fft_power)
 
     data = np.transpose(data, (1, 0, 2))

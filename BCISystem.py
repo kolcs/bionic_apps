@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-import ai
 import online
+from ai import init_classifier, ClassifierType
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, init_base_config, FeatureType, \
@@ -97,7 +97,8 @@ class BCISystem(object):
             print(self._df)
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
-    def _subject_corssvalidate(self, subject=None, k_fold_num=10, classifier_kwargs=None):
+    def _subject_corssvalidate(self, subject=None, k_fold_num=10,
+                               classifier_type=ClassifierType.SVM, classifier_kwargs=None):
         """Method for cross-validate classifier results of one subject.
 
         In each iteration a new classifier is created and new segment of data is given
@@ -109,6 +110,8 @@ class BCISystem(object):
             Subject number in a given database.
         k_fold_num : int
             The number of cross-validation.
+        classifier_type : ClassifierType
+            The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
         """
@@ -130,7 +133,7 @@ class BCISystem(object):
             # test_x = make_feature_extraction(self._proc.feature_type, test_x, self._proc.fs,
             #                                  **self._proc.feature_kwargs)
 
-            classifier = ai.MultiSVM(**classifier_kwargs)
+            classifier = init_classifier(classifier_type, **classifier_kwargs)
             classifier.fit(train_x, train_y)
 
             t = time.time() - t
@@ -152,7 +155,8 @@ class BCISystem(object):
         self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
         self._save_params((cross_acc, np.mean(cross_acc)))
 
-    def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False, classifier_kwargs=None):
+    def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False,
+                                    classifier_type=ClassifierType.SVM, classifier_kwargs=None):
         """Method for cross-validate classifier results between many subjects.
 
         In each iteration a new classifier is created and new segment of data is given
@@ -164,6 +168,8 @@ class BCISystem(object):
         subj_n_fold_num : int, optional
             The number of cross-validation. If None is given the cross-validation
             will be made between all subjects in the database.
+        classifier_type : ClassifierType
+            The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
         """
@@ -175,7 +181,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            classifier = ai.MultiSVM(**classifier_kwargs)
+            classifier = init_classifier(classifier_type, **classifier_kwargs)
             classifier.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -249,7 +255,7 @@ class BCISystem(object):
                            subject=None, use_drop_subject_list=True, fast_load=False,
                            subj_n_fold_num=None, make_binary_classification=False, reuse_data=False,
                            train_file=None,
-                           classifier_kwargs=None):
+                           classifier_type=ClassifierType.SVM, classifier_kwargs=None):
         """Offline data processing.
 
         This method creates an offline BCI-System which make the data preprocessing
@@ -287,6 +293,8 @@ class BCISystem(object):
             hyper-parameter selection only.
         train_file : str, optional
             File to train on.
+        classifier_type : ClassifierType
+            The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
         """
@@ -318,13 +326,15 @@ class BCISystem(object):
                                   ]
 
         if method == XvalidateMethod.CROSS_SUBJECT:
-            self._crosssubject_crossvalidate(subj_n_fold_num, classifier_kwargs=classifier_kwargs)
+            self._crosssubject_crossvalidate(subj_n_fold_num, classifier_type=classifier_type,
+                                             classifier_kwargs=classifier_kwargs)
 
         elif method == XvalidateMethod.CROSS_SUBJECT_AND_SAVE_SVM:
-            self._crosssubject_crossvalidate(save_model=True, classifier_kwargs=classifier_kwargs)
+            self._crosssubject_crossvalidate(save_model=True, classifier_type=classifier_type,
+                                             classifier_kwargs=classifier_kwargs)
 
         elif method == XvalidateMethod.SUBJECT:
-            self._subject_corssvalidate(subject, subj_n_fold_num, classifier_kwargs)
+            self._subject_corssvalidate(subject, subj_n_fold_num, classifier_type, classifier_kwargs)
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
@@ -337,6 +347,7 @@ class BCISystem(object):
                   use_binary_game_logger=False,
                   make_opponents=False,
                   train_file=None,
+                  classifier_type=ClassifierType.SVM,
                   classifier_kwargs=None):
         """Function for online BCI game and control.
 
@@ -364,6 +375,8 @@ class BCISystem(object):
             Artificial opponents for game player.
         train_file : str, optional
             File to train on. Use it only for test function.
+        classifier_type : ClassifierType
+            The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
         """
@@ -384,7 +397,7 @@ class BCISystem(object):
         print('Training...')
         t = time.time()
         data, labels = self._proc.get_subject_data(0)
-        classifier = ai.MultiSVM(**classifier_kwargs)
+        classifier = init_classifier(classifier_type, **classifier_kwargs)
         classifier.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 

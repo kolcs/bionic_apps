@@ -4,6 +4,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Normalizer
 from sklearn.svm import SVC
 
+from .classifier import ClassifierInterface
+
 
 class OnlinePipeline(Pipeline):
 
@@ -26,7 +28,7 @@ class OnlinePipeline(Pipeline):
         return self
 
 
-class MultiSVM(object):
+class MultiSVM(ClassifierInterface):
     def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='scale',
                  coef0=0.0, shrinking=True, probability=False,
                  tol=1e-3, cache_size=200, class_weight=None,
@@ -48,7 +50,7 @@ class MultiSVM(object):
         svm = self._svms[i]
         return svm.predict(data)
 
-    def fit(self, X, y):
+    def fit(self, X, y, **kwargs):
         """
 
         Parameters

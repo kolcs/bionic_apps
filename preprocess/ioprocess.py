@@ -31,6 +31,10 @@ class Databases(Enum):
     GAME_PAR_D = 'game_par_d'
 
 
+def open_raw_with_gui():
+    return open_raw_file(select_file_in_explorer(init_base_config()))
+
+
 def open_raw_file(filename, preload=True, **mne_kwargs):
     """Wrapper function to open either edf or brainvision files.
 
