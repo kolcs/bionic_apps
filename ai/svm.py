@@ -3,14 +3,15 @@ from joblib import Parallel, delayed
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Normalizer
 from sklearn.svm import SVC
+from sklearn.linear_model import SGDClassifier
 
 from .classifier import ClassifierInterface
 
 
 class OnlinePipeline(Pipeline):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, steps, memory=None, verbose=False):
+        super().__init__(steps, memory, verbose)
         self._init_fit = True
 
     def fit(self, X, y=None, **fit_params):
@@ -28,23 +29,18 @@ class OnlinePipeline(Pipeline):
         return self
 
 
+def _fit_one_svm(svm, svm_kargs, data, label, num):
+    if svm is None:
+        # svm = OnlinePipeline([('norm', Normalizer()), ('svm', SGDClassifier(**svm_kargs))])
+        svm = Pipeline([('norm', Normalizer()), ('svm', SVC(**svm_kargs))])  # or StandardScaler()
+    svm.fit(data, label)
+    return num, svm
+
+
 class MultiSVM(ClassifierInterface):
-    def __init__(self, C=1.0, kernel='rbf', degree=3, gamma='scale',
-                 coef0=0.0, shrinking=True, probability=False,
-                 tol=1e-3, cache_size=200, class_weight=None,
-                 verbose=False, max_iter=-1, decision_function_shape='ovr',
-                 random_state=None):
-        self._svm_args = (C, kernel, degree, gamma, coef0, shrinking, probability, tol, cache_size, class_weight,
-                          verbose, max_iter, decision_function_shape, random_state)
+    def __init__(self, **svm_kwargs):
+        self._svm_kargs = svm_kwargs
         self._svms = dict()
-
-    def _fit_one_svm(self, data, label, num):
-        svm = Pipeline([('norm', Normalizer()), ('svm', SVC(*self._svm_args))])  # or StandardScaler()
-        svm.fit(data, label)
-        return num, svm
-
-    # def _fit_svm(self, i, data, label):
-    #     self._svms[i].fit(data, label)
 
     def _predict(self, i, data):
         svm = self._svms[i]
@@ -69,13 +65,9 @@ class MultiSVM(ClassifierInterface):
         # self._svms = [SVM(*self._svm_args) for _ in range(n_svms)]  # serial: 3 times slower
         # for i in range(len(self._svms)):
         #     self._fit_svm(i, X[:, i, :], y)
-        svms = Parallel(n_jobs=-2)(delayed(self._fit_one_svm)(X[:, i, :], y, i) for i in range(n_svms))
+        svms = Parallel(n_jobs=-2)(
+            delayed(_fit_one_svm)(self._svms.get(i), self._svm_kargs, X[:, i, :], y, i) for i in range(n_svms))
         self._svms = dict(svms)
-
-        # d = len(self._svms)
-        # n_svms = X.shape[2]
-        # svms = Parallel(n_jobs=-2)(delayed(self._fit_one_svm)(X[:, :, i], y, i) for i in range(n_svms))
-        # self._svms.update(svms)
 
     def predict(self, X):
         X = np.array(X)

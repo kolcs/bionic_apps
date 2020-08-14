@@ -334,7 +334,8 @@ class BCISystem(object):
                                              classifier_kwargs=classifier_kwargs)
 
         elif method == XvalidateMethod.SUBJECT:
-            self._subject_corssvalidate(subject, subj_n_fold_num, classifier_type, classifier_kwargs)
+            self._subject_corssvalidate(subject, subj_n_fold_num,
+                                        classifier_type=classifier_type, classifier_kwargs=classifier_kwargs)
 
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))

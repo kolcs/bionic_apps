@@ -346,11 +346,13 @@ class SubjectKFold(object):
     Class to split subject database to train and test set, in an N-fold cross validation manner.
     """
 
-    def __init__(self, k_fold_num=None, shuffle_subjects=True, shuffle_data=True, random_state=None):
+    def __init__(self, k_fold_num=None, shuffle_subjects=True, shuffle_data=True, random_state=None,
+                 batch_size=None):
         self._k_fold_num = k_fold_num
         self._shuffle_subj = shuffle_subjects
         self._shuffle_data = shuffle_data
-        self._random_state = random_state
+        np.random.seed(random_state)
+        self._batch_size = batch_size
 
     def split(self, subject_db):
         """Splits database by subject. Use it at cross subject cross validation.
@@ -364,7 +366,6 @@ class SubjectKFold(object):
         subjects = subject_db.get_subjects()
 
         if self._shuffle_subj:
-            np.random.seed(self._random_state)
             np.random.shuffle(subjects)
 
         if self._k_fold_num is not None:
@@ -373,7 +374,23 @@ class SubjectKFold(object):
             subjects = subjects[:n]
 
         for s in subjects:
-            yield subject_db.get_split(s, shuffle=self._shuffle_data, random_seed=self._random_state)
+            yield subject_db.get_split(s, shuffle=self._shuffle_data)
+
+    def _over_max_follow(self, data):
+        if self._batch_size is not None:
+            limit = len(data) % self._batch_size
+            limit = int(self._batch_size / 4) if limit == 0 else limit
+            prev = None
+            count = 0
+            for x, label in data:
+                if label == prev:
+                    count += 1
+                else:
+                    prev = label
+                    count = 0
+                if count == limit:
+                    return True
+        return False
 
     def split_subject_data(self, subject_db, subject_id):
         """Splits one subjects data to train and test set.
@@ -392,7 +409,6 @@ class SubjectKFold(object):
         ep_list = subject_db.get_data_for_subject_split(subject_id)
 
         if subject_db.is_name('Physionet'):
-            np.random.seed(self._random_state)
             np.random.shuffle(ep_list)
 
         kf = KFold(n_splits=self._k_fold_num)
@@ -402,16 +418,17 @@ class SubjectKFold(object):
             test = [ep_list[ind] for ind in test_ind]
             test = _generate_window_list_from_epoch_list(test)
 
+            train = list(zip(*_reduce_max_label(*zip(*train))))
+            test = list(zip(*_reduce_max_label(*zip(*test))))
+
             if self._shuffle_data:
-                np.random.seed(self._random_state)
                 np.random.shuffle(train)
                 np.random.shuffle(test)
+                while self._over_max_follow(train):
+                    np.random.shuffle(train)
 
             train_x, train_y = zip(*train)
             test_x, test_y = zip(*test)
-
-            train_x, train_y = _reduce_max_label(train_x, train_y)
-            test_x, test_y = _reduce_max_label(test_x, test_y)
 
             yield train_x, train_y, test_x, test_y
 
@@ -861,7 +878,6 @@ class OfflineDataPreprocessor:
             train.extend(self._get_subject_eeg_data(s))
 
         if shuffle:
-            np.random.seed(random_seed)
             np.random.shuffle(train)
             np.random.shuffle(test)
 
