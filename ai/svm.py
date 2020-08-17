@@ -5,7 +5,7 @@ from sklearn.preprocessing import Normalizer
 from sklearn.svm import SVC
 from sklearn.linear_model import SGDClassifier
 
-from .classifier import ClassifierInterface
+from ai.classifier import ClassifierInterface
 
 
 class OnlinePipeline(Pipeline):
