@@ -74,10 +74,10 @@ def create_opponents(main_player=1, players=None, game_logger=None, reaction=1.0
         Player reaction time in seconds.
 
     """
-    if players in None:
+    if players is None:
         players = [PlayerType.MASTER, PlayerType.RANDOM, PlayerType.RANDOM_BINARY]
         shuffle(players)
-    assert len(players) == 4, '4 player type is required {} is given instead'.format(len(players))
+    assert len(players) == 3, '3 player type is required {} were given instead'.format(len(players))
 
     player_numbers = list(range(1, 5))
     player_numbers.remove(main_player)

@@ -1,6 +1,6 @@
+import os
 import socket
 import threading
-from os import startfile
 from time import sleep
 
 TCP_IP = '127.0.0.1'
@@ -19,7 +19,7 @@ ANS_WAITING_TIME = 0.1  # sec
 class RemoteControlClient(object):
     def __init__(self, start_remote_control_server=True, print_received_messages=True):
         if start_remote_control_server:
-            startfile(REMOTE_CONTROL_SERVER_PATH)
+            os.startfile(REMOTE_CONTROL_SERVER_PATH)
 
         self._print_answers = print_received_messages
 

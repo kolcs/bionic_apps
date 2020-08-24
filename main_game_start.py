@@ -45,5 +45,6 @@ if __name__ == '__main__':
         command_frequency=CMD_IN,
         use_binary_game_logger=True,
         train_file=eeg_file,
-        classifier_kwargs=classifier_kwargs
+        classifier_kwargs=classifier_kwargs,
+        make_opponents=True
     )
