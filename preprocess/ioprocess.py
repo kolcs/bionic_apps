@@ -430,7 +430,7 @@ class SubjectKFold(object):
             train_x, train_y = zip(*train)
             test_x, test_y = zip(*test)
 
-            yield train_x, train_y, test_x, test_y
+            yield np.array(train_x), train_y, np.array(test_x), test_y
 
 
 class OfflineDataPreprocessor:

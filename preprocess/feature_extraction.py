@@ -5,7 +5,7 @@ import numpy as np
 
 # features
 class FeatureType(Enum):
-    SPATIAL = auto()
+    SPATIAL_FFT_POWER = auto()
     AVG_COLUMN = auto()
     COLUMN = auto()
     FFT_POWER = auto()
@@ -203,7 +203,7 @@ class FeatureExtractor:
         self.fft_ranges = [(f, f + self.fft_width) for f in np.arange(self.fft_low, self.fft_high, self.fft_step)]
         return self.calculate_multi_fft_power(data)
 
-    def calculate_spatial_data(self, data, crop=True):
+    def calculate_spatial_fft_power(self, data, crop=True):
         """Spatial data from epochs.
 
         Creates spatially distributed data for each epoch in the window.
@@ -221,15 +221,17 @@ class FeatureExtractor:
             Data
 
         """
+        if self.fft_ranges is None:
+            self.fft_ranges = [(self.fft_low, self.fft_high)]
+        epochs = self.calculate_multi_fft_power(data)
+
         spatial_list = list()
-
-        for k in range(np.size(data, 0)):
-            ep = data[k, :, :]
-            # todo: psd --> average freq. range
-            ep = np.average(ep, axis=1)  # average time for each channel
-            spatial_data = _calculate_spatial_interpolation(self._interp, ep, crop)
-
-            spatial_list.append(spatial_data)
+        for ep in epochs:
+            fft_list = list()
+            for fft_pow in ep:
+                fft_list.append(_calculate_spatial_interpolation(self._interp, fft_pow, crop))
+            fft_list = np.transpose(fft_list, (1, 2, 0))
+            spatial_list.append(fft_list)
 
         return spatial_list
 
@@ -250,8 +252,8 @@ class FeatureExtractor:
         elif self.feature_type == FeatureType.MULTI_FFT_POWER:
             feature = self.calculate_multi_fft_power(data)
 
-        elif self.feature_type == FeatureType.SPATIAL:
-            feature = self.calculate_spatial_data(data)
+        elif self.feature_type == FeatureType.SPATIAL_FFT_POWER:
+            feature = self.calculate_spatial_fft_power(data)
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))

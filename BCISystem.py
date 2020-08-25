@@ -140,7 +140,7 @@ class BCISystem(object):
             # test_x = make_feature_extraction(self._proc.feature_type, test_x, self._proc.fs,
             #                                  **self._proc.feature_kwargs)
 
-            classifier = init_classifier(classifier_type, **classifier_kwargs)
+            classifier = init_classifier(classifier_type, len(set(train_y)), np.shape(train_x[0]), **classifier_kwargs)
             classifier.fit(train_x, train_y)
 
             t = time.time() - t
@@ -195,7 +195,7 @@ class BCISystem(object):
             t = time.time()
             print('Training...')
 
-            classifier = init_classifier(classifier_type, **classifier_kwargs)
+            classifier = init_classifier(classifier_type, len(set(train_y)), np.shape(train_x[0]), **classifier_kwargs)
             classifier.fit(train_x, train_y)
             t = time.time() - t
             print("Training elapsed {} seconds.".format(int(t)))
@@ -422,7 +422,7 @@ class BCISystem(object):
         label_encoder.fit(list(set(labels)))
         labels = label_encoder.transform(labels)
 
-        classifier = init_classifier(classifier_type, **classifier_kwargs)
+        classifier = init_classifier(classifier_type, len(set(labels)), np.shape(data[0]), **classifier_kwargs)
         classifier.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
