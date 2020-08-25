@@ -1,9 +1,7 @@
 import unittest
 from multiprocessing import Process
-from pathlib import PurePath, Path
+from pathlib import Path
 from shutil import rmtree
-
-import timeout_decorator
 
 from BCISystem import BCISystem, Databases, FeatureType, XvalidateMethod
 from online.DataSender import run as send_online_data
@@ -16,7 +14,7 @@ class TestOfflineBciSystem(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         path = init_base_config()
-        path = str(PurePath(path).joinpath('tmp'))
+        path = str(Path(path).joinpath('tmp'))
         rmtree(path)
 
     def setUp(self):
@@ -83,7 +81,7 @@ class TestOnlineBci(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._path = PurePath(init_base_config())
+        cls._path = Path(init_base_config())
         cls._path = cls._path.joinpath('Game', 'paradigmD', 'subject2')
         cls._live_eeg_emulator = Process(target=send_online_data,
                                          kwargs=dict(filename=cls._path.joinpath('game01.vhdr'), get_labels=False,
@@ -97,20 +95,20 @@ class TestOnlineBci(unittest.TestCase):
     def setUp(self):
         self.bci = BCISystem()
 
-    @timeout_decorator.timeout(15)
     def test_play_game(self):
+        test_time_out = 2  # sec
         feature_extraction = dict(
             feature_type=FeatureType.MULTI_FFT_POWER,
             fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
                         (22, 32), (22, 36), (26, 32), (26, 36)]
         )
-        with self.assertRaises(timeout_decorator.TimeoutError):
-            self.bci.play_game(
-                Databases.GAME_PAR_D, feature_params=feature_extraction,
-                epoch_tmin=0, epoch_tmax=4,
-                window_length=1, window_step=.1,
-                train_file=self._path.joinpath('rec01.vhdr').as_posix()
-            )
+        self.assertIsNone(self.bci.play_game(
+            Databases.GAME_PAR_D, feature_params=feature_extraction,
+            epoch_tmin=0, epoch_tmax=4,
+            window_length=1, window_step=.1,
+            train_file=str(self._path.joinpath('rec01.vhdr')),
+            time_out=test_time_out
+        ))
 
 
 if __name__ == '__main__':

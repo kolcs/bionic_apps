@@ -11,7 +11,7 @@ from sklearn.model_selection import KFold
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     CALM, ACTIVE, REST, DIR_FEATURE_DB
 from gui_handler import select_file_in_explorer
-from preprocess.feature_extraction import FeatureType, make_feature_extraction, calculate_spatial_data
+from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
 EPOCH_DB = 'preprocessed_database'
 
@@ -452,7 +452,7 @@ class OfflineDataPreprocessor:
         self._make_binary_label = make_binary_label
         self._subject_list = [subject] if type(subject) is int else subject
         self._select_one_file = select_eeg_file
-        self._info = mne.Info()
+        self.info = mne.Info()
         self.eeg_file = eeg_file
 
         self._data_set = dict()
@@ -529,7 +529,10 @@ class OfflineDataPreprocessor:
 
     @property
     def fs(self):
-        return self._info['sfreq']
+        return self.info['sfreq']
+
+    def generate_mne_epoch(self, data):
+        return mne.EpochsArray(data, self.info)
 
     def run(self, feature_type=FeatureType.FFT_RANGE, reuse_data=False, **feature_kwargs):
         """Runs the Database preprocessor with the given features.
@@ -655,7 +658,7 @@ class OfflineDataPreprocessor:
                 filenames = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj,
                                                          recs)
                 epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
-                self._info = epochs.info
+                self.info = epochs.info
                 win_epochs = self._get_windowed_features(epochs, task)
 
                 subject_data.update(win_epochs)
@@ -676,7 +679,7 @@ class OfflineDataPreprocessor:
             epochs = get_epochs_from_files(filenames, task_dict,
                                            self._epoch_tmin, self._epoch_tmax,
                                            cut_real_movement_tasks=True)
-            self._info = epochs.info
+            self.info = epochs.info
             subject_data = self._get_windowed_features(epochs)
             self._save_preprocessed_subject_data(subject_data, subj)
 
@@ -690,7 +693,7 @@ class OfflineDataPreprocessor:
         epochs = get_epochs_from_files(self.eeg_file, task_dict,
                                        self._epoch_tmin, self._epoch_tmax,
                                        cut_real_movement_tasks=True)
-        self._info = epochs.info
+        self.info = epochs.info
         self._data_set[0] = self._get_windowed_features(epochs)
 
     def _get_windowed_features(self, epochs, task=None):
@@ -723,18 +726,14 @@ class OfflineDataPreprocessor:
         win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
             if self._window_step > 0 else 1
 
+        feature_extractor = FeatureExtractor(self.feature_type, self.fs, info=self.info, **self.feature_kwargs)
+
         for i in range(win_num):
             ep = epochs.copy()
             ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
-
-            if self.feature_type == FeatureType.SPATIAL:
-                data, self._interp = calculate_spatial_data(self._interp, ep)
-            else:
-                data = make_feature_extraction(self.feature_type, ep.get_data(), self.fs,
-                                               **self.feature_kwargs)
-
+            data = feature_extractor.run(ep.get_data())
             self._update_and_label_win_epochs(win_epochs, data, tasks)
-            # self._update_and_label_win_epochs(win_epochs, ep.get_data(), tasks)
+
         return win_epochs
 
     def _update_and_label_win_epochs(self, win_epochs, data, labels):

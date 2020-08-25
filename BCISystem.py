@@ -6,13 +6,14 @@ from warnings import warn, simplefilter
 import numpy as np
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.preprocessing import LabelEncoder
 
 import online
 from ai import init_classifier, ClassifierType
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, init_base_config, FeatureType, \
-    make_feature_extraction, Databases
+    FeatureExtractor, Databases
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -46,7 +47,8 @@ class BCISystem(object):
             To make log files or not.
         """
         self._base_dir = init_base_config()
-        self._proc = None
+        self._proc = OfflineDataPreprocessor('.')
+        self._reset_proc = True
         self._ai_model = dict()
         self._log = False
 
@@ -124,7 +126,12 @@ class BCISystem(object):
         self._log_and_print("####### Classification report for subject{}: #######".format(subject))
         cross_acc = list()
 
+        label_encoder = LabelEncoder()
+
         for train_x, train_y, test_x, test_y in kfold.split_subject_data(self._proc, subject):
+            if not hasattr(label_encoder, 'classes_'):
+                label_encoder.fit(list(set(train_y)))
+            train_y = label_encoder.transform(train_y)
             t = time.time()
             print('Training...')
 
@@ -140,6 +147,7 @@ class BCISystem(object):
             print("Training elapsed {} seconds.".format(int(t)))
 
             y_pred = classifier.predict(test_x)
+            y_pred = label_encoder.inverse_transform(y_pred)
 
             # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
             class_report = classification_report(test_y, y_pred)
@@ -177,7 +185,13 @@ class BCISystem(object):
             classifier_kwargs = {}
         kfold = SubjectKFold(subj_n_fold_num)
 
+        label_encoder = LabelEncoder()
+
         for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
+            if not hasattr(label_encoder, 'classes_'):
+                label_encoder.fit(list(set(train_y)))
+            train_y = label_encoder.transform(train_y)
+
             t = time.time()
             print('Training...')
 
@@ -187,6 +201,7 @@ class BCISystem(object):
             print("Training elapsed {} seconds.".format(int(t)))
 
             y_pred = classifier.predict(test_x)
+            y_pred = label_encoder.inverse_transform(y_pred)
 
             class_report = classification_report(test_y, y_pred)
             conf_martix = confusion_matrix(test_y, y_pred)
@@ -238,15 +253,16 @@ class BCISystem(object):
             Absolute file path used for parameter selection. This will be only used
             if 'select_eeg_file' is True
         """
-        if self._proc is None:
+        if self._reset_proc:
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
                                                  window_length, window_step, fast_load,
                                                  make_binary_classification, subject, select_eeg_file, train_file)
             self._proc.use_db(db_name)
+            self._reset_proc = False
 
     def clear_db_processor(self):
         """Removes data preprocessor with all preprocessed data"""
-        self._proc = None
+        self._reset_proc = True
 
     def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
                            epoch_tmin=0, epoch_tmax=3,
@@ -349,7 +365,8 @@ class BCISystem(object):
                   make_opponents=False,
                   train_file=None,
                   classifier_type=ClassifierType.SVM,
-                  classifier_kwargs=None):
+                  classifier_kwargs=None,
+                  time_out=None):
         """Function for online BCI game and control.
 
         Parameters
@@ -380,6 +397,8 @@ class BCISystem(object):
             The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
+        time_out : float, optional
+            Use it only at testing.
         """
 
         if classifier_kwargs is None:
@@ -398,6 +417,11 @@ class BCISystem(object):
         print('Training...')
         t = time.time()
         data, labels = self._proc.get_subject_data(0)
+
+        label_encoder = LabelEncoder()
+        label_encoder.fit(list(set(labels)))
+        labels = label_encoder.transform(labels)
+
         classifier = init_classifier(classifier_type, **classifier_kwargs)
         classifier.fit(data, labels)
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
@@ -415,20 +439,24 @@ class BCISystem(object):
             create_opponents(main_player=1, game_logger=game_log, reaction=command_frequency)
 
         dsp = online.DSP()
+        assert dsp.fs == self._proc.fs, 'Sampling rate frequency must be equal for preprocessed and online data.'
+        feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
 
         controller = GameControl(make_log=True, log_to_stream=True, game_logger=game_log)
         command_converter = self._proc.get_command_converter() if not make_binary_classification else dict()
 
         print("Starting game control...")
         simplefilter('always', UserWarning)
-        tic = time.time()
-        while True:
+        start_time = time.time()
+        tic = start_time
+        while time_out is None or time.time() - start_time < time_out:
             timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
             if timestamp is not None:
                 eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
 
-                data = make_feature_extraction(data=eeg, fs=dsp.fs, **feature_params)
-                y_pred = classifier.predict(data)[0]
+                data = feature_extractor.run(eeg)
+                y_pred = classifier.predict(data)
+                y_pred = label_encoder.inverse_transform(y_pred)[0]
 
                 if make_binary_classification:
                     controller.control_game_with_2_opt(y_pred)
