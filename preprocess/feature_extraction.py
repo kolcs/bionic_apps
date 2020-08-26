@@ -1,6 +1,8 @@
+from copy import deepcopy
 from enum import Enum, auto
 
 import numpy as np
+from joblib import Parallel, delayed
 
 
 # features
@@ -103,7 +105,7 @@ class FeatureExtractor:
 
     def __init__(self, feature_type, fs=None,
                  fft_low=None, fft_high=None, fft_step=2, fft_width=2, fft_ranges=None,
-                 channel_list=None, info=None):
+                 channel_list=None, info=None, crop=True):
         """Class for feature extraction.
 
         Parameters
@@ -138,6 +140,7 @@ class FeatureExtractor:
         self.fft_ranges = fft_ranges
 
         self.channel_list = channel_list
+        self._crop = crop
         self._interp = _init_interp(info) if info is not None else None
 
     def calculate_multi_fft_power(self, data):
@@ -225,13 +228,21 @@ class FeatureExtractor:
             self.fft_ranges = [(self.fft_low, self.fft_high)]
         epochs = self.calculate_multi_fft_power(data)
 
-        spatial_list = list()
-        for ep in epochs:
+        def interpol_one_epoch(ep, interp, crop_img):
             fft_list = list()
             for fft_pow in ep:
-                fft_list.append(_calculate_spatial_interpolation(self._interp, fft_pow, crop))
-            fft_list = np.transpose(fft_list, (1, 2, 0))
-            spatial_list.append(fft_list)
+                spatial_data = _calculate_spatial_interpolation(interp, fft_pow, crop_img)
+                spatial_data *= (255.0 / spatial_data.max())  # scale to rgb image
+                fft_list.append(spatial_data)
+            return np.transpose(fft_list, (1, 2, 0))  # reformat to rgb image order
+
+        spatial_list = list()
+        if len(epochs) > 1 and len(self.fft_ranges) > 1:
+            res = Parallel(n_jobs=-2)(
+                delayed(interpol_one_epoch)(ep, deepcopy(self._interp), crop) for ep in epochs)
+        else:
+            res = [interpol_one_epoch(ep, self._interp, crop) for ep in epochs]
+        spatial_list.extend(res)
 
         return spatial_list
 
@@ -253,7 +264,7 @@ class FeatureExtractor:
             feature = self.calculate_multi_fft_power(data)
 
         elif self.feature_type == FeatureType.SPATIAL_FFT_POWER:
-            feature = self.calculate_spatial_fft_power(data)
+            feature = self.calculate_spatial_fft_power(data, self._crop)
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))

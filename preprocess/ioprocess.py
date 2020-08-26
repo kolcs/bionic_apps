@@ -738,7 +738,8 @@ class OfflineDataPreprocessor:
 
     def _update_and_label_win_epochs(self, win_epochs, data, labels):
         """Adds data to container and labels it."""
-        assert len(data) == len(labels), 'Number of data points are nor equal to number of labels'
+        assert len(data) == len(labels), \
+            'Number of data points ({}) are nor equal to number of labels ({})'.format(len(data), len(labels))
 
         def laben_conv(label):
             if self._make_binary_label and label is not REST:
