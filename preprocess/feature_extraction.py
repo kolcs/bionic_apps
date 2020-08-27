@@ -7,13 +7,11 @@ from joblib import Parallel, delayed
 
 # features
 class FeatureType(Enum):
-    SPATIAL_FFT_POWER = auto()
-    AVG_COLUMN = auto()
-    COLUMN = auto()
     FFT_POWER = auto()
     FFT_RANGE = auto()
     MULTI_FFT_POWER = auto()
-    SIMPLE_TIME_DOMAIN = auto()
+    SPATIAL_FFT_POWER = auto()
+    SPATIAL_TEMPORAL = auto()
 
 
 def _get_fft_power(data, fs, get_abs=True):
@@ -229,12 +227,12 @@ class FeatureExtractor:
         epochs = self.calculate_multi_fft_power(data)
 
         def interpol_one_epoch(ep, interp, crop_img):
-            fft_list = list()
+            interp_list = list()
             for fft_pow in ep:
                 spatial_data = _calculate_spatial_interpolation(interp, fft_pow, crop_img)
                 spatial_data *= (255.0 / spatial_data.max())  # scale to rgb image
-                fft_list.append(spatial_data)
-            return np.transpose(fft_list, (1, 2, 0))  # reformat to rgb image order
+                interp_list.append(spatial_data)
+            return np.transpose(interp_list, (1, 2, 0))  # reformat to rgb image order
 
         spatial_list = list()
         if len(epochs) > 1 and len(self.fft_ranges) > 1:
@@ -246,6 +244,25 @@ class FeatureExtractor:
 
         return spatial_list
 
+    def calculate_spatial_temporal(self, data, crop=True):
+
+        def interpol_one_epoch(ep, interp, crop_img):
+            interp_list = list()
+            for t in range(ep.shape[-1]):
+                spatial_data = _calculate_spatial_interpolation(interp, ep[:, t], crop_img)
+                # spatial_data *= (255.0 / spatial_data.max())  # scale to rgb image
+                interp_list.append(spatial_data)
+            return np.expand_dims(interp_list, axis=-1)  # shape: (time, width, height, color)
+
+        spatial_list = list()
+        if len(data) > 1:
+            res = Parallel(n_jobs=-2)(
+                delayed(interpol_one_epoch)(ep, deepcopy(self._interp), crop) for ep in data)
+        else:
+            res = [interpol_one_epoch(ep, self._interp, crop) for ep in data]
+        spatial_list.extend(res)
+        return spatial_list
+
     def run(self, data):
 
         if len(data.shape) == 2:
@@ -254,9 +271,7 @@ class FeatureExtractor:
             data = data[:, self.channel_list, :]
             print('It is assumed that the reference electrode is POz!!!')
 
-        if self.feature_type == FeatureType.AVG_COLUMN:
-            feature = np.average(data, axis=-1)
-        elif self.feature_type == FeatureType.FFT_POWER:
+        if self.feature_type == FeatureType.FFT_POWER:
             feature = self.calculate_fft_power(data)
         elif self.feature_type == FeatureType.FFT_RANGE:
             feature = self.calculate_fft_range(data)
@@ -265,6 +280,8 @@ class FeatureExtractor:
 
         elif self.feature_type == FeatureType.SPATIAL_FFT_POWER:
             feature = self.calculate_spatial_fft_power(data, self._crop)
+        elif self.feature_type == FeatureType.SPATIAL_TEMPORAL:
+            feature = self.calculate_spatial_temporal(data, self._crop)
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))

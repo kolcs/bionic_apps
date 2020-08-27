@@ -65,8 +65,11 @@ class MultiSVM(ClassifierInterface):
         # self._svms = [SVM(*self._svm_args) for _ in range(n_svms)]  # serial: 3 times slower
         # for i in range(len(self._svms)):
         #     self._fit_svm(i, X[:, i, :], y)
-        svms = Parallel(n_jobs=-2)(
-            delayed(_fit_one_svm)(self._svms.get(i), self._svm_kargs, X[:, i, :], y, i) for i in range(n_svms))
+        if n_svms > 1:
+            svms = Parallel(n_jobs=-2)(
+                delayed(_fit_one_svm)(self._svms.get(i), self._svm_kargs, X[:, i, :], y, i) for i in range(n_svms))
+        else:
+            svms = [_fit_one_svm(self._svms.get(0), self._svm_kargs, X[:, 0, :], y, 0)]
         self._svms = dict(svms)
 
     def predict(self, X):

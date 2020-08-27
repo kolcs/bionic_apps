@@ -31,6 +31,21 @@ LOG_COLS = ['Database', 'Method', 'Feature', 'Subject', 'Epoch tmin', 'Epoch tma
             'FFT low', 'FFT high', 'FFT step', 'FFT ranges', 'svm_C', 'svm_gamma', 'Accuracy list', 'Avg. Acc']
 
 
+def _validate_feature_classifier_pair(feature_type, classifier_type):
+    if classifier_type is ClassifierType.SVM and feature_type in \
+            [FeatureType.FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_FFT_POWER]:
+        valid = True
+    elif classifier_type is ClassifierType.CASCADE_CONV_REC and feature_type is FeatureType.SPATIAL_TEMPORAL:
+        valid = True
+    elif classifier_type in [ClassifierType.DENSE_NET_121, ClassifierType.DENSE_NET_169, ClassifierType.DENSE_NET_201,
+                             ClassifierType.VGG16, ClassifierType.VGG19] and \
+            feature_type is FeatureType.SPATIAL_FFT_POWER:
+        valid = True
+    else:
+        valid = False
+    assert valid, 'Feature {} is not implemented for classifier {}'.format(feature_type.name, classifier_type.name)
+
+
 class BCISystem(object):
     """Main class for Brain-Computer Interface application.
 
@@ -317,6 +332,7 @@ class BCISystem(object):
         if classifier_kwargs is None:
             classifier_kwargs = {}
         assert feature_params is not None, 'Feature parameters must be defined.'
+        _validate_feature_classifier_pair(feature_params['feature_type'], classifier_type)
 
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
@@ -404,6 +420,7 @@ class BCISystem(object):
         if classifier_kwargs is None:
             classifier_kwargs = {}
         assert feature_params is not None, 'Feature parameters must be defined.'
+        _validate_feature_classifier_pair(feature_params['feature_type'], classifier_type)
 
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True

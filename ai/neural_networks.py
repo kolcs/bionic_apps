@@ -68,7 +68,7 @@ class DenseNetType(Enum):
     DN201 = auto()
 
 
-class Dense(ClassifierInterface):
+class DenseNet(ClassifierInterface):
 
     def __init__(self, net_type, classes, input_shape, weights="imagenet"):
         # tf.compat.v1.reset_default_graph()
@@ -117,7 +117,64 @@ class Dense(ClassifierInterface):
         self._model.summary()
 
 
+class CascadeConvRecNet(ClassifierInterface):  # https://github.com/Kearlay/research/blob/master/py/eeg_main.py
+
+    def __init__(self, classes, input_shape, conv_2d_filters=None, lstm_layers=2):
+        if conv_2d_filters is None:
+            conv_2d_filters = [32, 64, 128]
+
+        input_tensor = keras.layers.Input(shape=input_shape)
+        x = input_tensor
+        x = keras.layers.BatchNormalization(name='batch_norm')(x)
+
+        # Convolutional Block
+        for i, filter_num in enumerate(conv_2d_filters):
+            x = keras.layers.TimeDistributed(
+                keras.layers.Conv2D(filters=filter_num, kernel_size=(3, 3), padding='same',
+                                    activation=tf.nn.leaky_relu),
+                name='conv{}'.format(i)
+            )(x)
+        x = keras.layers.TimeDistributed(keras.layers.Flatten(), name='flatten')(x)
+
+        # Fully connected
+        x = keras.layers.TimeDistributed(
+            keras.layers.Dense(units=1024, activation=tf.nn.leaky_relu),
+            name='FC1'
+        )(x)
+
+        # LSTM block
+        for i in range(lstm_layers):
+            ret_seq = i < lstm_layers - 1
+            x = keras.layers.LSTM(input_shape[0], return_sequences=ret_seq, name='LSTM{}'.format(i))(x)
+
+        # Fully connected layer block
+        x = keras.layers.Dense(1024, activation=tf.nn.leaky_relu, name='FC2')(x)
+        # x = keras.layers.Dropout(0.5, name='dropout2')(x)
+
+        # Output layer
+        outputs = keras.layers.Dense(classes, activation='softmax')(x)
+
+        # Model compile
+        self._model = keras.Model(inputs=input_tensor, outputs=outputs)
+        self._model.compile(
+            optimizer=keras.optimizers.Adam(),
+            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+            metrics=["accuracy"]
+        )
+
+    def predict(self, x):
+        predictions = self._model.predict(x)
+        return np_argmax(predictions, axis=-1)
+
+    def fit(self, x, y, **kwargs):
+        batch_size = 32
+        for i in range(0, len(x), batch_size):
+            self._model.fit(x[i:i + batch_size], y[i:i + batch_size], batch_size=batch_size, epochs=8)
+
+    def summary(self):
+        self._model.summary()
+
+
 if __name__ == '__main__':
-    # nn = VGG19(2, (64, 251))
-    nn = Dense(DenseNetType.DN201, 2, (64, 64))
+    nn = CascadeConvRecNet(2, (251, 64, 64, 1))
     nn.summary()

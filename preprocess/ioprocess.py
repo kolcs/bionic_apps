@@ -730,6 +730,10 @@ class OfflineDataPreprocessor:
             epochs = epochs[task]
 
         epochs.load_data()
+
+        if self.feature_type is FeatureType.SPATIAL_TEMPORAL:
+            epochs.resample(128, n_jobs=-1)
+
         tasks = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
         win_epochs = {'{}{}'.format(tsk, i): list() for i, tsk in enumerate(tasks)}
 
