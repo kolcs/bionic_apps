@@ -532,6 +532,17 @@ class OfflineDataPreprocessor:
         return self.info['sfreq']
 
     def generate_mne_epoch(self, data):
+        """Generates mne.Epoch from 3D array.
+
+        Parameters
+        ----------
+        data : np.ndarray
+            EEG data. shape should be like (n_epoch, n_channel, n_time_points)
+
+        Returns
+        -------
+        mne.Epochs
+        """
         return mne.EpochsArray(data, self.info)
 
     def run(self, feature_type=FeatureType.FFT_RANGE, reuse_data=False, **feature_kwargs):
@@ -846,7 +857,7 @@ class OfflineDataPreprocessor:
     def get_data_for_subject_split(self, subject_id):
         return self._get_epoch_list(subject_id)
 
-    def get_split(self, test_subject, shuffle=True, random_seed=None, reduce_rest=True):
+    def get_split(self, test_subject, shuffle=True, reduce_rest=True):
         """Splits the whole database to train and test sets.
 
         This is a helper function for :class:`SubjectKFold` to make a split from the whole database.

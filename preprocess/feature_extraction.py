@@ -76,14 +76,14 @@ def _calculate_spatial_interpolation(interp, data, crop=True):
     interp : mne.viz.topomap._GridData
         Interpolator for spatially distributed data creation, containing
         CloughTocher2DInterpolator.
-    data : ndarray
+    data : np.ndarray
         Data to interpolate. shape: (n,)
     crop : bool
         If crop true values will be zeroed out outside of middle circle.
 
     Returns
     -------
-    ndarray
+    np.ndarray
         Spatially interpolated data.
 
     """
@@ -148,12 +148,12 @@ class FeatureExtractor:
 
         Parameters
         ----------
-        data : ndarray
+        data : np.ndarray
             eeg data shape: (data_points, n_channels, n_timeponts)
 
         Returns
         -------
-        ndarray
+        np.ndarray
             Feature extracted data. Shape: (data_points, n_fft, n_channels)
 
         """
@@ -177,12 +177,12 @@ class FeatureExtractor:
 
         Parameters
         ----------
-        data : ndarray
+        data : np.ndarray
             eeg data shape: (n_datapoint, n_channels, n_timepoint)
 
         Returns
         -------
-        ndarray
+        np.ndarray
             Feature extracted data.
         """
         assert self.fft_low is not None and self.fft_high is not None, 'fft_low and fft_high must be defined.'
@@ -194,12 +194,12 @@ class FeatureExtractor:
 
         Parameters
         ----------
-        data : ndarray
+        data : np.ndarray
             eeg data shape: (data_points, n_channels, n_timeponts)
 
         Returns
         -------
-        ndarray
+        np.ndarray
             Feature extracted data.
 
         """
@@ -213,7 +213,7 @@ class FeatureExtractor:
 
         Parameters
         ----------
-        data : ndarray
+        data : np.ndarray
             eeg data shape: (data_points, n_channels, n_timeponts)
         crop : bool
             To corp the values to 0 if its out of the eeg circle.
