@@ -1,7 +1,7 @@
 from enum import Enum, auto
 
 import tensorflow as tf
-from numpy import argmax as np_argmax
+import numpy as np
 from tensorflow import keras
 
 from ai.interface import ClassifierInterface
@@ -53,7 +53,7 @@ class VGG(ClassifierInterface):
 
     def predict(self, x):
         predictions = self._model.predict(x)
-        return np_argmax(predictions, axis=-1)
+        return np.argmax(predictions, axis=-1)
 
     def fit(self, x, y, **kwargs):
         self._model.fit(x, y, batch_size=32, epochs=10)
@@ -108,7 +108,7 @@ class DenseNet(ClassifierInterface):
 
     def predict(self, x):
         predictions = self._model.predict(x)
-        return np_argmax(predictions, axis=-1)
+        return np.argmax(predictions, axis=-1)
 
     def fit(self, x, y, **kwargs):
         self._model.fit(x, y, batch_size=32, epochs=8)
@@ -164,7 +164,7 @@ class CascadeConvRecNet(ClassifierInterface):  # https://github.com/Kearlay/rese
 
     def predict(self, x):
         predictions = self._model.predict(x)
-        return np_argmax(predictions, axis=-1)
+        return np.argmax(predictions, axis=-1)
 
     def fit(self, x, y, **kwargs):
         batch_size = 32

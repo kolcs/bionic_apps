@@ -226,25 +226,26 @@ class FeatureExtractor:
             self.fft_ranges = [(self.fft_low, self.fft_high)]
         epochs = self.calculate_multi_fft_power(data)
 
-        def interpol_one_epoch(ep, interp, crop_img):
+        def interpol_one_epoch(ep, interp, crop_img, i=None):
             interp_list = list()
             for fft_pow in ep:
                 spatial_data = _calculate_spatial_interpolation(interp, fft_pow, crop_img)
                 spatial_data *= (255.0 / spatial_data.max())  # scale to rgb image
                 interp_list.append(spatial_data)
-            return np.transpose(interp_list, (1, 2, 0))  # reformat to rgb image order
+            interp_list = np.transpose(interp_list, (1, 2, 0))  # reformat to rgb image order
+            if i is None:
+                return interp_list
+            return i, interp_list
 
-        spatial_list = list()
         if len(epochs) > 1 and len(self.fft_ranges) > 1:
-            res = Parallel(n_jobs=-2)(
-                delayed(interpol_one_epoch)(ep, deepcopy(self._interp), crop) for ep in epochs)
+            res = dict(Parallel(n_jobs=-2)(
+                delayed(interpol_one_epoch)(epochs[i], deepcopy(self._interp), crop, i) for i in range(len(epochs))))
+            res = [res[i] for i in range(len(res))]  # keep order!
         else:
             res = [interpol_one_epoch(ep, self._interp, crop) for ep in epochs]
-        spatial_list.extend(res)
+        return res
 
-        return spatial_list
-
-    def calculate_spatial_temporal(self, data, crop=True):
+    def calculate_spatial_temporal(self, data, crop=True, i=None):
 
         def interpol_one_epoch(ep, interp, crop_img):
             interp_list = list()
@@ -252,16 +253,18 @@ class FeatureExtractor:
                 spatial_data = _calculate_spatial_interpolation(interp, ep[:, t], crop_img)
                 # spatial_data *= (255.0 / spatial_data.max())  # scale to rgb image
                 interp_list.append(spatial_data)
-            return np.expand_dims(interp_list, axis=-1)  # shape: (time, width, height, color)
+            interp_list = np.expand_dims(interp_list, axis=-1)  # shape: (time, width, height, color)
+            if i is None:
+                return interp_list
+            return i, interp_list
 
-        spatial_list = list()
         if len(data) > 1:
-            res = Parallel(n_jobs=-2)(
-                delayed(interpol_one_epoch)(ep, deepcopy(self._interp), crop) for ep in data)
+            res = dict(Parallel(n_jobs=-2)(
+                delayed(interpol_one_epoch)(data[i], deepcopy(self._interp), crop, i) for i in range(len(data))))
+            res = [res[i] for i in range(len(res))]  # keep order!
         else:
             res = [interpol_one_epoch(ep, self._interp, crop) for ep in data]
-        spatial_list.extend(res)
-        return spatial_list
+        return res
 
     def run(self, data):
 
