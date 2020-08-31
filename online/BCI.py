@@ -10,7 +10,6 @@ import numpy as np
 # import threading
 import multiprocessing as mp
 from scipy.signal import butter, lfilter, lfilter_zi
-from online.plotter import EEGPlotter
 
 
 class SignalReceiver:
@@ -183,6 +182,7 @@ class DSP(SignalReceiver):
             self._lock.release()
 
     def run_online_plotter(self, channels):
+        from online.plotter import EEGPlotter
         self._select_channels_for_plot(channels)
         self._plotter = EEGPlotter(plot_size=(len(channels), 2))
         self._plotter.add_data_source(self)
