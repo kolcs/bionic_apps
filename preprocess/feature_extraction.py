@@ -245,9 +245,9 @@ class FeatureExtractor:
             res = [interpol_one_epoch(ep, self._interp, crop) for ep in epochs]
         return res
 
-    def calculate_spatial_temporal(self, data, crop=True, i=None):
+    def calculate_spatial_temporal(self, data, crop=True):
 
-        def interpol_one_epoch(ep, interp, crop_img):
+        def interpol_one_epoch(ep, interp, crop_img, i=None):
             interp_list = list()
             for t in range(ep.shape[-1]):
                 spatial_data = _calculate_spatial_interpolation(interp, ep[:, t], crop_img)
