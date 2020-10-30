@@ -249,12 +249,10 @@ class Physionet:
     MAX_DURATION = 4  # seconds --> creating strictly formatted data window
 
     """
-       DROP_SUBJECTS:
-    
-       list of subjects, whos records are corrupted
-       89 - wrong baseline session(T0 with T1)
-       88, 92, 100 - wrong intervals (1,375, 5,125) and freq 128Hz instead of 160Hz
-       """
+    DROP_SUBJECTS: list of subjects, whose records are corrupted
+        89 - wrong baseline session (T0 with T1)
+        88, 92, 100 - wrong intervals (1,375, 5,125) and freq 128Hz instead of 160Hz
+    """
     DROP_SUBJECTS = [89, 88, 92, 100]
 
     # # source:

@@ -5,6 +5,7 @@ from warnings import warn, simplefilter
 
 import numpy as np
 import pandas as pd
+from mne import set_log_level as mne_set_log_level, epochs as mne_epochs
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.preprocessing import LabelEncoder
 
@@ -23,7 +24,6 @@ LOGGER_NAME = 'BCISystem'
 class XvalidateMethod(Enum):
     CROSS_SUBJECT = 'crossSubjectXvalidate'
     SUBJECT = 'subjectXvalidate'
-    CROSS_SUBJECT_AND_SAVE_SVM = 'crossSubXandSaveSVM'
 
 
 # LOG, pandas columns
@@ -39,7 +39,7 @@ def _validate_feature_classifier_pair(feature_type, classifier_type):
         valid = True
     elif classifier_type in [ClassifierType.DENSE_NET_121, ClassifierType.DENSE_NET_169, ClassifierType.DENSE_NET_201,
                              ClassifierType.VGG16, ClassifierType.VGG19] and \
-            feature_type is FeatureType.SPATIAL_FFT_POWER:
+            feature_type in [FeatureType.MULTI_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.SPATIAL_FFT_POWER]:
         valid = True
     else:
         valid = False
@@ -53,7 +53,7 @@ class BCISystem(object):
     also available.
     """
 
-    def __init__(self, make_logs=False):
+    def __init__(self, make_logs=False, verbose=True):
         """Constructor for BCI system.
 
         Parameters
@@ -63,25 +63,30 @@ class BCISystem(object):
         """
         self._base_dir = init_base_config()
         self._proc = OfflineDataPreprocessor('.')
-        self._reset_proc = True
-        self._ai_model = dict()
+        # self._reset_proc = True
         self._log = False
 
         self._df = None
         self._df_base_data = list()
+        self._preprcessed_data = None
+        self._verbose = verbose
+        self._pre_binarize = False
+        self._reuse_data = False
 
         if make_logs:
             self._init_log()
+        mne_set_log_level(verbose)
 
     def _init_log(self):
-        setup_logger(LOGGER_NAME)
+        setup_logger(LOGGER_NAME, verbose=self._verbose)
         self._df = pd.DataFrame(columns=LOG_COLS)
         self._log = True
 
     def _log_and_print(self, msg):
         if self._log:
             log_info(LOGGER_NAME, msg)
-        print(msg)
+        if self._verbose:
+            print(msg)
 
     def _save_params(self, args):
         """Save offline search parameters to pandas table.
@@ -100,7 +105,7 @@ class BCISystem(object):
             s = pd.Series(data, index=LOG_COLS)
             self._df = self._df.append(s, ignore_index=True)
 
-    def show_results(self, out_file_name='out.csv'):
+    def log_results(self, out_file_name='out.csv'):
         """Display and save the parameters of an offline search process.
 
         The results are saved in a csv file with pandas package.
@@ -111,56 +116,59 @@ class BCISystem(object):
             File name with absolute path. Always should contain ''.csv'' in the end.
         """
         if self._log:
-            print(self._df)
+            if self._verbose:
+                print(self._df)
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
-    def _subject_corssvalidate(self, subject=None, k_fold_num=10,
-                               classifier_type=ClassifierType.SVM, classifier_kwargs=None):
-        """Method for cross-validate classifier results of one subject.
+    def _select_epochs(self, train_data, subj, binary_classification=False, equalize_data=True):
+        print('Epoch selection in progress...')
+        feature_params = dict(
+            feature_type=FeatureType.MULTI_FFT_POWER,
+            fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
+                        (22, 36), (26, 32), (26, 36)]
+        )
+        classifier_kwargs = dict(
+            # C=309.27089776753826,
+            # gamma=0.003233411249550041
+        )
+        feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
+        pregen_kwargs = dict(
+            feature_extractor=feature_extractor,
+            epoch_tmin=0, epoch_tmax=4,
+            window_length=1, window_step=.1
+        )
+        if type(train_data[list(train_data)[0]][0]) in [mne_epochs.Epochs, mne_epochs.EpochsFIF]:
+            pregen_epoch_data = pregenerate_epoched_data(train_data, pregen_kwargs=pregen_kwargs)
+            preloaded = False
+        else:
+            pregen_epoch_data = train_data
+            preloaded = True
 
-        In each iteration a new classifier is created and new segment of data is given
-        to check the consistency of the classification.
+        n_epochs_in_task = len(list(pregen_epoch_data.values())[0])
+        kfold = SubjectKFold(self._proc, n_epochs_in_task, epoch_selection=True)
+        kfold.pregen_data = pregen_epoch_data
 
-        Parameters
-        ----------
-        subject : int, optional
-            Subject number in a given database.
-        k_fold_num : int
-            The number of cross-validation.
-        classifier_type : ClassifierType
-            The type of the classifier.
-        classifier_kwargs : dict, optional
-             Arbitrary keyword arguments for classifier.
-        """
-        if classifier_kwargs is None:
-            classifier_kwargs = {}
-        if subject is None:
-            subject = 1
-        kfold = SubjectKFold(k_fold_num)
+        epoch_sel = {label: dict() for label in kfold.get_individual_class_labels()}
 
-        self._log_and_print("####### Classification report for subject{}: #######".format(subject))
-        cross_acc = list()
-
+        labels = kfold.get_individual_class_labels()
+        labels = list(set([create_binary_label(label) for label in labels])) if binary_classification else labels
         label_encoder = LabelEncoder()
+        label_encoder.fit(labels)
 
-        for train_x, train_y, test_x, test_y in kfold.split_subject_data(self._proc, subject):
-            if not hasattr(label_encoder, 'classes_'):
-                label_encoder.fit(list(set(train_y)))
-            train_y = label_encoder.transform(train_y)
-            t = time.time()
-            print('Training...')
+        for train, test, subj in kfold.split(subj):
+            classifier = self._train_classifier(label_encoder=label_encoder, train=train,
+                                                classifier_type=ClassifierType.SVM,
+                                                num_of_classes=len(labels), classifier_kwargs=classifier_kwargs,
+                                                make_binary_classification=binary_classification, shuffle_data=True,
+                                                **pregen_kwargs)
+            test_x, test_y_label = generate_test_data(**pregen_kwargs, test=test, make_binary_classification=False,
+                                                      batch_size=None,
+                                                      shuffle=True)
 
-            # train_x = make_feature_extraction(self._proc.feature_type, train_x, self._proc.fs,
-            #                                   **self._proc.feature_kwargs)
-            # test_x = make_feature_extraction(self._proc.feature_type, test_x, self._proc.fs,
-            #                                  **self._proc.feature_kwargs)
-
-            classifier = init_classifier(classifier_type, len(set(train_y)), np.shape(train_x[0]), **classifier_kwargs)
-            classifier.fit(train_x, train_y)
-
-            t = time.time() - t
-            print("Training elapsed {} seconds.".format(int(t)))
-
+            if binary_classification:
+                test_y = [create_binary_label(label) for label in test_y_label]
+            else:
+                test_y = test_y_label
             y_pred = classifier.predict(test_x)
             y_pred = label_encoder.inverse_transform(y_pred)
 
@@ -168,125 +176,101 @@ class BCISystem(object):
             class_report = classification_report(test_y, y_pred)
             conf_martix = confusion_matrix(test_y, y_pred)
             acc = accuracy_score(test_y, y_pred)
-            cross_acc.append(acc)
 
-            self._log_and_print("classifier %s:\n%s" % (self, class_report))
+            self._log_and_print("@@@ Epoch selection report for subject{}: @@@".format(subj))
+            self._log_and_print(class_report)
+            ep_label = test_y_label[0]
+            self._log_and_print('Label: {}'.format(ep_label))
             self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
             self._log_and_print("Accuracy score: {}\n".format(acc))
 
-        self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
-        self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
-        self._save_params((cross_acc, np.mean(cross_acc)))
+            epoch_sel[ep_label][kfold.get_test_ind()] = acc
 
-    def _crosssubject_crossvalidate(self, subj_n_fold_num=None, save_model=False,
-                                    classifier_type=ClassifierType.SVM, classifier_kwargs=None):
-        """Method for cross-validate classifier results between many subjects.
+        # removing unwanted epochs
+        prep_data = deepcopy(train_data)
+        if preloaded:
+            prep_data = {
+                task: {i: ep for i, ep in
+                       enumerate([ep for ind, ep in ep_dict.items() if epoch_sel[task][ind] > 1.0 / len(labels) + 0.1])}
+                for task, ep_dict in prep_data.items()
+            }
+        else:
+            prep_data = {task: [ep for ind, ep in enumerate(ep_list) if epoch_sel[task][ind] > .5] for task, ep_list in
+                         prep_data.items()}
 
-        In each iteration a new classifier is created and new segment of data is given
-        to check the consistency of the classification. The cross-validation is made like
-        one vs. others way.
+        n_all = sum([len(prep_data[task]) for task in prep_data])
+        n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
+        self._log_and_print('Dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop, n_all))
 
-        Parameters
-        ----------
-        subj_n_fold_num : int, optional
-            The number of cross-validation. If None is given the cross-validation
-            will be made between all subjects in the database.
-        classifier_type : ClassifierType
-            The type of the classifier.
-        classifier_kwargs : dict, optional
-             Arbitrary keyword arguments for classifier.
-        """
-        if classifier_kwargs is None:
-            classifier_kwargs = {}
-        kfold = SubjectKFold(subj_n_fold_num)
+        if binary_classification and equalize_data:
+            def _update():
+                _label_num = {create_binary_label(label): 0 for label in prep_data}
+                _label_map = {create_binary_label(label): list() for label in prep_data}
+                for label, data in prep_data.items():
+                    _label_num[create_binary_label(label)] += len(data)
+                    if len(data) > 0:
+                        _label_map[create_binary_label(label)].append(label)
+                return _label_map, _label_num
 
-        label_encoder = LabelEncoder()
+            label_map, label_num = _update()
+            k1, k2 = label_num.keys()
 
-        for train_x, train_y, test_x, test_y, test_subject in kfold.split(self._proc):
-            if not hasattr(label_encoder, 'classes_'):
-                label_encoder.fit(list(set(train_y)))
+            while label_num[k1] != label_num[k2]:
+                max_key = k1 if label_num[k1] > label_num[k2] else k2
+                _sel_label_list = label_map[max_key]
+                ep_label = _sel_label_list[np.random.randint(len(_sel_label_list))]
+                _ep_ind_list = list(prep_data[ep_label])
+                ep_ind = _ep_ind_list[np.random.randint(len(_ep_ind_list))]
+                del prep_data[ep_label][ep_ind]
+                label_map, label_num = _update()
+
+            n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
+            self._log_and_print(
+                'After label equalization, dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop,
+                                                                                    n_all))
+
+            bin_epoch_dict = {create_binary_label(tsk): list() for tsk in prep_data}
+            for tsk, ep_dict in prep_data.items():
+                for ep in ep_dict.values():
+                    if preloaded:
+                        bin_epoch_dict[create_binary_label(tsk)].extend(ep)
+                    else:
+                        bin_epoch_dict[create_binary_label(tsk)].append(ep)
+            prep_data = bin_epoch_dict
+
+        elif preloaded:
+            prep_data = {tsk: [ep for epochs in ep_data.values() for ep in epochs] for tsk, ep_data in
+                         prep_data.items()}
+
+        return prep_data
+
+    @staticmethod
+    def _train_classifier(feature_extractor, label_encoder, train, epoch_tmin, epoch_tmax,
+                          window_length, window_step,
+                          make_binary_classification, shuffle_data,
+                          classifier_type, num_of_classes, classifier_kwargs, batch_size=None):
+        c_init = True
+        for train_x, train_y in generate_train_data(feature_extractor, train,
+                                                    epoch_tmin, epoch_tmax,
+                                                    window_length, window_step,
+                                                    make_binary_classification, batch_size, shuffle_data):
+            if c_init:
+                classifier = init_classifier(classifier_type, num_of_classes, np.shape(train_x[0]),
+                                             **classifier_kwargs)
+                c_init = False
             train_y = label_encoder.transform(train_y)
-
-            t = time.time()
-            print('Training...')
-
-            classifier = init_classifier(classifier_type, len(set(train_y)), np.shape(train_x[0]), **classifier_kwargs)
-            classifier.fit(train_x, train_y)
-            t = time.time() - t
-            print("Training elapsed {} seconds.".format(int(t)))
-
-            y_pred = classifier.predict(test_x)
-            y_pred = label_encoder.inverse_transform(y_pred)
-
-            class_report = classification_report(test_y, y_pred)
-            conf_martix = confusion_matrix(test_y, y_pred)
-            acc = accuracy_score(test_y, y_pred)
-
-            # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
-            self._log_and_print("Classification report for subject{}:".format(test_subject))
-            self._log_and_print("classifier %s:\n%s\n" % (self, class_report))
-            self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
-            self._log_and_print("Accuracy score: {}\n".format(acc))
-
-            if save_model:
-                print("Saving AI model...")
-                self._ai_model[test_subject] = classifier
-                save_pickle_data(self._ai_model, str(self._proc.proc_db_path.joinpath(AI_MODEL)))
-                print("Done\n")
-
-    def _init_db_processor(self, db_name, epoch_tmin=0, epoch_tmax=4, window_length=1, window_step=.25,
-                           use_drop_subject_list=True, fast_load=True, make_binary_classification=False,
-                           subject=None, select_eeg_file=False, train_file=None):
-        """Database initializer.
-
-        Initialize the database preprocessor for the required db, which handles the
-        configuration.
-
-        Parameters
-        ----------
-        db_name : Databases
-            Database to work on.
-        epoch_tmin : float
-            Defining epoch start from trigger signal in seconds.
-        epoch_tmax : float
-            Defining epoch end from trigger signal in seconds.
-        window_length : float
-            Length of sliding window in the epochs in seconds.
-        window_step : float
-            Step of sliding window in seconds.
-        use_drop_subject_list : bool
-            Whether to use drop subject list from config file or not?
-        fast_load : bool
-            Handle with extreme care! It loads the result of a previous preprocess task.
-        make_binary_classification : bool
-            If true the labeling will be converted to binary labels.
-        subject : int, list of int, optional
-            Data preprocess is made on these subjects.
-        select_eeg_file : bool
-            Make it True if this function is called during live game.
-        train_file : str, optional
-            Absolute file path used for parameter selection. This will be only used
-            if 'select_eeg_file' is True
-        """
-        if self._reset_proc:
-            self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
-                                                 window_length, window_step, fast_load,
-                                                 make_binary_classification, subject, select_eeg_file, train_file)
-            self._proc.use_db(db_name)
-            self._reset_proc = False
-
-    def clear_db_processor(self):
-        """Removes data preprocessor with all preprocessed data"""
-        self._reset_proc = True
+            classifier.fit(train_x, train_y, batch_size=batch_size)
+        return classifier
 
     def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
                            epoch_tmin=0, epoch_tmax=3,
                            window_length=0.5, window_step=0.25,
                            method=XvalidateMethod.SUBJECT,
-                           subject=None, use_drop_subject_list=True, fast_load=False,
-                           subj_n_fold_num=None, make_binary_classification=False, reuse_data=False,
-                           train_file=None,
-                           classifier_type=ClassifierType.SVM, classifier_kwargs=None):
+                           subject=None, use_drop_subject_list=True, fast_load=True,
+                           subj_n_fold_num=None, shuffle_data=True, reuse_data=False,
+                           make_binary_classification=False, train_file=None,
+                           classifier_type=ClassifierType.SVM, classifier_kwargs=None, batch_size=None,
+                           epoch_selection=False):
         """Offline data processing.
 
         This method creates an offline BCI-System which make the data preprocessing
@@ -308,7 +292,7 @@ class BCISystem(object):
             Step of sliding window in seconds.
         method : XvalidateMethod
             The type of cross-validation
-        subject : int, optional
+        subject : int or None
             Subject number in a given database.
         use_drop_subject_list : bool
             Whether to use drop subject list from config file or not?
@@ -317,6 +301,8 @@ class BCISystem(object):
         subj_n_fold_num : int, optional
             The number of cross-validation. If None is given the cross-validation
             will be made between all subjects in the database.
+        shuffle_data : bool
+            Shuffle or not the order of epochs in each given task.
         make_binary_classification : bool
             If true the labeling will be converted to binary labels.
         reuse_data : bool
@@ -328,6 +314,9 @@ class BCISystem(object):
             The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
+        batch_size : int or None
+            Define if batch size data generation is required. Otherwise all
+            features will be created before training.
         """
         if classifier_kwargs is None:
             classifier_kwargs = {}
@@ -337,16 +326,29 @@ class BCISystem(object):
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
 
+        if self._reuse_data:
+            reuse_data = True
+            self._reuse_data = False
+
         select_eeg_file = False
         if train_file is str:
             select_eeg_file = True
             subject = 0
 
-        self._init_db_processor(db_name, epoch_tmin, epoch_tmax, window_length, window_step,
-                                use_drop_subject_list, fast_load, make_binary_classification, subject,
-                                select_eeg_file=select_eeg_file, train_file=train_file)
+        if method == XvalidateMethod.CROSS_SUBJECT:
+            subject = None
+        elif method == XvalidateMethod.SUBJECT:
+            if subject is None:
+                subject = 1
+            print('{}, {} - Subject{}'.format(db_name.name, feature_params.get('feature_type').name, subject))
+        else:
+            raise NotImplementedError('Method {} is not implemented'.format(method))
 
-        self._proc.run(reuse_data=reuse_data, **feature_params)
+        self._proc = EpochPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
+                                       fast_load, subject, select_eeg_file, train_file)
+        self._proc.use_db(db_name).run()
+        if len(self._proc.get_subjects()) == 0:
+            return
 
         if self._log:
             self._df_base_data = [db_name.name, method, feature_params.get('feature_type').name, subject,
@@ -357,20 +359,79 @@ class BCISystem(object):
                                   classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
                                   ]
 
-        if method == XvalidateMethod.CROSS_SUBJECT:
-            self._crosssubject_crossvalidate(subj_n_fold_num, classifier_type=classifier_type,
-                                             classifier_kwargs=classifier_kwargs)
+        feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
+        kfold = SubjectKFold(self._proc, subj_n_fold_num, batch_size=batch_size, shuffle_data=shuffle_data,
+                             prepare_validation_split=epoch_selection)
 
-        elif method == XvalidateMethod.CROSS_SUBJECT_AND_SAVE_SVM:
-            self._crosssubject_crossvalidate(save_model=True, classifier_type=classifier_type,
-                                             classifier_kwargs=classifier_kwargs)
+        if batch_size is None:
+            if reuse_data:
+                kfold.pregen_data = self._preprcessed_data
+            else:
+                pregen_kwargs = dict(
+                    feature_extractor=feature_extractor,
+                    epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
+                    window_length=window_length, window_step=window_step
+                )
+                if subject is not None:
+                    pregen_epoch_data = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subject),
+                                                                 pregen_kwargs=pregen_kwargs)
+                    kfold.pregen_data = pregen_epoch_data
+                else:
+                    pregen_epoch_data = dict()
+                    for subj in self._proc.get_subjects():
+                        pregen_epoch_data[subj] = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subj),
+                                                                           pregen_kwargs=pregen_kwargs)
+                        kfold.pregen_data = pregen_epoch_data
 
-        elif method == XvalidateMethod.SUBJECT:
-            self._subject_corssvalidate(subject, subj_n_fold_num,
-                                        classifier_type=classifier_type, classifier_kwargs=classifier_kwargs)
+        self._preprcessed_data = None
 
-        else:
-            raise NotImplementedError('Method {} is not implemented'.format(method))
+        cross_acc = list()
+
+        labels = kfold.get_individual_class_labels(make_binary_classification)
+        label_encoder = LabelEncoder()
+        label_encoder.fit(labels)
+
+        for train, test, subject in kfold.split(subject):
+            if epoch_selection and method is XvalidateMethod.SUBJECT:
+                train = self._select_epochs(train, subject, make_binary_classification)
+
+            if self._verbose:
+                t = time.time()
+                print('Training...')
+            classifier = self._train_classifier(feature_extractor, label_encoder, train,
+                                                epoch_tmin, epoch_tmax, window_length, window_step,
+                                                make_binary_classification, shuffle_data, classifier_type,
+                                                len(labels), classifier_kwargs, batch_size)
+
+            if self._verbose:
+                t = time.time() - t
+                print("Training elapsed {} seconds.".format(int(t)))
+
+            test_x, test_y = generate_test_data(feature_extractor, test, epoch_tmin, epoch_tmax, window_length,
+                                                window_step, make_binary_classification, batch_size=batch_size,
+                                                shuffle=shuffle_data)
+
+            y_pred = classifier.predict(test_x)
+            y_pred = label_encoder.inverse_transform(y_pred)
+
+            # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
+            class_report = classification_report(test_y, y_pred)
+            conf_martix = confusion_matrix(test_y, y_pred)
+            acc = accuracy_score(test_y, y_pred)
+            cross_acc.append(acc)
+
+            self._log_and_print("####### Classification report for subject{}: #######".format(subject))
+            self._log_and_print("classifier %s:\n%s" % (self, class_report))
+            self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
+            self._log_and_print("Accuracy score: {}\n".format(acc))
+            del classifier
+
+        self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
+        self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
+        self._save_params((cross_acc, np.mean(cross_acc)))
+
+        self._preprcessed_data = kfold.pregen_data
+        del kfold
 
     def play_game(self, db_name=Databases.GAME, feature_params=None,
                   epoch_tmin=0, epoch_tmax=4,
@@ -382,6 +443,7 @@ class BCISystem(object):
                   train_file=None,
                   classifier_type=ClassifierType.SVM,
                   classifier_kwargs=None,
+                  batch_size=None,
                   time_out=None):
         """Function for online BCI game and control.
 
@@ -413,6 +475,9 @@ class BCISystem(object):
             The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
+        batch_size : int or None
+            Define if batch size data generation is required. Otherwise all
+            features will be created before training.
         time_out : float, optional
             Use it only at testing.
         """
@@ -425,22 +490,34 @@ class BCISystem(object):
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
 
-        self._init_db_processor(db_name=db_name, epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
-                                window_length=window_length, window_step=window_step,
-                                use_drop_subject_list=False, fast_load=False,
-                                make_binary_classification=make_binary_classification,
-                                select_eeg_file=True, train_file=train_file)
-        self._proc.run(**feature_params)
+        self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list=False,
+                                             fast_load=False, select_eeg_file=True, eeg_file=train_file)
+        self._proc.use_db(db_name).run()
         print('Training...')
         t = time.time()
-        data, labels = self._proc.get_subject_data(0)
+
+        feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
+
+        data_dict = self._proc.get_subject_data(0)
+        labels = list(data_dict)
+        if make_binary_classification:
+            labels = [create_binary_label(label) for label in labels]
+        if batch_size is None:
+            pregen_kwargs = dict(
+                feature_extractor=feature_extractor,
+                epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
+                window_length=window_length, window_step=window_step
+            )
+            data_dict = pregenerate_all_data(data_dict, pregen_kwargs=pregen_kwargs)
 
         label_encoder = LabelEncoder()
-        label_encoder.fit(list(set(labels)))
-        labels = label_encoder.transform(labels)
+        label_encoder.fit(labels)
 
-        classifier = init_classifier(classifier_type, len(set(labels)), np.shape(data[0]), **classifier_kwargs)
-        classifier.fit(data, labels)
+        classifier = self._train_classifier(feature_extractor, label_encoder, data_dict,
+                                            epoch_tmin, epoch_tmax, window_length, window_step,
+                                            make_binary_classification, True, classifier_type, len(labels),
+                                            classifier_kwargs, batch_size)
+
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
         game_log = None
@@ -457,7 +534,6 @@ class BCISystem(object):
 
         dsp = online.DSP()
         assert dsp.fs == self._proc.fs, 'Sampling rate frequency must be equal for preprocessed and online data.'
-        feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
 
         controller = GameControl(make_log=True, log_to_stream=True, game_logger=game_log)
         command_converter = self._proc.get_command_converter() if not make_binary_classification else dict()

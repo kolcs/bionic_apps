@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
-    CALM, ACTIVE, REST, DIR_FEATURE_DB
+    DIR_FEATURE_DB, REST, CALM, ACTIVE
 from gui_handler import select_file_in_explorer
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
@@ -18,6 +18,9 @@ EPOCH_DB = 'preprocessed_database'
 # config options
 CONFIG_FILE = 'bci_system.cfg'
 BASE_DIR = 'base_dir'
+SUBJECTS = 'subjects'
+DATA_SOURCE = 'data_source'
+INFO = 'epoch_info'
 
 
 # db selection options
@@ -179,9 +182,20 @@ def load_pickle_data(filename):
     return data
 
 
-def save_pickle_data(data, filename):
+def save_pickle_data(filename, data):
     with open(filename, 'wb') as f:
         pkl_dump(data, f)
+
+
+def load_from_json(file):
+    with open(file) as json_file:
+        data_dict = json_load(json_file)
+    return data_dict
+
+
+def save_to_json(file, data_dict):
+    with open(file, 'w') as outfile:
+        json_dump(data_dict, outfile, indent='\t')
 
 
 def init_base_config(path='.'):
@@ -204,7 +218,7 @@ def init_base_config(path='.'):
         from gui_handler import select_base_dir
         base_directory = select_base_dir()
         cfg_dict = {BASE_DIR: base_directory}
-        save_pickle_data(cfg_dict, file)
+        save_pickle_data(file, cfg_dict)
     else:
         base_directory = cfg_dict[BASE_DIR]
     return base_directory
@@ -233,8 +247,53 @@ def _cut_real_movemet_data(raw):
     return raw
 
 
+def get_epochs_from_raw(raw, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto', preload=True):
+    """Generate epochs from files.
+
+    Parameters
+    ----------
+    raw : mne.Raw
+        Raw eeg file.
+    task_dict : dict
+        Used for creating mne.Epochs.
+    epoch_tmin : float
+        Start time before event. If nothing is provided, defaults to -0.2
+    epoch_tmax : float
+        End time after event. If nothing is provided, defaults to 0.5
+    baseline : None or (float, float) or (None, float) or (float, None)
+        The time interval to apply baseline correction. If None do not apply
+        it. If baseline is (a, b) the interval is between "a (s)" and "b (s)".
+        If a is None the beginning of the data is used and if b is None then b
+        is set to the end of the interval. If baseline is equal to (None, None)
+        all the time interval is used. Correction is applied by computing mean
+        of the baseline period and subtracting it from the data. The baseline
+        (a, b) includes both endpoints, i.e. all timepoints t such that
+        a <= t <= b.
+    event_id : int or list of int or dict or None
+        The id of the event to consider. If dict, the keys can later be used
+        to access associated events. Example: dict(auditory=1, visual=3).
+        If int, a dict will be created with the id as string. If a list, all
+        events with the IDs specified in the list are used. If None, all events
+        will be used with and a dict is created with string integer names
+        corresponding to the event id integers.
+    preload : bool
+        Load all epochs from disk when creating the object or wait before
+        accessing each epoch (more memory efficient but can be slower).
+
+    Returns
+    -------
+    mne.Epochs
+        Created epochs from files. Data is not loaded!
+    """
+    events, _ = mne.events_from_annotations(raw, event_id)
+    # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
+    epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
+                        tmax=epoch_tmax, preload=preload, on_missing='warning')
+    return epochs
+
+
 def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto',
-                          prefilter_signal=False, f_type='butter', f_order=5, l_freq=1, h_freq=None,
+                          preload=False, prefilter_signal=False, f_type='butter', f_order=5, l_freq=1, h_freq=None,
                           cut_real_movement_tasks=False):
     """Generate epochs from files.
 
@@ -257,6 +316,16 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
         of the baseline period and subtracting it from the data. The baseline
         (a, b) includes both endpoints, i.e. all timepoints t such that
         a <= t <= b.
+    event_id : int or list of int or dict or None
+        The id of the event to consider. If dict, the keys can later be used
+        to access associated events. Example: dict(auditory=1, visual=3).
+        If int, a dict will be created with the id as string. If a list, all
+        events with the IDs specified in the list are used. If None, all events
+        will be used with and a dict is created with string integer names
+        corresponding to the event id integers.
+    preload : bool
+        Load all epochs from disk when creating the object or wait before
+        accessing each epoch (more memory efficient but can be slower).
     prefilter_signal : bool
         Make signal filtering before preprocess.
 
@@ -284,10 +353,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
         iir_params = dict(order=f_order, ftype=f_type, output='sos')
         raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params)
 
-    events, _ = mne.events_from_annotations(raw, event_id)
-    # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
-    epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
-                        tmax=epoch_tmax, preload=False, on_missing='warning')
+    epochs = get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id, preload=preload)
 
     return epochs
 
@@ -314,17 +380,6 @@ def _generate_window_list_from_epoch_list(epoch_list):
     return win_list
 
 
-def load_from_json(file):
-    with open(file) as json_file:
-        data_dict = json_load(json_file)
-    return data_dict
-
-
-def save_to_json(file, data_dict):
-    with open(file, 'w') as outfile:
-        json_dump(data_dict, outfile, indent='\t')
-
-
 def get_db_name_by_filename(filename):
     if Game_ParadigmC.DIR in filename:
         db_name = Databases.GAME_PAR_C
@@ -339,6 +394,17 @@ def get_db_name_by_filename(filename):
     else:
         raise ValueError('No database defined with path {}'.format(filename))
     return db_name
+
+
+"""
+Feature generation methods for train and test
+"""
+
+
+def create_binary_label(label):
+    if label is not REST:
+        label = CALM if CALM in label else ACTIVE
+    return label
 
 
 class SubjectKFold(object):
@@ -434,37 +500,56 @@ class SubjectKFold(object):
 
 
 class OfflineDataPreprocessor:
-    """
-    Preprocessor for edf files. Creates a database, which has all the required information about the eeg files.
-    TODO: check what can be removed!!!
-    """
 
-    def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=3, use_drop_subject_list=True, window_length=0.5,
-                 window_step=0.25, fast_load=True, make_binary_label=False, subject=None, select_eeg_file=False,
+    def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
+                 use_drop_subject_list=True, fast_load=True, subject=None, select_eeg_file=False,
                  eeg_file=None):
+        """Preprocessor for eeg files.
 
+        Creates a database, which has all the required information about the eeg files.
+
+        Parameters
+        ----------
+        base_dir : str
+            Path for master database folder.
+        epoch_tmin : float
+            Defining epoch start from trigger signal in seconds.
+        epoch_tmax : float
+            Defining epoch end from trigger signal in seconds.
+        window_length : float
+            Length of sliding window in the epochs in seconds.
+        window_step : float
+            Step of sliding window in seconds.
+        use_drop_subject_list : bool
+            Whether to use drop subject list from config file or not?
+        fast_load : bool
+            Handle with extreme care! It loads the result of a previous preprocess task.
+        subject : int, list of int, None
+            ID of selected subjects.
+        select_eeg_file : bool
+            To select or not an eeg file.
+        eeg_file : str, optional
+            Absolute path to EEG file.
+        """
         self._base_dir = Path(base_dir)
         self._epoch_tmin = epoch_tmin
         self._epoch_tmax = epoch_tmax  # seconds
         self._window_length = window_length  # seconds
         self._window_step = window_step  # seconds
         self._fast_load = fast_load
-        self._make_binary_label = make_binary_label
         self._subject_list = [subject] if type(subject) is int else subject
         self._select_one_file = select_eeg_file
-        self.info = mne.Info()
         self.eeg_file = eeg_file
 
-        self._data_set = dict()
+        self.info = mne.Info()
         self.feature_type = FeatureType.FFT_RANGE
         self.feature_kwargs = dict()
 
-        self._interp = None
         self._data_path = Path()
         self._db_type = None  # Physionet / TTK
 
         self.proc_db_path = Path()
-        self._proc_db_filenames = list()
+        self._proc_db_filenames = dict()
         self._proc_db_source = str()
 
         self._drop_subject = set() if use_drop_subject_list else None
@@ -487,6 +572,7 @@ class OfflineDataPreprocessor:
 
         else:
             raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
+        return self
 
     def _use_db(self, db_type):
         """Loads a specified database."""
@@ -545,40 +631,31 @@ class OfflineDataPreprocessor:
         """
         return mne.EpochsArray(data, self.info)
 
-    def run(self, feature_type=FeatureType.FFT_RANGE, reuse_data=False, **feature_kwargs):
+    def run(self, feature_type=FeatureType.FFT_RANGE, **feature_kwargs):
         """Runs the Database preprocessor with the given features.
 
         Parameters
         ----------
         feature_type : FeatureType
             Specify the features which will be created in the preprocessing phase.
-        reuse_data : bool
-            Preprocess methods will be omitted if True. Use it for classifier
         feature_kwargs
             Arbitrary keyword arguments for feature extraction.
         """
-        if not reuse_data or len(self._data_set) == 0:
-            self.feature_type = feature_type
-            self.feature_kwargs = feature_kwargs
-            self._create_db()
+        self.feature_type = feature_type
+        self.feature_kwargs = feature_kwargs
+        self._create_db()
 
     """
     Database functions
     """
 
-    def convert_task(self, record_number=None):
+    def _convert_task(self, record_number=None):
         if record_number is None:
             return self._db_type.TRIGGER_TASK_CONVERTER
         return self._db_type.TRIGGER_CONV_REC_TO_TASK.get(record_number)
 
-    def convert_rask_to_recs(self, task):
-        return self._db_type.TASK_TO_REC.get(task)
-
-    def get_trigger_event_id(self):
-        return self._db_type.TRIGGER_EVENT_ID
-
     def get_subjects(self):
-        return list(self._data_set.keys())
+        return list(self._proc_db_filenames)
 
     def get_command_converter(self):
         attr = 'COMMAND_CONV'
@@ -588,44 +665,37 @@ class OfflineDataPreprocessor:
     def is_name(self, db_name):
         return db_name in str(self._db_type)
 
-    def _load_data_from_source(self, source_files):
-        """Loads preprocessed feature data form source files.
-
-        Parameters
-        ----------
-        source_files : list of str
-            List of source file names without path.
-
-        Returns
-        -------
-        dict
-            Preprocessed data dictionary, where the keys are the subjects in the database and
-            the values are the dict of epochs which are contain preprocessed feature data.
-
-        """
-        data = dict()
-        for filename in source_files:
-            d = load_pickle_data(str(self.proc_db_path.joinpath(filename)))
-            data.update(d)
-
-        return data
-
     def _save_preprocessed_subject_data(self, subject_data, subj):
         """Saving preprocessed feature data for a given subject.
 
         Parameters
         ----------
-        subject_data : list
+        subject_data : dict
             Featured and preprocessed data.
         subj : int
             Subject number
         """
-        self._data_set[subj] = subject_data
+        print('Database generated for subject{}'.format(subj))
+        subject_dict = dict()
+        for task, ep_dict in subject_data.items():
+            ep_file_dict = dict()
+            for ind, ep_list in ep_dict.items():
+                win_file_list = list()
+                for i, ep in enumerate(ep_list):
+                    db_file = 'subject{}-{}-epoch{}-win{}.data'.format(subj, task, ind, i)
+                    save_pickle_data(str(self.proc_db_path.joinpath(db_file)), ep)
+                    win_file_list.append(db_file)
+                ep_file_dict[ind] = win_file_list
+            subject_dict[task] = ep_file_dict
 
-        db_file = 'subject{}.data'.format(subj)
-        save_pickle_data({subj: subject_data}, str(self.proc_db_path.joinpath(db_file)))
-        self._proc_db_filenames.append(db_file)
-        # save_pickle_data(self._proc_db_filenames, self._proc_db_source)
+        self._proc_db_filenames[subj] = subject_dict
+        # processed db data...
+        source = {
+            SUBJECTS: self._get_subject_num(),
+            DATA_SOURCE: self._proc_db_filenames,
+            INFO: self.info
+        }
+        save_pickle_data(self._proc_db_source, source)
 
     def _get_subject_num(self):
         """Returns the number of available subjects in Database"""
@@ -664,8 +734,8 @@ class OfflineDataPreprocessor:
             subject_data = dict()
 
             for task in keys:
-                recs = self.convert_rask_to_recs(task)
-                task_dict = self.convert_task(recs[0])
+                recs = self._db_type.TASK_TO_REC.get(task)
+                task_dict = self._convert_task(recs[0])
                 filenames = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj,
                                                          recs)
                 epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
@@ -675,11 +745,10 @@ class OfflineDataPreprocessor:
                 subject_data.update(win_epochs)
 
             self._save_preprocessed_subject_data(subject_data, subj)
-        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
 
     def _create_ttk_db(self):
         """Pilot feature db creator function"""
-        task_dict = self.convert_task()
+        task_dict = self._convert_task()
 
         for subj in self._get_subject_list():
             if self._db_type is TTK_DB:
@@ -687,25 +756,28 @@ class OfflineDataPreprocessor:
             else:
                 filenames = generate_pilot_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
 
+            cut_real_mov = REST in task_dict
             epochs = get_epochs_from_files(filenames, task_dict,
                                            self._epoch_tmin, self._epoch_tmax,
-                                           cut_real_movement_tasks=True)
+                                           cut_real_movement_tasks=cut_real_mov)
             self.info = epochs.info
             subject_data = self._get_windowed_features(epochs)
-            self._save_preprocessed_subject_data(subject_data, subj)
 
-        save_pickle_data(self._proc_db_filenames, self._proc_db_source)
+            self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_db_from_file(self):
         """Game database creation"""
         if self.eeg_file is None:
             self.eeg_file = select_file_in_explorer(str(self._base_dir))
-        task_dict = self.convert_task()
+
+        task_dict = self._convert_task()
+        cut_real_mov = REST in task_dict
         epochs = get_epochs_from_files(self.eeg_file, task_dict,
                                        self._epoch_tmin, self._epoch_tmax,
-                                       cut_real_movement_tasks=True)
+                                       cut_real_movement_tasks=cut_real_mov)
         self.info = epochs.info
-        self._data_set[0] = self._get_windowed_features(epochs)
+        subject_data = self._get_windowed_features(epochs)
+        self._save_preprocessed_subject_data(subject_data, 0)
 
     def _get_windowed_features(self, epochs, task=None):
         """Feature creation from windowed data.
@@ -717,13 +789,14 @@ class OfflineDataPreprocessor:
         ----------
         epochs : mne.Epochs
             Mne epochs from which the feature will be created.
-        task : str
+        task : str, optional
             Selected from epochs.
 
         Returns
         -------
-        list
-            Windowed feature data.
+        dict
+            Windowed feature data. dict of dict of list:
+            task -> epoch -> windowed features
 
         """
         if task is not None:
@@ -734,8 +807,7 @@ class OfflineDataPreprocessor:
         if self.feature_type is FeatureType.SPATIAL_TEMPORAL:
             epochs.resample(128, n_jobs=-1)
 
-        tasks = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
-        win_epochs = {'{}{}'.format(tsk, i): list() for i, tsk in enumerate(tasks)}
+        task_list = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
 
         window_length = self._window_length - 1 / self.fs  # win length correction
         win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
@@ -743,26 +815,19 @@ class OfflineDataPreprocessor:
 
         feature_extractor = FeatureExtractor(self.feature_type, self.fs, info=self.info, **self.feature_kwargs)
 
-        for i in range(win_num):
-            ep = epochs.copy()
-            ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
-            data = feature_extractor.run(ep.get_data())
-            self._update_and_label_win_epochs(win_epochs, data, tasks)
+        task_dict = dict()
+        for task in task_list:
+            tsk_ep = epochs[task]
+            win_epochs = {i: list() for i in range(len(tsk_ep))}
+            for i in range(win_num):
+                ep = tsk_ep.copy()
+                ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
+                feature = feature_extractor.run(ep.get_data())
+                for j in range(len(tsk_ep)):
+                    win_epochs[j].append((feature[j], task))
+            task_dict[task] = win_epochs
 
-        return win_epochs
-
-    def _update_and_label_win_epochs(self, win_epochs, data, labels):
-        """Adds data to container and labels it."""
-        assert len(data) == len(labels), \
-            'Number of data points ({}) are nor equal to number of labels ({})'.format(len(data), len(labels))
-
-        def laben_conv(label):
-            if self._make_binary_label and label is not REST:
-                label = CALM if CALM in label else ACTIVE
-            return label
-
-        for i, tsk in enumerate(labels):
-            win_epochs["{}{}".format(tsk, i)].append((data[i], laben_conv(tsk)))
+        return task_dict
 
     def init_processed_db_path(self, feature=None):
         """Initialize the path of preprocessed database.
@@ -776,14 +841,14 @@ class OfflineDataPreprocessor:
             raise NotImplementedError('Feature {} is not implemented'.format(feature))
         if feature in FeatureType:
             self.feature_type = feature
-        self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, self.feature_type.name)
+        self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, self.feature_type.name,
+                                                    str(self._window_length), str(self._window_step))
 
     def _create_db(self):
         """Base db creator function."""
 
         assert self._db_type is not None, \
             'Define a database with .use_<db_name>() function before creating the database!'
-        self._data_set = dict()
         tic = time()
         self.init_processed_db_path()
         self._proc_db_source = str(self.proc_db_path.joinpath(self.feature_type.name + '.db'))
@@ -793,14 +858,20 @@ class OfflineDataPreprocessor:
             print('{} file is not found. Creating database.'.format(file))
 
         file = self._proc_db_source
-        data_source = load_pickle_data(file)
+        fastload_source = load_pickle_data(file)
+        n_subjects = self._get_subject_num()
 
-        if data_source is not None and self._fast_load:
-            self._data_set = self._load_data_from_source(data_source)
-            for subj in self._drop_subject:
-                self._data_set.pop(subj, 'No error!')
+        if fastload_source is not None and self._fast_load and \
+                n_subjects == fastload_source[SUBJECTS]:
+            subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
 
-        elif self._db_type is Physionet:
+            self._proc_db_filenames = fastload_source[DATA_SOURCE]
+            if all(subj in fastload_source[DATA_SOURCE] for subj in subject_list):
+                self.info = fastload_source[INFO]
+                return  # fast load ok. Do not create database.
+            # extend existing fast load database.
+
+        if self._db_type is Physionet:
             if self._select_one_file or self.eeg_file is not None:
                 raise NotImplementedError('EEG file selection for Physionet is not implemented!')
             print_creation_message()
@@ -810,13 +881,8 @@ class OfflineDataPreprocessor:
             print_creation_message()
             self._create_ttk_db()
 
-        elif self._db_type in [GameDB, Game_ParadigmC]:
+        elif self._db_type in [GameDB, Game_ParadigmC, Game_ParadigmD]:
             print_creation_message()
-            self._create_db_from_file()
-
-        elif self._db_type is Game_ParadigmD:
-            print_creation_message()
-            self._make_binary_label = True
             self._create_db_from_file()
 
         else:
@@ -824,101 +890,95 @@ class OfflineDataPreprocessor:
 
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
 
-    def get_subject_data(self, subject, reduce_rest=True, shuffle=True, random_seed=None):
-        """Returns data for one subject.
+    # def get_subject_data(self, subject, reduce_rest=True, shuffle=True, random_seed=None):
+    #     """Returns data for one subject.
+    #
+    #     Parameters
+    #     ----------
+    #     subject : int
+    #         Number of the required subject.
+    #     reduce_rest : bool, optional
+    #         To reduce rest data points.
+    #     """
+    #     # todo: rethink reduce_rest --> reduce_max or reduce to min...
+    #     assert subject not in self._drop_subject, 'Subject{} is in drop subject list.'.format(subject)
+    #     assert subject in list(self._proc_db_filenames.keys()), \
+    #         'Subject{} is not in preprocessed database'.format(subject)
+    #     data, label = zip(*self._get_subject_eeg_data(subject))
+    #     if reduce_rest:
+    #         data, label = _reduce_max_label(data, label)
+    #     if shuffle:
+    #         ind = np.arange(len(label))
+    #         np.random.seed(random_seed)
+    #         np.random.shuffle(ind)
+    #         data = [data[i] for i in ind]
+    #         label = [label[i] for i in ind]
+    #
+    #     return list(data), list(label)
 
-        Parameters
-        ----------
-        subject : int
-            Number of the required subject.
-        reduce_rest : bool, optional
-            To reduce rest data points.
-        """
-        # todo: rethink reduce_rest --> reduce_max or reduce to min...
-        assert subject not in self._drop_subject, 'Subject{} is in drop subject list.'.format(subject)
-        assert subject in list(self._data_set.keys()), \
-            'Subject{} is not in preprocessed database'.format(subject)
-        data, label = zip(*self._get_subject_eeg_data(subject))
-        if reduce_rest:
-            data, label = _reduce_max_label(data, label)
-        if shuffle:
-            ind = np.arange(len(label))
-            np.random.seed(random_seed)
-            np.random.shuffle(ind)
-            data = [data[i] for i in ind]
-            label = [label[i] for i in ind]
+    # def _get_epoch_list(self, subject_id):
+    #     ep_dict = self._data_set.get(subject_id)
+    #     return list(ep_dict.values())
 
-        return list(data), list(label)
+    # def _get_subject_eeg_data(self, subject_id):
+    #     ep_list = self._get_epoch_list(subject_id)
+    #     return _generate_window_list_from_epoch_list(ep_list)
 
-    def _get_epoch_list(self, subject_id):
-        ep_dict = self._data_set.get(subject_id)
-        return list(ep_dict.values())
+    # def get_data_for_subject_split(self, subject_id):
+    #     return self._get_epoch_list(subject_id)
 
-    def _get_subject_eeg_data(self, subject_id):
-        ep_list = self._get_epoch_list(subject_id)
-        return _generate_window_list_from_epoch_list(ep_list)
-
-    def get_data_for_subject_split(self, subject_id):
-        return self._get_epoch_list(subject_id)
-
-    def get_split(self, test_subject, shuffle=True, reduce_rest=True):
-        """Splits the whole database to train and test sets.
-
-        This is a helper function for :class:`SubjectKFold` to make a split from the whole database.
-        This function creates a train and test set. The test set is the data of the given subject
-        and the train set is the rest of the database.
-
-        Parameters
-        ----------
-        test_subject : int
-            Subject to put into the train set.
-        shuffle : bool, optional
-            Shuffle the train set if True
-        random_seed : int, optional
-            Random seed for shuffle.
-        reduce_rest : bool, optional
-            Make rest number equal to the max of other labels.
-
-        Returns
-        -------
-
-        """
-        train_subjects = list(self._data_set.keys())
-        train_subjects.remove(test_subject)
-
-        train = list()
-        test = self._get_subject_eeg_data(test_subject)
-
-        for s in train_subjects:
-            train.extend(self._get_subject_eeg_data(s))
-
-        if shuffle:
-            np.random.shuffle(train)
-            np.random.shuffle(test)
-
-        train_x, train_y = zip(*train)
-        test_x, test_y = zip(*test)
-
-        if reduce_rest:
-            train_x, train_y = _reduce_max_label(train_x, train_y)
-            test_x, test_y = _reduce_max_label(test_x, test_y)
-
-        return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
+    # def get_split(self, test_subject, shuffle=True, reduce_rest=True):
+    #     """Splits the whole database to train and test sets.
+    #
+    #     This is a helper function for :class:`SubjectKFold` to make a split from the whole database.
+    #     This function creates a train and test set. The test set is the data of the given subject
+    #     and the train set is the rest of the database.
+    #
+    #     Parameters
+    #     ----------
+    #     test_subject : int
+    #         Subject to put into the train set.
+    #     shuffle : bool, optional
+    #         Shuffle the train set if True
+    #     random_seed : int, optional
+    #         Random seed for shuffle.
+    #     reduce_rest : bool, optional
+    #         Make rest number equal to the max of other labels.
+    #
+    #     Returns
+    #     -------
+    #
+    #     """
+    #     train_subjects = list(self._data_set.keys())
+    #     train_subjects.remove(test_subject)
+    #
+    #     train = list()
+    #     test = self._get_subject_eeg_data(test_subject)
+    #
+    #     for s in train_subjects:
+    #         train.extend(self._get_subject_eeg_data(s))
+    #
+    #     if shuffle:
+    #         np.random.shuffle(train)
+    #         np.random.shuffle(test)
+    #
+    #     train_x, train_y = zip(*train)
+    #     test_x, test_y = zip(*test)
+    #
+    #     if reduce_rest:
+    #         train_x, train_y = _reduce_max_label(train_x, train_y)
+    #         test_x, test_y = _reduce_max_label(test_x, test_y)
+    #
+    #     return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
 
 
 if __name__ == '__main__':
-    base_dir = init_base_config('../')
-
-    preprocessor = OfflineDataPreprocessor(base_dir, fast_load=True).use_pilot_par_a()
-    preprocessor.run(feature_type=FeatureType.FFT_POWER)
-
-    # this is how SubjectKFold works:
-    subj_k_fold = SubjectKFold(10)
-
-    for train_x, train_y, test_x, test_y in subj_k_fold.split_subject_data(preprocessor, 1):
-        print(np.array(train_x).shape, len(train_y), len(test_x), len(test_y))
-        break
-
-    for train_x, train_y, test_x, test_y, subject in subj_k_fold.split(preprocessor):
-        print(train_x[0], train_y[0], test_x[0], test_y[0], subject)
-        break
+    base_dir = init_base_config('..')
+    epoch_proc = OfflineDataPreprocessor(base_dir, subject=1, fast_load=True)
+    epoch_proc.use_game_par_d()
+    feature_extraction = dict(
+        feature_type=FeatureType.FFT_POWER,
+        fft_low=14, fft_high=30
+    )
+    epoch_proc.run(**feature_extraction)
+    print(epoch_proc._proc_db_filenames)

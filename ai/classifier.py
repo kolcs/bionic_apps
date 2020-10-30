@@ -1,6 +1,6 @@
 from enum import Enum, auto
 
-from ai.neural_networks import VGG, VggType, DenseNet, DenseNetType, CascadeConvRecNet
+from ai.kolcs_neural_networks import VGG, VggType, DenseNet, DenseNetType, CascadeConvRecNet
 from ai.svm import MultiSVM
 
 

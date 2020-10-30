@@ -16,6 +16,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         path = init_base_config()
         path = str(Path(path).joinpath('tmp'))
         rmtree(path)
+        cls.subj = 1
 
     def setUp(self):
         self.bci = BCISystem()
@@ -30,7 +31,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=1,
+            subject=self.subj,
         ))
 
     def test_subject_x_val_fft_power(self):
@@ -43,7 +44,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=1,
+            subject=self.subj,
         ))
 
     def test_subject_x_val_fft_range(self):
@@ -56,7 +57,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=1,
+            subject=self.subj,
         ))
 
     def test_subject_x_val_multi_fft_power(self):
@@ -70,7 +71,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=1,
+            subject=self.subj,
         ))
 
 

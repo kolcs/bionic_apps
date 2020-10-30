@@ -134,7 +134,7 @@ class GameLogger(Thread):
         self._sock.close()
 
 
-def setup_logger(logger_name, log_file='', log_dir='log/', level=logging.INFO, log_to_stream=False):
+def setup_logger(logger_name, log_file='', log_dir='log/', verbose=True, log_to_stream=False):
     """Logger creation function.
 
     This function creates a logger, which has a separated log file, where it will append the logs.
@@ -148,12 +148,13 @@ def setup_logger(logger_name, log_file='', log_dir='log/', level=logging.INFO, l
         the creation time and the .log extension
     log_dir : str
         The path where to save the .log files.
-    level : logging const
-        The level of log.
+    verbose : bool
+        The level of log. If true: info
     log_to_stream : bool
         Log info to the stream also.
 
     """
+    level = logging.INFO if verbose else logging.WARNING
     Path(log_dir).mkdir(exist_ok=True)
     logger = logging.getLogger(logger_name)
     formatter = logging.Formatter('%(asctime)s : %(name)s %(levelname)s: %(message)s')
