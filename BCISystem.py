@@ -68,10 +68,10 @@ class BCISystem(object):
 
         self._df = None
         self._df_base_data = list()
-        self._preprcessed_data = None
+        # self._preprcessed_data = None
         self._verbose = verbose
-        self._pre_binarize = False
-        self._reuse_data = False
+        # self._pre_binarize = False
+        # self._reuse_data = False
 
         if make_logs:
             self._init_log()
@@ -120,129 +120,129 @@ class BCISystem(object):
                 print(self._df)
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
-    def _select_epochs(self, train_data, subj, binary_classification=False, equalize_data=True):
-        print('Epoch selection in progress...')
-        feature_params = dict(
-            feature_type=FeatureType.MULTI_FFT_POWER,
-            fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
-                        (22, 36), (26, 32), (26, 36)]
-        )
-        classifier_kwargs = dict(
-            # C=309.27089776753826,
-            # gamma=0.003233411249550041
-        )
-        feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
-        pregen_kwargs = dict(
-            feature_extractor=feature_extractor,
-            epoch_tmin=0, epoch_tmax=4,
-            window_length=1, window_step=.1
-        )
-        if type(train_data[list(train_data)[0]][0]) in [mne_epochs.Epochs, mne_epochs.EpochsFIF]:
-            pregen_epoch_data = pregenerate_epoched_data(train_data, pregen_kwargs=pregen_kwargs)
-            preloaded = False
-        else:
-            pregen_epoch_data = train_data
-            preloaded = True
-
-        n_epochs_in_task = len(list(pregen_epoch_data.values())[0])
-        kfold = SubjectKFold(self._proc, n_epochs_in_task, epoch_selection=True)
-        kfold.pregen_data = pregen_epoch_data
-
-        epoch_sel = {label: dict() for label in kfold.get_individual_class_labels()}
-
-        labels = kfold.get_individual_class_labels()
-        labels = list(set([create_binary_label(label) for label in labels])) if binary_classification else labels
-        label_encoder = LabelEncoder()
-        label_encoder.fit(labels)
-
-        for train, test, subj in kfold.split(subj):
-            classifier = self._train_classifier(label_encoder=label_encoder, train=train,
-                                                classifier_type=ClassifierType.SVM,
-                                                num_of_classes=len(labels), classifier_kwargs=classifier_kwargs,
-                                                make_binary_classification=binary_classification, shuffle_data=True,
-                                                **pregen_kwargs)
-            test_x, test_y_label = generate_test_data(**pregen_kwargs, test=test, make_binary_classification=False,
-                                                      batch_size=None,
-                                                      shuffle=True)
-
-            if binary_classification:
-                test_y = [create_binary_label(label) for label in test_y_label]
-            else:
-                test_y = test_y_label
-            y_pred = classifier.predict(test_x)
-            y_pred = label_encoder.inverse_transform(y_pred)
-
-            # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
-            class_report = classification_report(test_y, y_pred)
-            conf_martix = confusion_matrix(test_y, y_pred)
-            acc = accuracy_score(test_y, y_pred)
-
-            self._log_and_print("@@@ Epoch selection report for subject{}: @@@".format(subj))
-            self._log_and_print(class_report)
-            ep_label = test_y_label[0]
-            self._log_and_print('Label: {}'.format(ep_label))
-            self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
-            self._log_and_print("Accuracy score: {}\n".format(acc))
-
-            epoch_sel[ep_label][kfold.get_test_ind()] = acc
-
-        # removing unwanted epochs
-        prep_data = deepcopy(train_data)
-        if preloaded:
-            prep_data = {
-                task: {i: ep for i, ep in
-                       enumerate([ep for ind, ep in ep_dict.items() if epoch_sel[task][ind] > 1.0 / len(labels) + 0.1])}
-                for task, ep_dict in prep_data.items()
-            }
-        else:
-            prep_data = {task: [ep for ind, ep in enumerate(ep_list) if epoch_sel[task][ind] > .5] for task, ep_list in
-                         prep_data.items()}
-
-        n_all = sum([len(prep_data[task]) for task in prep_data])
-        n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
-        self._log_and_print('Dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop, n_all))
-
-        if binary_classification and equalize_data:
-            def _update():
-                _label_num = {create_binary_label(label): 0 for label in prep_data}
-                _label_map = {create_binary_label(label): list() for label in prep_data}
-                for label, data in prep_data.items():
-                    _label_num[create_binary_label(label)] += len(data)
-                    if len(data) > 0:
-                        _label_map[create_binary_label(label)].append(label)
-                return _label_map, _label_num
-
-            label_map, label_num = _update()
-            k1, k2 = label_num.keys()
-
-            while label_num[k1] != label_num[k2]:
-                max_key = k1 if label_num[k1] > label_num[k2] else k2
-                _sel_label_list = label_map[max_key]
-                ep_label = _sel_label_list[np.random.randint(len(_sel_label_list))]
-                _ep_ind_list = list(prep_data[ep_label])
-                ep_ind = _ep_ind_list[np.random.randint(len(_ep_ind_list))]
-                del prep_data[ep_label][ep_ind]
-                label_map, label_num = _update()
-
-            n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
-            self._log_and_print(
-                'After label equalization, dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop,
-                                                                                    n_all))
-
-            bin_epoch_dict = {create_binary_label(tsk): list() for tsk in prep_data}
-            for tsk, ep_dict in prep_data.items():
-                for ep in ep_dict.values():
-                    if preloaded:
-                        bin_epoch_dict[create_binary_label(tsk)].extend(ep)
-                    else:
-                        bin_epoch_dict[create_binary_label(tsk)].append(ep)
-            prep_data = bin_epoch_dict
-
-        elif preloaded:
-            prep_data = {tsk: [ep for epochs in ep_data.values() for ep in epochs] for tsk, ep_data in
-                         prep_data.items()}
-
-        return prep_data
+    # def _select_epochs(self, train_data, subj, binary_classification=False, equalize_data=True):
+    #     print('Epoch selection in progress...')
+    #     feature_params = dict(
+    #         feature_type=FeatureType.MULTI_FFT_POWER,
+    #         fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
+    #                     (22, 36), (26, 32), (26, 36)]
+    #     )
+    #     classifier_kwargs = dict(
+    #         # C=309.27089776753826,
+    #         # gamma=0.003233411249550041
+    #     )
+    #     feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
+    #     pregen_kwargs = dict(
+    #         feature_extractor=feature_extractor,
+    #         epoch_tmin=0, epoch_tmax=4,
+    #         window_length=1, window_step=.1
+    #     )
+    #     if type(train_data[list(train_data)[0]][0]) in [mne_epochs.Epochs, mne_epochs.EpochsFIF]:
+    #         pregen_epoch_data = pregenerate_epoched_data(train_data, pregen_kwargs=pregen_kwargs)
+    #         preloaded = False
+    #     else:
+    #         pregen_epoch_data = train_data
+    #         preloaded = True
+    #
+    #     n_epochs_in_task = len(list(pregen_epoch_data.values())[0])
+    #     kfold = SubjectKFold(self._proc, n_epochs_in_task, epoch_selection=True)
+    #     kfold.pregen_data = pregen_epoch_data
+    #
+    #     epoch_sel = {label: dict() for label in kfold.get_individual_class_labels()}
+    #
+    #     labels = kfold.get_individual_class_labels()
+    #     labels = list(set([create_binary_label(label) for label in labels])) if binary_classification else labels
+    #     label_encoder = LabelEncoder()
+    #     label_encoder.fit(labels)
+    #
+    #     for train, test, subj in kfold.split(subj):
+    #         classifier = self._train_classifier(label_encoder=label_encoder, train=train,
+    #                                             classifier_type=ClassifierType.SVM,
+    #                                             num_of_classes=len(labels), classifier_kwargs=classifier_kwargs,
+    #                                             make_binary_classification=binary_classification, shuffle_data=True,
+    #                                             **pregen_kwargs)
+    #         test_x, test_y_label = generate_test_data(**pregen_kwargs, test=test, make_binary_classification=False,
+    #                                                   batch_size=None,
+    #                                                   shuffle=True)
+    #
+    #         if binary_classification:
+    #             test_y = [create_binary_label(label) for label in test_y_label]
+    #         else:
+    #             test_y = test_y_label
+    #         y_pred = classifier.predict(test_x)
+    #         y_pred = label_encoder.inverse_transform(y_pred)
+    #
+    #         # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
+    #         class_report = classification_report(test_y, y_pred)
+    #         conf_martix = confusion_matrix(test_y, y_pred)
+    #         acc = accuracy_score(test_y, y_pred)
+    #
+    #         self._log_and_print("@@@ Epoch selection report for subject{}: @@@".format(subj))
+    #         self._log_and_print(class_report)
+    #         ep_label = test_y_label[0]
+    #         self._log_and_print('Label: {}'.format(ep_label))
+    #         self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
+    #         self._log_and_print("Accuracy score: {}\n".format(acc))
+    #
+    #         epoch_sel[ep_label][kfold.get_test_ind()] = acc
+    #
+    #     # removing unwanted epochs
+    #     prep_data = deepcopy(train_data)
+    #     if preloaded:
+    #         prep_data = {
+    #             task: {i: ep for i, ep in
+    #                    enumerate([ep for ind, ep in ep_dict.items() if epoch_sel[task][ind] > 1.0 / len(labels) + 0.1])}
+    #             for task, ep_dict in prep_data.items()
+    #         }
+    #     else:
+    #         prep_data = {task: [ep for ind, ep in enumerate(ep_list) if epoch_sel[task][ind] > .5] for task, ep_list in
+    #                      prep_data.items()}
+    #
+    #     n_all = sum([len(prep_data[task]) for task in prep_data])
+    #     n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
+    #     self._log_and_print('Dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop, n_all))
+    #
+    #     if binary_classification and equalize_data:
+    #         def _update():
+    #             _label_num = {create_binary_label(label): 0 for label in prep_data}
+    #             _label_map = {create_binary_label(label): list() for label in prep_data}
+    #             for label, data in prep_data.items():
+    #                 _label_num[create_binary_label(label)] += len(data)
+    #                 if len(data) > 0:
+    #                     _label_map[create_binary_label(label)].append(label)
+    #             return _label_map, _label_num
+    #
+    #         label_map, label_num = _update()
+    #         k1, k2 = label_num.keys()
+    #
+    #         while label_num[k1] != label_num[k2]:
+    #             max_key = k1 if label_num[k1] > label_num[k2] else k2
+    #             _sel_label_list = label_map[max_key]
+    #             ep_label = _sel_label_list[np.random.randint(len(_sel_label_list))]
+    #             _ep_ind_list = list(prep_data[ep_label])
+    #             ep_ind = _ep_ind_list[np.random.randint(len(_ep_ind_list))]
+    #             del prep_data[ep_label][ep_ind]
+    #             label_map, label_num = _update()
+    #
+    #         n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
+    #         self._log_and_print(
+    #             'After label equalization, dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop,
+    #                                                                                 n_all))
+    #
+    #         bin_epoch_dict = {create_binary_label(tsk): list() for tsk in prep_data}
+    #         for tsk, ep_dict in prep_data.items():
+    #             for ep in ep_dict.values():
+    #                 if preloaded:
+    #                     bin_epoch_dict[create_binary_label(tsk)].extend(ep)
+    #                 else:
+    #                     bin_epoch_dict[create_binary_label(tsk)].append(ep)
+    #         prep_data = bin_epoch_dict
+    #
+    #     elif preloaded:
+    #         prep_data = {tsk: [ep for epochs in ep_data.values() for ep in epochs] for tsk, ep_data in
+    #                      prep_data.items()}
+    #
+    #     return prep_data
 
     @staticmethod
     def _train_classifier(feature_extractor, label_encoder, train, epoch_tmin, epoch_tmax,
@@ -263,8 +263,8 @@ class BCISystem(object):
         return classifier
 
     def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
-                           epoch_tmin=0, epoch_tmax=3,
-                           window_length=0.5, window_step=0.25,
+                           epoch_tmin=0, epoch_tmax=4,
+                           window_length=1.0, window_step=.1,
                            method=XvalidateMethod.SUBJECT,
                            subject=None, use_drop_subject_list=True, fast_load=True,
                            subj_n_fold_num=None, shuffle_data=True, reuse_data=False,
@@ -326,9 +326,9 @@ class BCISystem(object):
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
 
-        if self._reuse_data:
-            reuse_data = True
-            self._reuse_data = False
+        # if self._reuse_data:
+        #     reuse_data = True
+        #     self._reuse_data = False
 
         select_eeg_file = False
         if train_file is str:
@@ -344,11 +344,11 @@ class BCISystem(object):
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
-        self._proc = EpochPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list,
-                                       fast_load, subject, select_eeg_file, train_file)
+        self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
+                                             use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
+                                             subject=subject, select_eeg_file=select_eeg_file, eeg_file=train_file)
         self._proc.use_db(db_name).run()
-        if len(self._proc.get_subjects()) == 0:
-            return
+        assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
 
         if self._log:
             self._df_base_data = [db_name.name, method, feature_params.get('feature_type').name, subject,
@@ -359,31 +359,30 @@ class BCISystem(object):
                                   classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
                                   ]
 
-        feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
-        kfold = SubjectKFold(self._proc, subj_n_fold_num, batch_size=batch_size, shuffle_data=shuffle_data,
-                             prepare_validation_split=epoch_selection)
+        # todo: set parameters
+        kfold = SubjectKFold(self._proc, subj_n_fold_num, batch_size=batch_size, shuffle_data=shuffle_data)
 
-        if batch_size is None:
-            if reuse_data:
-                kfold.pregen_data = self._preprcessed_data
-            else:
-                pregen_kwargs = dict(
-                    feature_extractor=feature_extractor,
-                    epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
-                    window_length=window_length, window_step=window_step
-                )
-                if subject is not None:
-                    pregen_epoch_data = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subject),
-                                                                 pregen_kwargs=pregen_kwargs)
-                    kfold.pregen_data = pregen_epoch_data
-                else:
-                    pregen_epoch_data = dict()
-                    for subj in self._proc.get_subjects():
-                        pregen_epoch_data[subj] = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subj),
-                                                                           pregen_kwargs=pregen_kwargs)
-                        kfold.pregen_data = pregen_epoch_data
-
-        self._preprcessed_data = None
+        # if batch_size is None:
+        #     if reuse_data:
+        #         kfold.pregen_data = self._preprcessed_data
+        #     else:
+        #         pregen_kwargs = dict(
+        #             feature_extractor=feature_extractor,
+        #             epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
+        #             window_length=window_length, window_step=window_step
+        #         )
+        #         if subject is not None:
+        #             pregen_epoch_data = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subject),
+        #                                                          pregen_kwargs=pregen_kwargs)
+        #             kfold.pregen_data = pregen_epoch_data
+        #         else:
+        #             pregen_epoch_data = dict()
+        #             for subj in self._proc.get_subjects():
+        #                 pregen_epoch_data[subj] = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subj),
+        #                                                                    pregen_kwargs=pregen_kwargs)
+        #                 kfold.pregen_data = pregen_epoch_data
+        #
+        # self._preprcessed_data = None
 
         cross_acc = list()
 
@@ -392,8 +391,8 @@ class BCISystem(object):
         label_encoder.fit(labels)
 
         for train, test, subject in kfold.split(subject):
-            if epoch_selection and method is XvalidateMethod.SUBJECT:
-                train = self._select_epochs(train, subject, make_binary_classification)
+            # if epoch_selection and method is XvalidateMethod.SUBJECT:
+            #     train = self._select_epochs(train, subject, make_binary_classification)
 
             if self._verbose:
                 t = time.time()
@@ -424,14 +423,14 @@ class BCISystem(object):
             self._log_and_print("classifier %s:\n%s" % (self, class_report))
             self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
             self._log_and_print("Accuracy score: {}\n".format(acc))
-            del classifier
+            # del classifier
 
         self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
         self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
         self._save_params((cross_acc, np.mean(cross_acc)))
 
-        self._preprcessed_data = kfold.pregen_data
-        del kfold
+        # self._preprcessed_data = kfold.pregen_data
+        # del kfold
 
     def play_game(self, db_name=Databases.GAME, feature_params=None,
                   epoch_tmin=0, epoch_tmax=4,

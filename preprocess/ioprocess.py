@@ -358,18 +358,31 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     return epochs
 
 
-def _reduce_max_label(data, labels):  # Todo: rethink
-    """Try to balance labels"""
-    label_count = {lab: labels.count(lab) for lab in set(labels)}
-    max_label = max(label_count, key=lambda key: label_count[key])
-    max_count = label_count[max_label]
-    del label_count[max_label]
-    next_max_count = max(label_count.values())
-    label_ind = [i for i, lab in enumerate(labels) if lab == max_label]
-    del_num = max_count - next_max_count
-    labels = np.delete(labels, label_ind[:del_num])
-    data = np.delete(data, label_ind[:del_num], axis=0)
-    return data, labels
+def _same_number_of_labels(task_dict):
+    lens = [len(ep_dict) for ep_dict in task_dict.values()]
+    first = lens[0]
+    for i in range(1, len(lens)):
+        if first != lens[i]:
+            return False
+    return True
+
+
+def _reduce(task_dict):
+    tasks, epoch_dicts = zip(*task_dict.items())
+    data_lens = [len(ep_dict) for ep_dict in epoch_dicts]
+    max_task = tasks[np.argmax(data_lens)]
+    min_len = data_lens[np.argmin(data_lens)]
+
+    ind_list = np.arange(max(data_lens))
+    np.random.shuffle(ind_list)
+    task_dict[max_task] = {i: task_dict[max_task][ind] for i, ind in enumerate(ind_list[:min_len])}
+
+
+def _check_data_equality(data_dict):
+    lens = [len(d_list) for d_list in data_dict.values()]
+    first_len = lens[0]
+    for ln in lens:
+        assert ln == first_len, 'Number of data are not equal in each task.'
 
 
 def _generate_window_list_from_epoch_list(epoch_list):
@@ -408,57 +421,95 @@ def create_binary_label(label):
 
 
 class SubjectKFold(object):
-    """
-    Class to split subject database to train and test set, in an N-fold cross validation manner.
-    """
 
-    def __init__(self, k_fold_num=None, shuffle_subjects=True, shuffle_data=True, random_state=None,
-                 batch_size=None):
+    def __init__(self, source_db, k_fold_num=None, shuffle_subjects=True, shuffle_data=True, random_state=None,
+                 equalize_labesl=True,  # batch_size=None
+                 ):
+        """Class to split subject database to train and test set, in an N-fold cross validation manner.
+
+        Parameters
+        ----------
+        source_db : OfflineDataPreprocessor
+            Source database with preprocessed filenames.
+        k_fold_num : int, optional
+        shuffle_subjects : bool
+        shuffle_data : bool
+        random_state : int
+        """
+        self._source_db = source_db
         self._k_fold_num = k_fold_num
         self._shuffle_subj = shuffle_subjects
         self._shuffle_data = shuffle_data
         np.random.seed(random_state)
-        self._batch_size = batch_size
+        self._equalize_labels = equalize_labesl
+        # self._batch_size = batch_size
 
-    def split(self, subject_db):
-        """Splits database by subject. Use it at cross subject cross validation.
+    def get_individual_class_labels(self, make_binary_label=False):
+        labels = self._source_db.get_labels()
+        if make_binary_label:
+            labels = list(set([create_binary_label(label) for label in labels]))
+        return labels
+
+    def split(self, subject=None):
+        """Split database to train and test sets in k-fold manner.
 
         Parameters
         ----------
-        subject_db : OfflineDataPreprocessor
-            The database to split.
+        subject : int or None
+            If subject is not defined the whole database will be split according
+            to generate cross subject data. Otherwise only the subject data
+            will be split.
+
+        Returns
+        -------
 
         """
-        subjects = subject_db.get_subjects()
+        if subject is None:
+            raise NotImplementedError
+            # if self._batch_size is None:
+            #     return self.pregen_split_cross_subject_data()
+            # return self.split_db()
+
+        else:
+            if self._k_fold_num is None:
+                self._k_fold_num = 5
+
+            db_dict = self._source_db.get_processed_db_source()[subject]
+
+            if self._equalize_labels:
+                while _same_number_of_labels(db_dict):
+                    _reduce(db_dict)
+
+                ep_num = len(db_dict[list(db_dict)[0]])
+                kf = KFold(n_splits=self._k_fold_num)
+                # todo: remove labels or not?
+                for train_ind, test_ind in kf.split(np.arange(ep_num)):
+
+            else:
+                raise NotImplementedError
+
+            # todo:
+            #  - equalize labels
+            #  - split to train test and validation
+            #  - create lists for each set
+            #  - shuffle data
+
+    def split_db(self):
+        """Splits database by subject. Use it at cross subject cross validation."""
+        # raise NotImplementedError
+        subjects = self._subject_db.get_subjects()
 
         if self._shuffle_subj:
             np.random.shuffle(subjects)
 
         if self._k_fold_num is not None:
             self._k_fold_num = max(1, self._k_fold_num)
-            n = min(self._k_fold_num, len(subjects))
-            subjects = subjects[:n]
+            subjects = subjects[:self._k_fold_num]
 
         for s in subjects:
             yield subject_db.get_split(s, shuffle=self._shuffle_data)
 
-    def _over_max_follow(self, data):
-        if self._batch_size is not None:
-            limit = len(data) % self._batch_size
-            limit = int(self._batch_size / 4) if limit == 0 else limit
-            prev = None
-            count = 0
-            for x, label in data:
-                if label == prev:
-                    count += 1
-                else:
-                    prev = label
-                    count = 0
-                if count == limit:
-                    return True
-        return False
-
-    def split_subject_data(self, subject_db, subject_id):
+    def split_subject_data_old(self, subject_db, subject_id):
         """Splits one subjects data to train and test set.
 
         Parameters
@@ -657,6 +708,13 @@ class OfflineDataPreprocessor:
     def get_subjects(self):
         return list(self._proc_db_filenames)
 
+    def get_processed_db_source(self):
+        return self._proc_db_filenames
+
+    def get_labels(self):
+        subj = list(self._proc_db_filenames)[0]
+        return list(self._proc_db_filenames[subj])
+
     def get_command_converter(self):
         attr = 'COMMAND_CONV'
         assert hasattr(self._db_type, attr), '{} has no {} attribute'.format(self._db_type, attr)
@@ -677,14 +735,16 @@ class OfflineDataPreprocessor:
         """
         print('Database generated for subject{}'.format(subj))
         subject_dict = dict()
+        feature_ind = 0
         for task, ep_dict in subject_data.items():
             ep_file_dict = dict()
             for ind, ep_list in ep_dict.items():
                 win_file_list = list()
-                for i, ep in enumerate(ep_list):
-                    db_file = 'subject{}-{}-epoch{}-win{}.data'.format(subj, task, ind, i)
+                for ep in ep_list:
+                    db_file = 'feature{}.data'.format(feature_ind)
                     save_pickle_data(str(self.proc_db_path.joinpath(db_file)), ep)
                     win_file_list.append(db_file)
+                    feature_ind += 1
                 ep_file_dict[ind] = win_file_list
             subject_dict[task] = ep_file_dict
 
@@ -762,7 +822,6 @@ class OfflineDataPreprocessor:
                                            cut_real_movement_tasks=cut_real_mov)
             self.info = epochs.info
             subject_data = self._get_windowed_features(epochs)
-
             self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_db_from_file(self):
@@ -803,7 +862,6 @@ class OfflineDataPreprocessor:
             epochs = epochs[task]
 
         epochs.load_data()
-
         if self.feature_type is FeatureType.SPATIAL_TEMPORAL:
             epochs.resample(128, n_jobs=-1)
 
@@ -974,11 +1032,11 @@ class OfflineDataPreprocessor:
 
 if __name__ == '__main__':
     base_dir = init_base_config('..')
-    epoch_proc = OfflineDataPreprocessor(base_dir, subject=1, fast_load=True)
+    epoch_proc = OfflineDataPreprocessor(base_dir, subject=1, fast_load=False)
     epoch_proc.use_game_par_d()
     feature_extraction = dict(
         feature_type=FeatureType.FFT_POWER,
         fft_low=14, fft_high=30
     )
     epoch_proc.run(**feature_extraction)
-    print(epoch_proc._proc_db_filenames)
+    print(epoch_proc.get_processed_db_source())
