@@ -2,10 +2,8 @@ import unittest
 from pathlib import Path
 from shutil import rmtree
 
-from mne import epochs as mne_epochs
-
-from config import Physionet, Game_ParadigmD
-from preprocess import init_base_config, OfflineDataPreprocessor, SubjectKFold
+from config import Physionet, Game_ParadigmD, DIR_FEATURE_DB
+from preprocess import init_base_config, OfflineDataPreprocessor, FeatureType
 
 
 class TestPreprocessor(unittest.TestCase):
@@ -14,50 +12,43 @@ class TestPreprocessor(unittest.TestCase):
     def setUpClass(cls):
         cls._path = Path(init_base_config('..'))
         cls._subject = 1
+        path = str(cls._path.joinpath(DIR_FEATURE_DB))
+        rmtree(path)
 
     def setUp(self):
-        self.epoch_proc = OfflineDataPreprocessor(self._path, subject=self._subject, fast_load=False)
+        self.epoch_proc = OfflineDataPreprocessor(self._path, subject=self._subject)
 
     def _check_method(self):
-        self.epoch_proc.run()
-        self.assertGreater(len(self.epoch_proc.get_subjects()), 0)
-        ans = self.epoch_proc.get_data_for_subject_split(self._subject)
-        self.assertIsInstance(ans, dict)
-        keys = list(ans)
-        try:
-            self.assertIsInstance(ans[keys[0]][0], mne_epochs.Epochs)
-        except AssertionError:
-            self.assertIsInstance(ans[keys[0]][0], mne_epochs.EpochsFIF)
+        feature_extraction = dict(
+            feature_type=FeatureType.FFT_POWER,
+            fft_low=14, fft_high=30
+        )
+        self.epoch_proc.run(**feature_extraction)
+        self.assertIsInstance(self.epoch_proc.get_processed_db_source(), dict)
+        self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 0)
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
                          'Data for Physionet does not exists. Can not test it.')
-    def test_physionet(self):
+    def test_1_physionet(self):
         self.epoch_proc.use_physionet()
         self._check_method()
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
                          'Data for Game_paradigmD does not exists. Can not test it.')
-    def test_game_paradigmD(self):
+    def test_2_game_paradigmD(self):
         self.epoch_proc.use_game_par_d()
         self._check_method()
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
-                         'Data for Game_paradigmD does not exists. Can not test it.')
-    def test_fast_load_without_data(self):
-        path = str(Path(self._path).joinpath('tmp'))
-        rmtree(path)
-        self.epoch_proc = EpochPreprocessor(self._path, subject=self._subject, fast_load=True)
-        self.epoch_proc.use_game_par_d()
-        self._check_method()
+    def test_3_fast_load(self):
+        self.epoch_proc.use_physionet()
+        self.test_2_game_paradigmD()
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
                          'Data for Game_paradigmD does not exists. Can not test it.')
-    def test_fast_load_with_data(self):
-        self.epoch_proc.use_game_par_d()
-        self.epoch_proc.run()
-        self.epoch_proc = EpochPreprocessor(self._path, subject=self._subject, fast_load=True)
-        self.epoch_proc.use_game_par_d()
-        self._check_method()
+    def test_4_data_update(self):
+        self.epoch_proc = OfflineDataPreprocessor(self._path, subject=self._subject + 1)
+        self.test_2_game_paradigmD()
+        self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
 
 
 # @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),

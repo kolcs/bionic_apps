@@ -385,14 +385,6 @@ def _check_data_equality(data_dict):
         assert ln == first_len, 'Number of data are not equal in each task.'
 
 
-def _generate_window_list_from_epoch_list(epoch_list):
-    """Creates a list of windows from list of list of windows"""
-    win_list = list()
-    for d in epoch_list:
-        win_list.extend(d)
-    return win_list
-
-
 def get_db_name_by_filename(filename):
     if Game_ParadigmC.DIR in filename:
         db_name = Databases.GAME_PAR_C
@@ -422,9 +414,8 @@ def create_binary_label(label):
 
 class SubjectKFold(object):
 
-    def __init__(self, source_db, k_fold_num=None, shuffle_subjects=True, shuffle_data=True, random_state=None,
-                 equalize_labesl=True,  # batch_size=None
-                 ):
+    def __init__(self, source_db, k_fold_num=None, validation_split=0, shuffle_subjects=True, shuffle_data=True,
+                 random_state=None, equalize_labels=True):
         """Class to split subject database to train and test set, in an N-fold cross validation manner.
 
         Parameters
@@ -432,23 +423,65 @@ class SubjectKFold(object):
         source_db : OfflineDataPreprocessor
             Source database with preprocessed filenames.
         k_fold_num : int, optional
+        validation_split : float
+            How much of the train set should be used as validation data. value range: [0, 1]
         shuffle_subjects : bool
         shuffle_data : bool
         random_state : int
         """
         self._source_db = source_db
         self._k_fold_num = k_fold_num
+        self._validation_split = validation_split
         self._shuffle_subj = shuffle_subjects
         self._shuffle_data = shuffle_data
         np.random.seed(random_state)
-        self._equalize_labels = equalize_labesl
-        # self._batch_size = batch_size
+        self._equalize_labels = equalize_labels
 
     def get_individual_class_labels(self, make_binary_label=False):
         labels = self._source_db.get_labels()
         if make_binary_label:
             labels = list(set([create_binary_label(label) for label in labels]))
         return labels
+
+    def _get_train_and_val_ind(self, train_ind):
+        val_num = int(len(train_ind) * self._validation_split)
+        np.random.shuffle(train_ind)
+        val_ind = train_ind[:val_num]
+        tr_ind = train_ind[val_num:]
+        return tr_ind, val_ind
+
+    @staticmethod
+    def _remove_task_tag(db_dict):
+        no_task_db = dict()
+        n = max([len(ep_dict) for ep_dict in db_dict.values()])
+        ind = 0
+        for i in range(n):
+            for task in db_dict:
+                ep = db_dict[task].pop(i, None)
+                if ep is not None:
+                    no_task_db[ind] = ep
+                    ind += 1
+        return no_task_db
+
+    @staticmethod
+    def _remove_subject_tag(db_dict, subject_list):
+        db = {task: dict() for task in db_dict[subject_list[0]]}
+        task_ind = {task: 0 for task in db_dict[subject_list[0]]}
+        for subj in subject_list:
+            for task, ep_dict in db_dict[subj].items():
+                for ep in ep_dict.values():
+                    db[task][task_ind[task]] = ep
+                    task_ind[task] += 1
+        return db
+
+    def _do_label_equalization(self, db_dict):
+        if self._equalize_labels:
+            while _same_number_of_labels(db_dict):
+                _reduce(db_dict)
+
+    @staticmethod
+    def _get_file_list(db_dict, indexes):
+        return [file for i in indexes for win_list in db_dict[i] for file in win_list]
 
     def split(self, subject=None):
         """Split database to train and test sets in k-fold manner.
@@ -459,95 +492,59 @@ class SubjectKFold(object):
             If subject is not defined the whole database will be split according
             to generate cross subject data. Otherwise only the subject data
             will be split.
-
-        Returns
-        -------
-
         """
+        db_dict = self._source_db.get_processed_db_source(subject)
+
         if subject is None:
-            raise NotImplementedError
-            # if self._batch_size is None:
-            #     return self.pregen_split_cross_subject_data()
-            # return self.split_db()
+            subject_list = list(db_dict)
+
+            if self._shuffle_subj:
+                np.random.shuffle(subject_list)
+
+            if self._k_fold_num is not None:
+                self._k_fold_num = max(1, self._k_fold_num)
+                subject_list = subject_list[:self._k_fold_num]
+
+            def generate_file_db(source_db):
+                self._do_label_equalization(source_db)
+                source_db = self._remove_task_tag(source_db)
+                return self._get_file_list(source_db, np.arange(len(source_db)))
+
+            for subj in subject_list:
+                train_subj = subject_list.copy()
+                test_subj = train_subj.pop(train_subj.index(subj))
+                tr_subj, val_subj = self._get_train_and_val_ind(train_subj)
+                test_db = db_dict[test_subj]
+                train_db = self._remove_subject_tag(db_dict, tr_subj)
+
+                test_files = generate_file_db(test_db)
+                train_files = generate_file_db(train_db)
+
+                if len(val_subj) > 0:
+                    val_db = self._remove_subject_tag(db_dict, val_subj)
+                    val_files = generate_file_db(val_db)
+                else:
+                    val_files = None
+                yield train_files, test_files, val_files
 
         else:
             if self._k_fold_num is None:
                 self._k_fold_num = 5
 
-            db_dict = self._source_db.get_processed_db_source()[subject]
+            self._do_label_equalization(db_dict)
+            db_dict = self._remove_task_tag(db_dict)
 
-            if self._equalize_labels:
-                while _same_number_of_labels(db_dict):
-                    _reduce(db_dict)
-
-                ep_num = len(db_dict[list(db_dict)[0]])
-                kf = KFold(n_splits=self._k_fold_num)
-                # todo: remove labels or not?
-                for train_ind, test_ind in kf.split(np.arange(ep_num)):
-
-            else:
-                raise NotImplementedError
-
-            # todo:
-            #  - equalize labels
-            #  - split to train test and validation
-            #  - create lists for each set
-            #  - shuffle data
-
-    def split_db(self):
-        """Splits database by subject. Use it at cross subject cross validation."""
-        # raise NotImplementedError
-        subjects = self._subject_db.get_subjects()
-
-        if self._shuffle_subj:
-            np.random.shuffle(subjects)
-
-        if self._k_fold_num is not None:
-            self._k_fold_num = max(1, self._k_fold_num)
-            subjects = subjects[:self._k_fold_num]
-
-        for s in subjects:
-            yield subject_db.get_split(s, shuffle=self._shuffle_data)
-
-    def split_subject_data_old(self, subject_db, subject_id):
-        """Splits one subjects data to train and test set.
-
-        Parameters
-        ----------
-        subject_db : OfflineDataPreprocessor
-            The database from the subject data is selected.
-        subject_id : int
-            Subject ID number
-
-        """
-        if self._k_fold_num is None:
-            self._k_fold_num = 10
-
-        ep_list = subject_db.get_data_for_subject_split(subject_id)
-
-        if subject_db.is_name('Physionet'):
-            np.random.shuffle(ep_list)
-
-        kf = KFold(n_splits=self._k_fold_num)
-        for train_ind, test_ind in kf.split(list(range(len(ep_list)))):
-            train = [ep_list[ind] for ind in train_ind]
-            train = _generate_window_list_from_epoch_list(train)
-            test = [ep_list[ind] for ind in test_ind]
-            test = _generate_window_list_from_epoch_list(test)
-
-            train = list(zip(*_reduce_max_label(*zip(*train))))
-            test = list(zip(*_reduce_max_label(*zip(*test))))
-
-            if self._shuffle_data:
-                np.random.shuffle(train)
-                np.random.shuffle(test)
-                while self._over_max_follow(train):
-                    np.random.shuffle(train)
-
-            train_x, train_y = zip(*train)
-            test_x, test_y = zip(*test)
-
-            yield np.array(train_x), train_y, np.array(test_x), test_y
+            kf = KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data)
+            for train_ind, test_ind in kf.split(np.arange(len(db_dict))):
+                test_files = self._get_file_list(db_dict, test_ind)
+                if self._validation_split == 0:
+                    train_files = self._get_file_list(db_dict, train_ind)
+                    val_files = None
+                else:
+                    tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
+                    val_files = self._get_file_list(db_dict, val_ind)
+                    train_files = self._get_file_list(db_dict, tr_ind)
+                yield train_files, test_files, val_files
 
 
 class OfflineDataPreprocessor:
@@ -708,8 +705,10 @@ class OfflineDataPreprocessor:
     def get_subjects(self):
         return list(self._proc_db_filenames)
 
-    def get_processed_db_source(self):
-        return self._proc_db_filenames
+    def get_processed_db_source(self, subject=None):
+        if subject is None:
+            return self._proc_db_filenames
+        return self._proc_db_filenames[subject]
 
     def get_labels(self):
         subj = list(self._proc_db_filenames)[0]
@@ -892,14 +891,15 @@ class OfflineDataPreprocessor:
 
         Parameters
         ----------
-        feature : Features, optional
+        feature : FeatureType, optional
             Feature used in preprocess.
         """
         if feature is not None and feature not in FeatureType:
             raise NotImplementedError('Feature {} is not implemented'.format(feature))
         if feature in FeatureType:
             self.feature_type = feature
-        self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, self.feature_type.name,
+        feature_dir = self.feature_type.name + str(self.feature_kwargs).replace(': ', '=').replace("'", '')
+        self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, feature_dir,
                                                     str(self._window_length), str(self._window_step))
 
     def _create_db(self):
@@ -948,95 +948,16 @@ class OfflineDataPreprocessor:
 
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
 
-    # def get_subject_data(self, subject, reduce_rest=True, shuffle=True, random_seed=None):
-    #     """Returns data for one subject.
-    #
-    #     Parameters
-    #     ----------
-    #     subject : int
-    #         Number of the required subject.
-    #     reduce_rest : bool, optional
-    #         To reduce rest data points.
-    #     """
-    #     # todo: rethink reduce_rest --> reduce_max or reduce to min...
-    #     assert subject not in self._drop_subject, 'Subject{} is in drop subject list.'.format(subject)
-    #     assert subject in list(self._proc_db_filenames.keys()), \
-    #         'Subject{} is not in preprocessed database'.format(subject)
-    #     data, label = zip(*self._get_subject_eeg_data(subject))
-    #     if reduce_rest:
-    #         data, label = _reduce_max_label(data, label)
-    #     if shuffle:
-    #         ind = np.arange(len(label))
-    #         np.random.seed(random_seed)
-    #         np.random.shuffle(ind)
-    #         data = [data[i] for i in ind]
-    #         label = [label[i] for i in ind]
-    #
-    #     return list(data), list(label)
-
-    # def _get_epoch_list(self, subject_id):
-    #     ep_dict = self._data_set.get(subject_id)
-    #     return list(ep_dict.values())
-
-    # def _get_subject_eeg_data(self, subject_id):
-    #     ep_list = self._get_epoch_list(subject_id)
-    #     return _generate_window_list_from_epoch_list(ep_list)
-
-    # def get_data_for_subject_split(self, subject_id):
-    #     return self._get_epoch_list(subject_id)
-
-    # def get_split(self, test_subject, shuffle=True, reduce_rest=True):
-    #     """Splits the whole database to train and test sets.
-    #
-    #     This is a helper function for :class:`SubjectKFold` to make a split from the whole database.
-    #     This function creates a train and test set. The test set is the data of the given subject
-    #     and the train set is the rest of the database.
-    #
-    #     Parameters
-    #     ----------
-    #     test_subject : int
-    #         Subject to put into the train set.
-    #     shuffle : bool, optional
-    #         Shuffle the train set if True
-    #     random_seed : int, optional
-    #         Random seed for shuffle.
-    #     reduce_rest : bool, optional
-    #         Make rest number equal to the max of other labels.
-    #
-    #     Returns
-    #     -------
-    #
-    #     """
-    #     train_subjects = list(self._data_set.keys())
-    #     train_subjects.remove(test_subject)
-    #
-    #     train = list()
-    #     test = self._get_subject_eeg_data(test_subject)
-    #
-    #     for s in train_subjects:
-    #         train.extend(self._get_subject_eeg_data(s))
-    #
-    #     if shuffle:
-    #         np.random.shuffle(train)
-    #         np.random.shuffle(test)
-    #
-    #     train_x, train_y = zip(*train)
-    #     test_x, test_y = zip(*test)
-    #
-    #     if reduce_rest:
-    #         train_x, train_y = _reduce_max_label(train_x, train_y)
-    #         test_x, test_y = _reduce_max_label(test_x, test_y)
-    #
-    #     return list(train_x), list(train_y), list(test_x), list(test_y), test_subject
-
 
 if __name__ == '__main__':
     base_dir = init_base_config('..')
-    epoch_proc = OfflineDataPreprocessor(base_dir, subject=1, fast_load=False)
+    epoch_proc = OfflineDataPreprocessor(base_dir, subject=1, fast_load=True)
     epoch_proc.use_game_par_d()
     feature_extraction = dict(
         feature_type=FeatureType.FFT_POWER,
         fft_low=14, fft_high=30
     )
     epoch_proc.run(**feature_extraction)
-    print(epoch_proc.get_processed_db_source())
+    db = epoch_proc.get_processed_db_source()
+    print(list(db))
+    print(db)
