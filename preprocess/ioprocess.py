@@ -740,7 +740,7 @@ class OfflineDataPreprocessor:
             for ind, ep_list in ep_dict.items():
                 win_file_list = list()
                 for ep in ep_list:
-                    db_file = 'feature{}.data'.format(feature_ind)
+                    db_file = 'subj{}-feature{}.data'.format(subj, feature_ind)
                     save_pickle_data(str(self.proc_db_path.joinpath(db_file)), ep)
                     win_file_list.append(db_file)
                     feature_ind += 1
@@ -900,7 +900,8 @@ class OfflineDataPreprocessor:
             self.feature_type = feature
         feature_dir = self.feature_type.name + str(self.feature_kwargs).replace(': ', '=').replace("'", '')
         self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, feature_dir,
-                                                    str(self._window_length), str(self._window_step))
+                                                    'win_len=' + str(self._window_length),
+                                                    'win_step=' + str(self._window_step))
 
     def _create_db(self):
         """Base db creator function."""
