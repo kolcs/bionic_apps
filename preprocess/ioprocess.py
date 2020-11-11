@@ -1,3 +1,4 @@
+from copy import deepcopy
 from enum import Enum
 from json import dump as json_dump, load as json_load
 from pathlib import Path
@@ -7,7 +8,6 @@ from time import time
 import mne
 import numpy as np
 from sklearn.model_selection import KFold
-from copy import deepcopy
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE
@@ -19,9 +19,13 @@ EPOCH_DB = 'preprocessed_database'
 # config options
 CONFIG_FILE = 'bci_system.cfg'
 BASE_DIR = 'base_dir'
-SUBJECTS = 'subjects'
-DATA_SOURCE = 'data_source'
-INFO = 'epoch_info'
+
+
+class SourceDB(Enum):
+    SUBJECTS = 'subjects'
+    DATA_SOURCE = 'data_source'
+    INFO = 'epoch_info'
+    FEATURE_SHAPE = 'feature_shape'
 
 
 # db selection options
@@ -596,6 +600,7 @@ class OfflineDataPreprocessor:
         self.info = mne.Info()
         self.feature_type = FeatureType.FFT_RANGE
         self.feature_kwargs = dict()
+        self._feature_shape = tuple()
 
         self._data_path = Path()
         self._db_type = None  # Physionet / TTK
@@ -723,6 +728,9 @@ class OfflineDataPreprocessor:
         assert hasattr(self._db_type, attr), '{} has no {} attribute'.format(self._db_type, attr)
         return self._db_type.COMMAND_CONV
 
+    def get_feature_shape(self):
+        return self._feature_shape
+
     def is_name(self, db_name):
         return db_name in str(self._db_type)
 
@@ -755,9 +763,10 @@ class OfflineDataPreprocessor:
         self._proc_db_filenames[subj] = subject_dict
         # processed db data...
         source = {
-            SUBJECTS: self._get_subject_num(),
-            DATA_SOURCE: self._proc_db_filenames,
-            INFO: self.info
+            SourceDB.SUBJECTS: self._get_subject_num(),
+            SourceDB.DATA_SOURCE: self._proc_db_filenames,
+            SourceDB.INFO: self.info,
+            SourceDB.FEATURE_SHAPE: self._feature_shape
         }
         save_pickle_data(self._proc_db_source, source)
 
@@ -885,6 +894,11 @@ class OfflineDataPreprocessor:
                 ep = tsk_ep.copy()
                 ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
                 feature = feature_extractor.run(ep.get_data())
+                f_shape = feature.shape[1:]
+                if len(self._feature_shape) > 0:
+                    assert f_shape == self._feature_shape, 'Error: Change in feature output shape. prev: {},  ' \
+                                                           'current: {}'.format(self._feature_shape, f_shape)
+                self._feature_shape = f_shape
                 for j in range(len(tsk_ep)):
                     win_epochs[j].append((feature[j], task))
             task_dict[task] = win_epochs
@@ -917,6 +931,7 @@ class OfflineDataPreprocessor:
         self.init_processed_db_path()
         self._proc_db_source = str(self.proc_db_path.joinpath(self.feature_type.name + '.db'))
         Path(self.proc_db_path).mkdir(parents=True, exist_ok=True)
+        self._feature_shape = tuple()
 
         def print_creation_message():
             print('{} file is not found. Creating database.'.format(file))
@@ -926,12 +941,13 @@ class OfflineDataPreprocessor:
         n_subjects = self._get_subject_num()
 
         if fastload_source is not None and self._fast_load and \
-                n_subjects == fastload_source[SUBJECTS]:
+                n_subjects == fastload_source[SourceDB.SUBJECTS] and len(fastload_source) == len(SourceDB):
             subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
 
-            self._proc_db_filenames = fastload_source[DATA_SOURCE]
-            if all(subj in fastload_source[DATA_SOURCE] for subj in subject_list):
-                self.info = fastload_source[INFO]
+            self._proc_db_filenames = fastload_source[SourceDB.DATA_SOURCE]
+            if all(subj in fastload_source[SourceDB.DATA_SOURCE] for subj in subject_list):
+                self.info = fastload_source[SourceDB.INFO]
+                self._feature_shape = fastload_source[SourceDB.FEATURE_SHAPE]
                 return  # fast load ok. Do not create database.
             # extend existing fast load database.
 
@@ -953,17 +969,3 @@ class OfflineDataPreprocessor:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
 
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
-
-
-if __name__ == '__main__':
-    base_dir = init_base_config('..')
-    epoch_proc = OfflineDataPreprocessor(base_dir, subject=1, fast_load=True)
-    epoch_proc.use_game_par_d()
-    feature_extraction = dict(
-        feature_type=FeatureType.FFT_POWER,
-        fft_low=14, fft_high=30
-    )
-    epoch_proc.run(**feature_extraction)
-    db = epoch_proc.get_processed_db_source()
-    print(list(db))
-    print(db)
