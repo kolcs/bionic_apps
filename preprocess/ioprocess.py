@@ -7,6 +7,7 @@ from time import time
 import mne
 import numpy as np
 from sklearn.model_selection import KFold
+from copy import deepcopy
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE
@@ -445,6 +446,8 @@ class SubjectKFold(object):
 
     def _get_train_and_val_ind(self, train_ind):
         val_num = int(len(train_ind) * self._validation_split)
+        if self._validation_split > 0 and val_num == 0:
+            val_num = 1
         np.random.shuffle(train_ind)
         val_ind = train_ind[:val_num]
         tr_ind = train_ind[val_num:]
@@ -481,7 +484,7 @@ class SubjectKFold(object):
 
     @staticmethod
     def _get_file_list(db_dict, indexes):
-        return [file for i in indexes for win_list in db_dict[i] for file in win_list]
+        return [file for i in indexes for file in db_dict[i]]
 
     def split(self, subject=None):
         """Split database to train and test sets in k-fold manner.
@@ -506,6 +509,7 @@ class SubjectKFold(object):
                 subject_list = subject_list[:self._k_fold_num]
 
             def generate_file_db(source_db):
+                source_db = deepcopy(source_db)
                 self._do_label_equalization(source_db)
                 source_db = self._remove_task_tag(source_db)
                 return self._get_file_list(source_db, np.arange(len(source_db)))
@@ -525,7 +529,7 @@ class SubjectKFold(object):
                     val_files = generate_file_db(val_db)
                 else:
                     val_files = None
-                yield train_files, test_files, val_files
+                yield train_files, test_files, val_files, subj
 
         else:
             if self._k_fold_num is None:
@@ -544,7 +548,7 @@ class SubjectKFold(object):
                     tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
                     val_files = self._get_file_list(db_dict, val_ind)
                     train_files = self._get_file_list(db_dict, tr_ind)
-                yield train_files, test_files, val_files
+                yield train_files, test_files, val_files, subject
 
 
 class OfflineDataPreprocessor:
@@ -741,7 +745,8 @@ class OfflineDataPreprocessor:
                 win_file_list = list()
                 for ep in ep_list:
                     db_file = 'subj{}-feature{}.data'.format(subj, feature_ind)
-                    save_pickle_data(str(self.proc_db_path.joinpath(db_file)), ep)
+                    db_file = str(self.proc_db_path.joinpath(db_file))
+                    save_pickle_data(db_file, ep)
                     win_file_list.append(db_file)
                     feature_ind += 1
                 ep_file_dict[ind] = win_file_list
