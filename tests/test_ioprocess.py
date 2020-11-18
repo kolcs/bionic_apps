@@ -3,9 +3,11 @@ from pathlib import Path
 from shutil import rmtree
 
 from numpy import ndarray as ndarray
+from sklearn.preprocessing import LabelEncoder
 
 from config import Physionet, Game_ParadigmD, DIR_FEATURE_DB
-from preprocess import init_base_config, OfflineDataPreprocessor, FeatureType, SubjectKFold, load_pickle_data
+from preprocess import init_base_config, OfflineDataPreprocessor, FeatureType, SubjectKFold, load_pickle_data, \
+    DataHandler
 
 
 class TestPreprocessor(unittest.TestCase):
@@ -99,6 +101,30 @@ class TestSubjectKFold(unittest.TestCase):
         for train, test, val, subj in subj_kfold.split():
             ans.append((train, test))
         self._check_method(ans)
+
+
+class TestDataHandler(unittest.TestCase):
+
+    def test_big_data(self):
+        path = Path(init_base_config('..'))
+        subject = 1
+        epoch_proc = OfflineDataPreprocessor(path, subject=subject)
+        epoch_proc.use_game_par_d()
+        feature_extraction = dict(
+            feature_type=FeatureType.SPATIAL_FFT_POWER,
+            fft_low=14, fft_high=30
+        )
+        epoch_proc.run(**feature_extraction)
+        file_list = epoch_proc.get_processed_db_source(subject, only_files=True)
+        labels = epoch_proc.get_labels()
+        label_encoder = LabelEncoder()
+        label_encoder.fit(labels)
+        file_handler = DataHandler(file_list, label_encoder)
+        dataset = file_handler.get_tf_dataset()
+        from tensorflow import data as tf_data
+        self.assertIsInstance(dataset, tf_data.Dataset)
+        for d, l in dataset.take(5):
+            print(d.numpy(), l.numpy())
 
 
 if __name__ == '__main__':

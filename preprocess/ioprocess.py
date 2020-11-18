@@ -7,6 +7,7 @@ from time import time
 
 import mne
 import numpy as np
+import tensorflow as tf
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
@@ -288,7 +289,7 @@ def get_epochs_from_raw(raw, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baselin
     Returns
     -------
     mne.Epochs
-        Created epochs from files. Data is not loaded!
+        Created epochs from files.
     """
     events, _ = mne.events_from_annotations(raw, event_id)
     # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
@@ -363,6 +364,11 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     return epochs
 
 
+"""
+Database dict manipulation functions
+"""
+
+
 def _same_number_of_labels(task_dict):
     lens = [len(ep_dict) for ep_dict in task_dict.values()]
     first = lens[0]
@@ -383,11 +389,52 @@ def _reduce(task_dict):
     task_dict[max_task] = {i: task_dict[max_task][ind] for i, ind in enumerate(ind_list[:min_len])}
 
 
+def _do_label_equalization(db_dict):
+    while not _same_number_of_labels(db_dict):
+        _reduce(db_dict)
+
+
 def _check_data_equality(data_dict):
     lens = [len(d_list) for d_list in data_dict.values()]
     first_len = lens[0]
     for ln in lens:
         assert ln == first_len, 'Number of data are not equal in each task.'
+
+
+def _remove_subject_tag(db_dict, subject_list):
+    db = {task: dict() for task in db_dict[subject_list[0]]}
+    task_ind = {task: 0 for task in db_dict[subject_list[0]]}
+    for subj in subject_list:
+        for task, ep_dict in db_dict[subj].items():
+            for ep in ep_dict.values():
+                db[task][task_ind[task]] = ep
+                task_ind[task] += 1
+    return db
+
+
+def _remove_task_tag(db_dict):
+    no_task_db = dict()
+    n = max([len(ep_dict) for ep_dict in db_dict.values()])
+    ind = 0
+    for i in range(n):
+        for task in db_dict:
+            ep = db_dict[task].pop(i, None)
+            if ep is not None:
+                no_task_db[ind] = ep
+                ind += 1
+    return no_task_db
+
+
+def _get_file_list(db_dict, indexes):
+    return [file for i in indexes for file in db_dict[i]]
+
+
+def _generate_file_db(source_db, equalize_labels=True):
+    source_db = deepcopy(source_db)
+    if equalize_labels:
+        _do_label_equalization(source_db)
+    source_db = _remove_task_tag(source_db)
+    return _get_file_list(source_db, np.arange(len(source_db)))
 
 
 def get_db_name_by_filename(filename):
@@ -457,39 +504,6 @@ class SubjectKFold(object):
         tr_ind = train_ind[val_num:]
         return tr_ind, val_ind
 
-    @staticmethod
-    def _remove_task_tag(db_dict):
-        no_task_db = dict()
-        n = max([len(ep_dict) for ep_dict in db_dict.values()])
-        ind = 0
-        for i in range(n):
-            for task in db_dict:
-                ep = db_dict[task].pop(i, None)
-                if ep is not None:
-                    no_task_db[ind] = ep
-                    ind += 1
-        return no_task_db
-
-    @staticmethod
-    def _remove_subject_tag(db_dict, subject_list):
-        db = {task: dict() for task in db_dict[subject_list[0]]}
-        task_ind = {task: 0 for task in db_dict[subject_list[0]]}
-        for subj in subject_list:
-            for task, ep_dict in db_dict[subj].items():
-                for ep in ep_dict.values():
-                    db[task][task_ind[task]] = ep
-                    task_ind[task] += 1
-        return db
-
-    def _do_label_equalization(self, db_dict):
-        if self._equalize_labels:
-            while _same_number_of_labels(db_dict):
-                _reduce(db_dict)
-
-    @staticmethod
-    def _get_file_list(db_dict, indexes):
-        return [file for i in indexes for file in db_dict[i]]
-
     def split(self, subject=None):
         """Split database to train and test sets in k-fold manner.
 
@@ -512,25 +526,19 @@ class SubjectKFold(object):
                 self._k_fold_num = max(1, self._k_fold_num)
                 subject_list = subject_list[:self._k_fold_num]
 
-            def generate_file_db(source_db):
-                source_db = deepcopy(source_db)
-                self._do_label_equalization(source_db)
-                source_db = self._remove_task_tag(source_db)
-                return self._get_file_list(source_db, np.arange(len(source_db)))
-
             for subj in subject_list:
                 train_subj = subject_list.copy()
                 test_subj = train_subj.pop(train_subj.index(subj))
                 tr_subj, val_subj = self._get_train_and_val_ind(train_subj)
                 test_db = db_dict[test_subj]
-                train_db = self._remove_subject_tag(db_dict, tr_subj)
+                train_db = _remove_subject_tag(db_dict, tr_subj)
 
-                test_files = generate_file_db(test_db)
-                train_files = generate_file_db(train_db)
+                test_files = _generate_file_db(test_db, self._equalize_labels)
+                train_files = _generate_file_db(train_db, self._equalize_labels)
 
                 if len(val_subj) > 0:
-                    val_db = self._remove_subject_tag(db_dict, val_subj)
-                    val_files = generate_file_db(val_db)
+                    val_db = _remove_subject_tag(db_dict, val_subj)
+                    val_files = _generate_file_db(val_db, self._equalize_labels)
                 else:
                     val_files = None
                 yield train_files, test_files, val_files, subj
@@ -539,19 +547,19 @@ class SubjectKFold(object):
             if self._k_fold_num is None:
                 self._k_fold_num = 5
 
-            self._do_label_equalization(db_dict)
-            db_dict = self._remove_task_tag(db_dict)
+            _do_label_equalization(db_dict)
+            db_dict = _remove_task_tag(db_dict)
 
             kf = KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data)
             for train_ind, test_ind in kf.split(np.arange(len(db_dict))):
-                test_files = self._get_file_list(db_dict, test_ind)
+                test_files = _get_file_list(db_dict, test_ind)
                 if self._validation_split == 0:
-                    train_files = self._get_file_list(db_dict, train_ind)
+                    train_files = _get_file_list(db_dict, train_ind)
                     val_files = None
                 else:
                     tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
-                    val_files = self._get_file_list(db_dict, val_ind)
-                    train_files = self._get_file_list(db_dict, tr_ind)
+                    val_files = _get_file_list(db_dict, val_ind)
+                    train_files = _get_file_list(db_dict, tr_ind)
                 yield train_files, test_files, val_files, subject
 
 
@@ -714,10 +722,18 @@ class OfflineDataPreprocessor:
     def get_subjects(self):
         return list(self._proc_db_filenames)
 
-    def get_processed_db_source(self, subject=None):
-        if subject is None:
-            return self._proc_db_filenames
-        return self._proc_db_filenames[subject]
+    def get_processed_db_source(self, subject=None, equalize_labels=True, only_files=False):
+        if not only_files:
+            if subject is None:
+                return self._proc_db_filenames
+            return self._proc_db_filenames[subject]
+        else:
+            if subject is None:
+                db_files = self._proc_db_filenames
+                db_files = _remove_subject_tag(db_files, list(db_files))
+            else:
+                db_files = self._proc_db_filenames[subject]
+            return _generate_file_db(db_files, equalize_labels)
 
     def get_labels(self):
         subj = list(self._proc_db_filenames)[0]
@@ -900,7 +916,7 @@ class OfflineDataPreprocessor:
                                                            'current: {}'.format(self._feature_shape, f_shape)
                 self._feature_shape = f_shape
                 for j in range(len(tsk_ep)):
-                    win_epochs[j].append((feature[j], task))
+                    win_epochs[j].append((feature[j], np.array([task])))
             task_dict[task] = win_epochs
 
         return task_dict
@@ -969,3 +985,37 @@ class OfflineDataPreprocessor:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
 
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
+
+
+class DataHandler:
+
+    def __init__(self, file_list, label_encoder, shuffle=True):
+        if shuffle:
+            np.random.shuffle(file_list)
+        self._file_list = file_list
+        self._label_encoder = label_encoder
+        self._shuffle = shuffle
+        data, label = load_pickle_data(file_list[0])
+        self._data_shape = data.shape
+        self._label_shape = label.shape
+
+    # def _load_data(self, filename):
+    #     data, label = load_pickle_data(filename)
+    #     label = self._label_encoder.transform(label)
+    #     return data, label
+
+    def _generate_data(self):
+        for filename in self._file_list:
+            data, label = load_pickle_data(filename)
+            label = self._label_encoder.transform([label])
+            yield data, label
+
+    def get_tf_dataset(self):
+        # dataset = tf.data.Dataset.from_tensor_slices(self._file_list)  # or generator
+        # dataset = dataset.map(self._load_data)
+        dataset = tf.data.Dataset.from_generator(
+            self._generate_data,
+            output_types=(tf.float32, tf.int32),
+            output_shapes=(self._data_shape, self._label_shape)
+        )
+        return dataset

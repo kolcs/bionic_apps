@@ -243,7 +243,7 @@ class FeatureExtractor:
             res = [res[i] for i in range(len(res))]  # keep order!
         else:
             res = [interpol_one_epoch(ep, self._interp, crop) for ep in epochs]
-        return res
+        return np.array(res)
 
     def calculate_spatial_temporal(self, data, crop=True):
 
@@ -264,7 +264,7 @@ class FeatureExtractor:
             res = [res[i] for i in range(len(res))]  # keep order!
         else:
             res = [interpol_one_epoch(ep, self._interp, crop) for ep in data]
-        return res
+        return np.array(res)
 
     def run(self, data):
 

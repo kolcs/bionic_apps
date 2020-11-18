@@ -5,7 +5,7 @@ from warnings import warn, simplefilter
 
 import numpy as np
 import pandas as pd
-from mne import set_log_level as mne_set_log_level, epochs as mne_epochs
+from mne import set_log_level as mne_set_log_level
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.preprocessing import LabelEncoder
 
@@ -13,8 +13,8 @@ import online
 from ai import init_classifier, ClassifierType
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
-from preprocess import OfflineDataPreprocessor, SubjectKFold, save_pickle_data, init_base_config, FeatureType, \
-    FeatureExtractor, Databases
+from preprocess import OfflineDataPreprocessor, SubjectKFold, init_base_config, FeatureType, \
+    FeatureExtractor, Databases, DataHandler
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -245,21 +245,24 @@ class BCISystem(object):
     #     return prep_data
 
     @staticmethod
-    def _train_classifier(feature_extractor, label_encoder, train, epoch_tmin, epoch_tmax,
-                          window_length, window_step,
-                          make_binary_classification, shuffle_data,
-                          classifier_type, num_of_classes, classifier_kwargs, batch_size=None):
-        c_init = True
-        for train_x, train_y in generate_train_data(feature_extractor, train,
-                                                    epoch_tmin, epoch_tmax,
-                                                    window_length, window_step,
-                                                    make_binary_classification, batch_size, shuffle_data):
-            if c_init:
-                classifier = init_classifier(classifier_type, num_of_classes, np.shape(train_x[0]),
-                                             **classifier_kwargs)
-                c_init = False
-            train_y = label_encoder.transform(train_y)
-            classifier.fit(train_x, train_y, batch_size=batch_size)
+    def _train_classifier(train, validation, classifier_type, input_shape, output_classes, classifier_kwargs,
+                          label_encoder, batch_size=None):
+
+        classifier = init_classifier(classifier_type, output_classes, input_shape,
+                                     **classifier_kwargs)
+        dataset = DataHandler(train, label_encoder).get_tf_dataset()
+        if classifier_type == ClassifierType.SVM:
+            train_x, train_y = zip(*dataset.as_numpy_iterator())
+            train_x = np.array(train_x)
+            train_y = np.array(train_y)
+            classifier.fit(train_x, train_y)
+        else:
+            dataset = dataset.batch(batch_size).prefetch()
+            classifier.fit(dataset)
+            # todo:
+            #  - tf.data
+            #  - take(-1) for svm
+            #  - https://stackoverflow.com/questions/61368378/how-to-efficiently-load-large-training-data-too-big-for-ram-for-training-in-tens.
         return classifier
 
     def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
@@ -347,7 +350,7 @@ class BCISystem(object):
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                              subject=subject, select_eeg_file=select_eeg_file, eeg_file=train_file)
-        self._proc.use_db(db_name).run()
+        self._proc.use_db(db_name).run(**feature_params)
         assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
 
         if self._log:
@@ -359,30 +362,7 @@ class BCISystem(object):
                                   classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
                                   ]
 
-        # todo: set parameters
-        kfold = SubjectKFold(self._proc, subj_n_fold_num, batch_size=batch_size, shuffle_data=shuffle_data)
-
-        # if batch_size is None:
-        #     if reuse_data:
-        #         kfold.pregen_data = self._preprcessed_data
-        #     else:
-        #         pregen_kwargs = dict(
-        #             feature_extractor=feature_extractor,
-        #             epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
-        #             window_length=window_length, window_step=window_step
-        #         )
-        #         if subject is not None:
-        #             pregen_epoch_data = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subject),
-        #                                                          pregen_kwargs=pregen_kwargs)
-        #             kfold.pregen_data = pregen_epoch_data
-        #         else:
-        #             pregen_epoch_data = dict()
-        #             for subj in self._proc.get_subjects():
-        #                 pregen_epoch_data[subj] = pregenerate_epoched_data(self._proc.get_data_for_subject_split(subj),
-        #                                                                    pregen_kwargs=pregen_kwargs)
-        #                 kfold.pregen_data = pregen_epoch_data
-        #
-        # self._preprcessed_data = None
+        kfold = SubjectKFold(self._proc, subj_n_fold_num, shuffle_data=shuffle_data)
 
         cross_acc = list()
 
@@ -390,17 +370,16 @@ class BCISystem(object):
         label_encoder = LabelEncoder()
         label_encoder.fit(labels)
 
-        for train, test, subject in kfold.split(subject):
+        for train, test, val, subject in kfold.split(subject):
             # if epoch_selection and method is XvalidateMethod.SUBJECT:
             #     train = self._select_epochs(train, subject, make_binary_classification)
 
             if self._verbose:
                 t = time.time()
                 print('Training...')
-            classifier = self._train_classifier(feature_extractor, label_encoder, train,
-                                                epoch_tmin, epoch_tmax, window_length, window_step,
-                                                make_binary_classification, shuffle_data, classifier_type,
-                                                len(labels), classifier_kwargs, batch_size)
+            # todo>
+            classifier = self._train_classifier(train, val, classifier_type, self._proc.get_feature_shape(),
+                                                len(labels), classifier_kwargs, label_encoder)
 
             if self._verbose:
                 t = time.time() - t
