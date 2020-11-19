@@ -458,7 +458,7 @@ Feature generation methods for train and test
 """
 
 
-def create_binary_label(label):
+def _create_binary_label(label):
     if label is not REST:
         label = CALM if CALM in label else ACTIVE
     return label
@@ -488,12 +488,6 @@ class SubjectKFold(object):
         self._shuffle_data = shuffle_data
         np.random.seed(random_state)
         self._equalize_labels = equalize_labels
-
-    def get_individual_class_labels(self, make_binary_label=False):
-        labels = self._source_db.get_labels()
-        if make_binary_label:
-            labels = list(set([create_binary_label(label) for label in labels]))
-        return labels
 
     def _get_train_and_val_ind(self, train_ind):
         val_num = int(len(train_ind) * self._validation_split)
@@ -707,6 +701,7 @@ class OfflineDataPreprocessor:
             Arbitrary keyword arguments for feature extraction.
         """
         self.feature_type = feature_type
+        assert len(feature_kwargs) > 0, 'Feature parameters must be defined!'
         self.feature_kwargs = feature_kwargs
         self._create_db()
 
@@ -735,9 +730,12 @@ class OfflineDataPreprocessor:
                 db_files = self._proc_db_filenames[subject]
             return _generate_file_db(db_files, equalize_labels)
 
-    def get_labels(self):
+    def get_labels(self, make_binary_classification=False):
         subj = list(self._proc_db_filenames)[0]
-        return list(self._proc_db_filenames[subj])
+        label_list = list(self._proc_db_filenames[subj])
+        if make_binary_classification:
+            label_list = list(set([_create_binary_label(label) for label in label_list]))
+        return label_list
 
     def get_command_converter(self):
         attr = 'COMMAND_CONV'
@@ -987,14 +985,14 @@ class OfflineDataPreprocessor:
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
 
 
-class DataHandler:
+class DataHandler:  # todo: move to TFRecord - https://www.tensorflow.org/guide/data#consuming_tfrecord_data
 
-    def __init__(self, file_list, label_encoder, shuffle=True):
+    def __init__(self, file_list, label_encoder, binary_classification=False, shuffle=True):
         if shuffle:
             np.random.shuffle(file_list)
         self._file_list = file_list
         self._label_encoder = label_encoder
-        self._shuffle = shuffle
+        self._binary_classification = binary_classification
         data, label = load_pickle_data(file_list[0])
         self._data_shape = data.shape
         self._label_shape = label.shape
@@ -1006,9 +1004,11 @@ class DataHandler:
 
     def _generate_data(self):
         for filename in self._file_list:
-            data, label = load_pickle_data(filename)
-            label = self._label_encoder.transform([label])
-            yield data, label
+            data, labels = load_pickle_data(filename)
+            if self._binary_classification:
+                labels = [_create_binary_label(label) for label in labels]
+            labels = self._label_encoder.transform(labels)
+            yield data, labels
 
     def get_tf_dataset(self):
         # dataset = tf.data.Dataset.from_tensor_slices(self._file_list)  # or generator

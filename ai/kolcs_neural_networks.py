@@ -55,8 +55,8 @@ class VGG(ClassifierInterface):
         predictions = self._model.predict(x)
         return np.argmax(predictions, axis=-1)
 
-    def fit(self, x, y, batch_size=None, epochs=8):
-        self._model.fit(x, y, batch_size=batch_size, epochs=epochs)
+    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=8):
+        self._model.fit(x, y, validation_data=validation_data, batch_size=batch_size, epochs=epochs)
 
     def summary(self):
         self._model.summary()
@@ -110,8 +110,8 @@ class DenseNet(ClassifierInterface):
         predictions = self._model.predict(x)
         return np.argmax(predictions, axis=-1)
 
-    def fit(self, x, y, batch_size=None, epochs=8):
-        self._model.fit(x, y, batch_size=batch_size, epochs=epochs)
+    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=8):
+        self._model.fit(x, y, validation_data=validation_data, batch_size=batch_size, epochs=epochs)
 
     def summary(self):
         self._model.summary()
@@ -170,8 +170,8 @@ class CascadeConvRecNet(ClassifierInterface):  # https://github.com/Kearlay/rese
         predictions = self._model.predict(x)
         return np.argmax(predictions, axis=-1)
 
-    def fit(self, x, y, batch_size=None, epochs=8):
-        self._model.fit(x, y, batch_size=batch_size, epochs=epochs)
+    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=8):
+        self._model.fit(x, y, validation_data=validation_data, batch_size=batch_size, epochs=epochs)
 
     def summary(self):
         self._model.summary()
@@ -214,11 +214,14 @@ class BaseNet(ClassifierInterface):
         predictions = self._model.predict(x)
         return np.argmax(predictions, axis=-1)
 
-    def fit(self, x, y, batch_size=None, epochs=8):
-        self._model.fit(x, y, batch_size=batch_size, epochs=epochs)
+    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=8):
+        self._model.fit(x, y, validation_data=validation_data, batch_size=batch_size, epochs=epochs)
 
     def summary(self):
         self._model.summary()
+
+    def evaluate(self, x, y=None):
+        self._model.evaluate(x, y)
 
 
 if __name__ == '__main__':

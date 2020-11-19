@@ -51,9 +51,9 @@ class MultiSVM(ClassifierInterface):
 
         Parameters
         ----------
-        X : numpy.array
+        X : numpy.ndarray
             EEG data to be processed. shape: (n_samples, n_svm, n_features)
-        y : list
+        y : numpy.ndarray
             labels
 
         Returns
@@ -65,6 +65,8 @@ class MultiSVM(ClassifierInterface):
         # self._svms = [SVM(*self._svm_args) for _ in range(n_svms)]  # serial: 3 times slower
         # for i in range(len(self._svms)):
         #     self._fit_svm(i, X[:, i, :], y)
+        if len(y.shape) == 2 and y.shape[1] == 1:
+            y = np.ravel(y)
         if n_svms > 1:
             svms = Parallel(n_jobs=-2)(
                 delayed(_fit_one_svm)(self._svms.get(i), self._svm_kargs, X[:, i, :], y, i) for i in range(n_svms))

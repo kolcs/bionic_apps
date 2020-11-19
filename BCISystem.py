@@ -63,15 +63,11 @@ class BCISystem(object):
         """
         self._base_dir = init_base_config()
         self._proc = OfflineDataPreprocessor('.')
-        # self._reset_proc = True
         self._log = False
 
         self._df = None
         self._df_base_data = list()
-        # self._preprcessed_data = None
         self._verbose = verbose
-        # self._pre_binarize = False
-        # self._reuse_data = False
 
         if make_logs:
             self._init_log()
@@ -120,149 +116,27 @@ class BCISystem(object):
                 print(self._df)
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
-    # def _select_epochs(self, train_data, subj, binary_classification=False, equalize_data=True):
-    #     print('Epoch selection in progress...')
-    #     feature_params = dict(
-    #         feature_type=FeatureType.MULTI_FFT_POWER,
-    #         fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
-    #                     (22, 36), (26, 32), (26, 36)]
-    #     )
-    #     classifier_kwargs = dict(
-    #         # C=309.27089776753826,
-    #         # gamma=0.003233411249550041
-    #     )
-    #     feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
-    #     pregen_kwargs = dict(
-    #         feature_extractor=feature_extractor,
-    #         epoch_tmin=0, epoch_tmax=4,
-    #         window_length=1, window_step=.1
-    #     )
-    #     if type(train_data[list(train_data)[0]][0]) in [mne_epochs.Epochs, mne_epochs.EpochsFIF]:
-    #         pregen_epoch_data = pregenerate_epoched_data(train_data, pregen_kwargs=pregen_kwargs)
-    #         preloaded = False
-    #     else:
-    #         pregen_epoch_data = train_data
-    #         preloaded = True
-    #
-    #     n_epochs_in_task = len(list(pregen_epoch_data.values())[0])
-    #     kfold = SubjectKFold(self._proc, n_epochs_in_task, epoch_selection=True)
-    #     kfold.pregen_data = pregen_epoch_data
-    #
-    #     epoch_sel = {label: dict() for label in kfold.get_individual_class_labels()}
-    #
-    #     labels = kfold.get_individual_class_labels()
-    #     labels = list(set([create_binary_label(label) for label in labels])) if binary_classification else labels
-    #     label_encoder = LabelEncoder()
-    #     label_encoder.fit(labels)
-    #
-    #     for train, test, subj in kfold.split(subj):
-    #         classifier = self._train_classifier(label_encoder=label_encoder, train=train,
-    #                                             classifier_type=ClassifierType.SVM,
-    #                                             num_of_classes=len(labels), classifier_kwargs=classifier_kwargs,
-    #                                             make_binary_classification=binary_classification, shuffle_data=True,
-    #                                             **pregen_kwargs)
-    #         test_x, test_y_label = generate_test_data(**pregen_kwargs, test=test, make_binary_classification=False,
-    #                                                   batch_size=None,
-    #                                                   shuffle=True)
-    #
-    #         if binary_classification:
-    #             test_y = [create_binary_label(label) for label in test_y_label]
-    #         else:
-    #             test_y = test_y_label
-    #         y_pred = classifier.predict(test_x)
-    #         y_pred = label_encoder.inverse_transform(y_pred)
-    #
-    #         # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
-    #         class_report = classification_report(test_y, y_pred)
-    #         conf_martix = confusion_matrix(test_y, y_pred)
-    #         acc = accuracy_score(test_y, y_pred)
-    #
-    #         self._log_and_print("@@@ Epoch selection report for subject{}: @@@".format(subj))
-    #         self._log_and_print(class_report)
-    #         ep_label = test_y_label[0]
-    #         self._log_and_print('Label: {}'.format(ep_label))
-    #         self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
-    #         self._log_and_print("Accuracy score: {}\n".format(acc))
-    #
-    #         epoch_sel[ep_label][kfold.get_test_ind()] = acc
-    #
-    #     # removing unwanted epochs
-    #     prep_data = deepcopy(train_data)
-    #     if preloaded:
-    #         prep_data = {
-    #             task: {i: ep for i, ep in
-    #                    enumerate([ep for ind, ep in ep_dict.items() if epoch_sel[task][ind] > 1.0 / len(labels) + 0.1])}
-    #             for task, ep_dict in prep_data.items()
-    #         }
-    #     else:
-    #         prep_data = {task: [ep for ind, ep in enumerate(ep_list) if epoch_sel[task][ind] > .5] for task, ep_list in
-    #                      prep_data.items()}
-    #
-    #     n_all = sum([len(prep_data[task]) for task in prep_data])
-    #     n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
-    #     self._log_and_print('Dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop, n_all))
-    #
-    #     if binary_classification and equalize_data:
-    #         def _update():
-    #             _label_num = {create_binary_label(label): 0 for label in prep_data}
-    #             _label_map = {create_binary_label(label): list() for label in prep_data}
-    #             for label, data in prep_data.items():
-    #                 _label_num[create_binary_label(label)] += len(data)
-    #                 if len(data) > 0:
-    #                     _label_map[create_binary_label(label)].append(label)
-    #             return _label_map, _label_num
-    #
-    #         label_map, label_num = _update()
-    #         k1, k2 = label_num.keys()
-    #
-    #         while label_num[k1] != label_num[k2]:
-    #             max_key = k1 if label_num[k1] > label_num[k2] else k2
-    #             _sel_label_list = label_map[max_key]
-    #             ep_label = _sel_label_list[np.random.randint(len(_sel_label_list))]
-    #             _ep_ind_list = list(prep_data[ep_label])
-    #             ep_ind = _ep_ind_list[np.random.randint(len(_ep_ind_list))]
-    #             del prep_data[ep_label][ep_ind]
-    #             label_map, label_num = _update()
-    #
-    #         n_drop = n_all - sum([len(prep_data[task]) for task in prep_data])
-    #         self._log_and_print(
-    #             'After label equalization, dropped {:.2f}% of epochs: {}/{}'.format(n_drop / n_all * 100, n_drop,
-    #                                                                                 n_all))
-    #
-    #         bin_epoch_dict = {create_binary_label(tsk): list() for tsk in prep_data}
-    #         for tsk, ep_dict in prep_data.items():
-    #             for ep in ep_dict.values():
-    #                 if preloaded:
-    #                     bin_epoch_dict[create_binary_label(tsk)].extend(ep)
-    #                 else:
-    #                     bin_epoch_dict[create_binary_label(tsk)].append(ep)
-    #         prep_data = bin_epoch_dict
-    #
-    #     elif preloaded:
-    #         prep_data = {tsk: [ep for epochs in ep_data.values() for ep in epochs] for tsk, ep_data in
-    #                      prep_data.items()}
-    #
-    #     return prep_data
-
     @staticmethod
     def _train_classifier(train, validation, classifier_type, input_shape, output_classes, classifier_kwargs,
-                          label_encoder, batch_size=None):
+                          label_encoder, make_binary_classification, batch_size=None):
 
         classifier = init_classifier(classifier_type, output_classes, input_shape,
                                      **classifier_kwargs)
-        dataset = DataHandler(train, label_encoder).get_tf_dataset()
+
+        train_ds = DataHandler(train, label_encoder, make_binary_classification).get_tf_dataset()
+
         if classifier_type == ClassifierType.SVM:
-            train_x, train_y = zip(*dataset.as_numpy_iterator())
+            train_x, train_y = zip(*train_ds.as_numpy_iterator())
             train_x = np.array(train_x)
             train_y = np.array(train_y)
             classifier.fit(train_x, train_y)
         else:
-            dataset = dataset.batch(batch_size).prefetch()
-            classifier.fit(dataset)
-            # todo:
-            #  - tf.data
-            #  - take(-1) for svm
-            #  - https://stackoverflow.com/questions/61368378/how-to-efficiently-load-large-training-data-too-big-for-ram-for-training-in-tens.
+            train_ds = train_ds.batch(batch_size).prefetch()
+            if validation is not None:
+                val_ds = DataHandler(validation, label_encoder, make_binary_classification).get_tf_dataset()
+                classifier.fit(train_ds, validation_data=val_ds)
+            else:
+                classifier.fit(train_ds)
         return classifier
 
     def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
@@ -270,10 +144,9 @@ class BCISystem(object):
                            window_length=1.0, window_step=.1,
                            method=XvalidateMethod.SUBJECT,
                            subject=None, use_drop_subject_list=True, fast_load=True,
-                           subj_n_fold_num=None, shuffle_data=True, reuse_data=False,
+                           subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
-                           classifier_type=ClassifierType.SVM, classifier_kwargs=None, batch_size=None,
-                           epoch_selection=False):
+                           classifier_type=ClassifierType.SVM, classifier_kwargs=None, batch_size=None):
         """Offline data processing.
 
         This method creates an offline BCI-System which make the data preprocessing
@@ -308,9 +181,6 @@ class BCISystem(object):
             Shuffle or not the order of epochs in each given task.
         make_binary_classification : bool
             If true the labeling will be converted to binary labels.
-        reuse_data : bool
-            Preprocess methods will be omitted if True. Use it for classifier
-            hyper-parameter selection only.
         train_file : str, optional
             File to train on.
         classifier_type : ClassifierType
@@ -328,10 +198,6 @@ class BCISystem(object):
 
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
-
-        # if self._reuse_data:
-        #     reuse_data = True
-        #     self._reuse_data = False
 
         select_eeg_file = False
         if train_file is str:
@@ -366,31 +232,35 @@ class BCISystem(object):
 
         cross_acc = list()
 
-        labels = kfold.get_individual_class_labels(make_binary_classification)
+        labels = self._proc.get_labels(make_binary_classification)
         label_encoder = LabelEncoder()
         label_encoder.fit(labels)
 
         for train, test, val, subject in kfold.split(subject):
-            # if epoch_selection and method is XvalidateMethod.SUBJECT:
-            #     train = self._select_epochs(train, subject, make_binary_classification)
-
+            t = time.time()
             if self._verbose:
-                t = time.time()
                 print('Training...')
-            # todo>
-            classifier = self._train_classifier(train, val, classifier_type, self._proc.get_feature_shape(),
-                                                len(labels), classifier_kwargs, label_encoder)
 
+            classifier = self._train_classifier(train, val, classifier_type, self._proc.get_feature_shape(),
+                                                len(labels), classifier_kwargs, label_encoder,
+                                                make_binary_classification, batch_size)
+
+            t = time.time() - t
             if self._verbose:
-                t = time.time() - t
                 print("Training elapsed {} seconds.".format(int(t)))
 
-            test_x, test_y = generate_test_data(feature_extractor, test, epoch_tmin, epoch_tmax, window_length,
-                                                window_step, make_binary_classification, batch_size=batch_size,
-                                                shuffle=shuffle_data)
+            test_ds = DataHandler(test, label_encoder, make_binary_classification).get_tf_dataset()
+            test_x, test_y = zip(*test_ds.as_numpy_iterator())
+            test_x = np.array(test_x)
+            test_y = np.array(test_y)
+
+            if classifier_type != ClassifierType.SVM:
+                test_ds = test_ds.batch(batch_size).prefetch()
+                classifier.evaluate(test_ds)  # todo: do we need dataset for testing?
 
             y_pred = classifier.predict(test_x)
             y_pred = label_encoder.inverse_transform(y_pred)
+            test_y = label_encoder.inverse_transform(test_y)
 
             # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
             class_report = classification_report(test_y, y_pred)
@@ -402,19 +272,15 @@ class BCISystem(object):
             self._log_and_print("classifier %s:\n%s" % (self, class_report))
             self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
             self._log_and_print("Accuracy score: {}\n".format(acc))
-            # del classifier
 
         self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
         self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
         self._save_params((cross_acc, np.mean(cross_acc)))
 
-        # self._preprcessed_data = kfold.pregen_data
-        # del kfold
-
     def play_game(self, db_name=Databases.GAME, feature_params=None,
                   epoch_tmin=0, epoch_tmax=4,
-                  window_length=1, window_step=.1,
-                  command_frequency=0.5,
+                  window_length=1,
+                  command_delay=0.5,
                   make_binary_classification=False,
                   use_binary_game_logger=False,
                   make_opponents=False,
@@ -437,10 +303,8 @@ class BCISystem(object):
             Defining epoch end from trigger signal in seconds.
         window_length : float
             Length of sliding window in the epochs in seconds.
-        window_step : float
-            Step of sliding window in seconds.
-        command_frequency : float
-            The frequency of given commands in second.
+        command_delay : float
+            Each command can be performed after each t seconds.
         make_binary_classification : bool
             If true the labeling will be converted to binary labels.
         use_binary_game_logger : bool
@@ -470,31 +334,21 @@ class BCISystem(object):
 
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list=False,
                                              fast_load=False, select_eeg_file=True, eeg_file=train_file)
-        self._proc.use_db(db_name).run()
+        self._proc.use_db(db_name).run(**feature_params)
         print('Training...')
         t = time.time()
 
         feature_extractor = FeatureExtractor(fs=self._proc.fs, info=self._proc.info, **feature_params)
 
-        data_dict = self._proc.get_subject_data(0)
-        labels = list(data_dict)
-        if make_binary_classification:
-            labels = [create_binary_label(label) for label in labels]
-        if batch_size is None:
-            pregen_kwargs = dict(
-                feature_extractor=feature_extractor,
-                epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
-                window_length=window_length, window_step=window_step
-            )
-            data_dict = pregenerate_all_data(data_dict, pregen_kwargs=pregen_kwargs)
+        data_list = self._proc.get_processed_db_source(0, only_files=True)
+        labels = self._proc.get_labels(make_binary_classification)
 
         label_encoder = LabelEncoder()
         label_encoder.fit(labels)
 
-        classifier = self._train_classifier(feature_extractor, label_encoder, data_dict,
-                                            epoch_tmin, epoch_tmax, window_length, window_step,
-                                            make_binary_classification, True, classifier_type, len(labels),
-                                            classifier_kwargs, batch_size)
+        classifier = self._train_classifier(data_list, None, classifier_type, self._proc.get_feature_shape(),
+                                            len(labels), classifier_kwargs, label_encoder, make_binary_classification,
+                                            batch_size)
 
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
@@ -508,7 +362,7 @@ class BCISystem(object):
             game_log.start()
 
         if make_opponents:
-            create_opponents(main_player=1, game_logger=game_log, reaction=command_frequency)
+            create_opponents(main_player=1, game_logger=game_log, reaction=command_delay)
 
         dsp = online.DSP()
         assert dsp.fs == self._proc.fs, 'Sampling rate frequency must be equal for preprocessed and online data.'
@@ -536,8 +390,8 @@ class BCISystem(object):
                     controller.control_game(command)
 
                 toc = time.time() - tic
-                if toc < command_frequency:
-                    time.sleep(command_frequency - toc)
+                if toc < command_delay:
+                    time.sleep(command_delay - toc)
                 else:
                     warn('Classification took longer than command giving limit!')
                 tic = time.time()

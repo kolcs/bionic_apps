@@ -42,7 +42,7 @@ if __name__ == '__main__':
         window_length=1,
         window_step=0.1,
         epoch_tmax=4,
-        command_frequency=CMD_IN,
+        command_delay=CMD_IN,
         use_binary_game_logger=True,
         train_file=eeg_file,
         classifier_kwargs=classifier_kwargs,
