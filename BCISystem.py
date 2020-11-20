@@ -8,6 +8,7 @@ import pandas as pd
 from mne import set_log_level as mne_set_log_level
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.preprocessing import LabelEncoder
+from tensorflow import data as tf_data
 
 import online
 from ai import init_classifier, ClassifierType
@@ -120,7 +121,7 @@ class BCISystem(object):
     def _train_classifier(train, validation, classifier_type, input_shape, output_classes, classifier_kwargs,
                           label_encoder, make_binary_classification, batch_size=None):
 
-        classifier = init_classifier(classifier_type, output_classes, input_shape,
+        classifier = init_classifier(classifier_type, input_shape, output_classes,
                                      **classifier_kwargs)
 
         train_ds = DataHandler(train, label_encoder, make_binary_classification).get_tf_dataset()
@@ -131,7 +132,7 @@ class BCISystem(object):
             train_y = np.array(train_y)
             classifier.fit(train_x, train_y)
         else:
-            train_ds = train_ds.batch(batch_size).prefetch()
+            train_ds = train_ds.batch(batch_size).prefetch(tf_data.experimental.AUTOTUNE)
             if validation is not None:
                 val_ds = DataHandler(validation, label_encoder, make_binary_classification).get_tf_dataset()
                 classifier.fit(train_ds, validation_data=val_ds)
@@ -255,8 +256,8 @@ class BCISystem(object):
             test_y = np.array(test_y)
 
             if classifier_type != ClassifierType.SVM:
-                test_ds = test_ds.batch(batch_size).prefetch()
-                classifier.evaluate(test_ds)  # todo: do we need dataset for testing?
+                # test_ds = test_ds.batch(batch_size).prefetch(tf_data.experimental.AUTOTUNE)
+                classifier.evaluate(test_x, test_y)
 
             y_pred = classifier.predict(test_x)
             y_pred = label_encoder.inverse_transform(y_pred)
@@ -279,7 +280,7 @@ class BCISystem(object):
 
     def play_game(self, db_name=Databases.GAME, feature_params=None,
                   epoch_tmin=0, epoch_tmax=4,
-                  window_length=1,
+                  window_length=1, pretrain_window_step=0.1,
                   command_delay=0.5,
                   make_binary_classification=False,
                   use_binary_game_logger=False,
@@ -303,6 +304,8 @@ class BCISystem(object):
             Defining epoch end from trigger signal in seconds.
         window_length : float
             Length of sliding window in the epochs in seconds.
+        pretrain_window_step : float
+            Step of sliding window in seconds.
         command_delay : float
             Each command can be performed after each t seconds.
         make_binary_classification : bool
@@ -332,8 +335,10 @@ class BCISystem(object):
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
 
-        self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, use_drop_subject_list=False,
+        self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax,
+                                             window_length, pretrain_window_step,
                                              fast_load=False, select_eeg_file=True, eeg_file=train_file)
+
         self._proc.use_db(db_name).run(**feature_params)
         print('Training...')
         t = time.time()

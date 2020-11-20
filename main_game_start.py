@@ -40,7 +40,7 @@ if __name__ == '__main__':
         db_name=db_name,
         feature_params=feature_extraction,
         window_length=1,
-        window_step=0.1,
+        pretrain_window_step=0.1,
         epoch_tmax=4,
         command_delay=CMD_IN,
         use_binary_game_logger=True,

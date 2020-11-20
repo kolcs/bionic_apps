@@ -103,6 +103,8 @@ class TestSubjectKFold(unittest.TestCase):
         self._check_method(ans)
 
 
+@unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
+                     'Data for Game_paradigmD does not exists. Can not test it.')
 class TestDataHandler(unittest.TestCase):
 
     def test_big_data(self):

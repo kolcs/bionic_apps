@@ -14,21 +14,21 @@ class ClassifierType(Enum):
     CASCADE_CONV_REC = auto()
 
 
-def init_classifier(classifier_type, classes, input_shape, **kwargs):
+def init_classifier(classifier_type, input_shape, classes, **kwargs):
     if classifier_type is ClassifierType.SVM:
         classifier = MultiSVM(**kwargs)
     elif classifier_type is ClassifierType.VGG16:
-        classifier = VGG(VggType.VGG16, classes, input_shape, **kwargs)
+        classifier = VGG(VggType.VGG16, input_shape, classes, **kwargs)
     elif classifier_type is ClassifierType.VGG19:
-        classifier = VGG(VggType.VGG19, classes, input_shape, **kwargs)
+        classifier = VGG(VggType.VGG19, input_shape, classes, **kwargs)
     elif classifier_type is ClassifierType.DENSE_NET_121:
-        classifier = DenseNet(DenseNetType.DN121, classes, input_shape, **kwargs)
+        classifier = DenseNet(DenseNetType.DN121, input_shape, classes, **kwargs)
     elif classifier_type is ClassifierType.DENSE_NET_169:
-        classifier = DenseNet(DenseNetType.DN169, classes, input_shape, **kwargs)
+        classifier = DenseNet(DenseNetType.DN169, input_shape, classes, **kwargs)
     elif classifier_type is ClassifierType.DENSE_NET_201:
-        classifier = DenseNet(DenseNetType.DN201, classes, input_shape, **kwargs)
+        classifier = DenseNet(DenseNetType.DN201, input_shape, classes, **kwargs)
     elif classifier_type is ClassifierType.CASCADE_CONV_REC:
-        classifier = CascadeConvRecNet(classes, input_shape, **kwargs)
+        classifier = CascadeConvRecNet(input_shape, classes, **kwargs)
 
     else:
         raise NotImplementedError('Classifier {} is not implemented.'.format(classifier_type.name))
