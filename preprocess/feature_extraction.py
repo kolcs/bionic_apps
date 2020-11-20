@@ -2,6 +2,7 @@ from copy import deepcopy
 from enum import Enum, auto
 
 import numpy as np
+from scipy import stats
 from joblib import Parallel, delayed
 
 
@@ -63,7 +64,7 @@ def _init_interp(info, ch_type='eeg'):
     return interp
 
 
-def _calculate_spatial_interpolation(interp, data, crop=True):
+def _calculate_spatial_interpolation(interp, data):
     """Spatial interpolation.
 
     This function mimics the mne.viz.plot_topomap() function, however it returns
@@ -76,8 +77,6 @@ def _calculate_spatial_interpolation(interp, data, crop=True):
         CloughTocher2DInterpolator.
     data : np.ndarray
         Data to interpolate. shape: (n,)
-    crop : bool
-        If crop true values will be zeroed out outside of middle circle.
 
     Returns
     -------
@@ -88,15 +87,21 @@ def _calculate_spatial_interpolation(interp, data, crop=True):
     assert interp is not None, 'Interpolator must be defined for spatal interpolation.'
     interp.set_values(data)
     spatial_data = interp()
-
-    # removing data from the border - ROUND electrode system
-    if crop:
-        r = np.size(spatial_data, axis=0) / 2
-        for i in range(int(2 * r)):
-            for j in range(int(2 * r)):
-                if np.power(i - r, 2) + np.power(j - r, 2) > np.power(r, 2):
-                    spatial_data[i, j] = 0
     return spatial_data
+
+
+def _crop_spatial_data(spatial_data):
+    """Removing data from the border, creating ROUND electrode system.
+
+    Parameters
+    ----------
+    spatial_data: numpy.array
+    """
+    r = np.size(spatial_data, axis=0) / 2
+    for i in range(int(2 * r)):
+        for j in range(int(2 * r)):
+            if np.power(i - r, 2) + np.power(j - r, 2) > np.power(r, 2):
+                spatial_data[i, j] = np.nan
 
 
 class FeatureExtractor:
@@ -229,7 +234,10 @@ class FeatureExtractor:
         def interpol_one_epoch(ep, interp, crop_img, i=None):
             interp_list = list()
             for fft_pow in ep:
-                spatial_data = _calculate_spatial_interpolation(interp, fft_pow, crop_img)
+                spatial_data = _calculate_spatial_interpolation(interp, fft_pow)
+                if crop_img:
+                    _crop_spatial_data(spatial_data)
+                    spatial_data[np.isnan(spatial_data)] = 0
                 spatial_data *= (255.0 / spatial_data.max())  # scale to rgb image
                 interp_list.append(spatial_data)
             interp_list = np.transpose(interp_list, (1, 2, 0))  # reformat to rgb image order
@@ -250,8 +258,11 @@ class FeatureExtractor:
         def interpol_one_epoch(ep, interp, crop_img, i=None):
             interp_list = list()
             for t in range(ep.shape[-1]):
-                spatial_data = _calculate_spatial_interpolation(interp, ep[:, t], crop_img)
-                # spatial_data *= (255.0 / spatial_data.max())  # scale to rgb image
+                spatial_data = _calculate_spatial_interpolation(interp, ep[:, t])
+                if crop_img:
+                    _crop_spatial_data(spatial_data)
+                spatial_data = stats.zscore(spatial_data, axis=None)
+                spatial_data[np.isnan(spatial_data)] = 0
                 interp_list.append(spatial_data)
             interp_list = np.expand_dims(interp_list, axis=-1)  # shape: (time, width, height, color)
             if i is None:

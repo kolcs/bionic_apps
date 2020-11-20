@@ -7,7 +7,6 @@ from time import time
 
 import mne
 import numpy as np
-import tensorflow as tf
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
@@ -889,8 +888,11 @@ class OfflineDataPreprocessor:
             epochs = epochs[task]
 
         epochs.load_data()
-        if self.feature_type is FeatureType.SPATIAL_TEMPORAL:
-            epochs.resample(128, n_jobs=-1)
+        if self.feature_type is FeatureType.SPATIAL_TEMPORAL:  # todo: move it after epoch corp?
+            if self._db_type is not Databases.PHYSIONET:
+                epochs.resample(62.5, n_jobs=-1)  # form 500 Hz / 8 --> maxf = 31.25 Hz
+            else:
+                raise NotImplementedError
 
         task_list = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
 
@@ -1013,6 +1015,7 @@ class DataHandler:  # todo: move to TFRecord - https://www.tensorflow.org/guide/
     def get_tf_dataset(self):
         # dataset = tf.data.Dataset.from_tensor_slices(self._file_list)  # or generator
         # dataset = dataset.map(self._load_data)
+        import tensorflow as tf
         dataset = tf.data.Dataset.from_generator(
             self._generate_data,
             output_types=(tf.float32, tf.int32),
