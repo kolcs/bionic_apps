@@ -465,7 +465,7 @@ def _create_binary_label(label):
 
 class SubjectKFold(object):
 
-    def __init__(self, source_db, k_fold_num=None, validation_split=0, shuffle_subjects=True, shuffle_data=True,
+    def __init__(self, source_db, k_fold_num=None, validation_split=0.0, shuffle_subjects=True, shuffle_data=True,
                  random_state=None, equalize_labels=True):
         """Class to split subject database to train and test set, in an N-fold cross validation manner.
 
@@ -482,7 +482,7 @@ class SubjectKFold(object):
         """
         self._source_db = source_db
         self._k_fold_num = k_fold_num
-        self._validation_split = validation_split
+        self._validation_split = max(0.0, min(validation_split, 1.0))
         self._shuffle_subj = shuffle_subjects
         self._shuffle_data = shuffle_data
         np.random.seed(random_state)

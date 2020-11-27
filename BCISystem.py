@@ -1,5 +1,6 @@
 import time
 from enum import Enum
+from multiprocessing import Queue, Process
 from sys import platform
 from warnings import warn, simplefilter
 
@@ -9,6 +10,7 @@ from mne import set_log_level as mne_set_log_level
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.preprocessing import LabelEncoder
 from tensorflow import data as tf_data
+from tensorflow import test as tf_test
 
 import online
 from ai import init_classifier, ClassifierType
@@ -45,6 +47,23 @@ def _validate_feature_classifier_pair(feature_type, classifier_type):
     else:
         valid = False
     assert valid, 'Feature {} is not implemented for classifier {}'.format(feature_type.name, classifier_type.name)
+
+
+"""Helpers for memory management"""
+
+
+def __wrapper_func(func, queue, *args):
+    queue.put(func(*args))
+
+
+def _process_run(func, *args):
+    """Helper function for memory usage management"""
+    queue = Queue()
+    p = Process(target=__wrapper_func, args=(func, queue) + args)
+    p.start()
+    result = queue.get()
+    p.join()
+    return result
 
 
 class BCISystem(object):
@@ -134,11 +153,46 @@ class BCISystem(object):
         else:
             train_ds = train_ds.batch(batch_size).prefetch(tf_data.experimental.AUTOTUNE)
             if validation is not None:
-                val_ds = DataHandler(validation, label_encoder, make_binary_classification).get_tf_dataset()
+                val_ds = DataHandler(validation, label_encoder, make_binary_classification). \
+                    get_tf_dataset().batch(batch_size)
                 classifier.fit(train_ds, validation_data=val_ds)
             else:
                 classifier.fit(train_ds)
         return classifier
+
+    def _one_offline_step(self, train, val, test, classifier_type, labels, classifier_kwargs, label_encoder,
+                          make_binary_classification, batch_size):
+        t = time.time()
+        if self._verbose:
+            print('Training...')
+
+        classifier = self._train_classifier(train, val, classifier_type, self._proc.get_feature_shape(),
+                                            len(labels), classifier_kwargs, label_encoder,
+                                            make_binary_classification, batch_size)
+
+        t = time.time() - t
+        if self._verbose:
+            print("Training elapsed {} seconds.".format(int(t)))
+
+        test_ds = DataHandler(test, label_encoder, make_binary_classification).get_tf_dataset()
+        test_x, test_y = zip(*test_ds.as_numpy_iterator())
+        test_x = np.array(test_x)
+        test_y = np.array(test_y)
+
+        if classifier_type != ClassifierType.SVM:
+            # test_ds = test_ds.batch(batch_size).prefetch(tf_data.experimental.AUTOTUNE)
+            classifier.evaluate(test_x, test_y)
+
+        y_pred = classifier.predict(test_x)
+        y_pred = label_encoder.inverse_transform(y_pred)
+        test_y = label_encoder.inverse_transform(test_y)
+
+        # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
+        class_report = classification_report(test_y, y_pred)
+        conf_matrix = confusion_matrix(test_y, y_pred)
+        acc = accuracy_score(test_y, y_pred)
+
+        return class_report, conf_matrix, acc
 
     def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
                            epoch_tmin=0, epoch_tmax=4,
@@ -147,7 +201,8 @@ class BCISystem(object):
                            subject=None, use_drop_subject_list=True, fast_load=True,
                            subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
-                           classifier_type=ClassifierType.SVM, classifier_kwargs=None, batch_size=None):
+                           classifier_type=ClassifierType.SVM, classifier_kwargs=None, batch_size=None,
+                           validation_split=0):
         """Offline data processing.
 
         This method creates an offline BCI-System which make the data preprocessing
@@ -191,6 +246,8 @@ class BCISystem(object):
         batch_size : int or None
             Define if batch size data generation is required. Otherwise all
             features will be created before training.
+        validation_split : float
+            How much of the train set should be used as validation data. value range: [0, 1]
         """
         if classifier_kwargs is None:
             classifier_kwargs = {}
@@ -229,7 +286,7 @@ class BCISystem(object):
                                   classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
                                   ]
 
-        kfold = SubjectKFold(self._proc, subj_n_fold_num, shuffle_data=shuffle_data)
+        kfold = SubjectKFold(self._proc, subj_n_fold_num, validation_split=validation_split, shuffle_data=shuffle_data)
 
         cross_acc = list()
 
@@ -238,40 +295,21 @@ class BCISystem(object):
         label_encoder.fit(labels)
 
         for train, test, val, subject in kfold.split(subject):
-            t = time.time()
-            if self._verbose:
-                print('Training...')
-
-            classifier = self._train_classifier(train, val, classifier_type, self._proc.get_feature_shape(),
-                                                len(labels), classifier_kwargs, label_encoder,
-                                                make_binary_classification, batch_size)
-
-            t = time.time() - t
-            if self._verbose:
-                print("Training elapsed {} seconds.".format(int(t)))
-
-            test_ds = DataHandler(test, label_encoder, make_binary_classification).get_tf_dataset()
-            test_x, test_y = zip(*test_ds.as_numpy_iterator())
-            test_x = np.array(test_x)
-            test_y = np.array(test_y)
-
-            if classifier_type != ClassifierType.SVM:
-                # test_ds = test_ds.batch(batch_size).prefetch(tf_data.experimental.AUTOTUNE)
-                classifier.evaluate(test_x, test_y)
-
-            y_pred = classifier.predict(test_x)
-            y_pred = label_encoder.inverse_transform(y_pred)
-            test_y = label_encoder.inverse_transform(test_y)
-
-            # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
-            class_report = classification_report(test_y, y_pred)
-            conf_martix = confusion_matrix(test_y, y_pred)
-            acc = accuracy_score(test_y, y_pred)
+            if classifier_type is ClassifierType.SVM or not tf_test.is_built_with_gpu_support():
+                class_report, conf_matrix, acc = self._one_offline_step(
+                    train, val, test, classifier_type, labels, classifier_kwargs,
+                    label_encoder, make_binary_classification, batch_size
+                )
+            else:
+                class_report, conf_matrix, acc = _process_run(
+                    self._one_offline_step, train, val, test, classifier_type, labels, classifier_kwargs,
+                    label_encoder, make_binary_classification, batch_size
+                )
             cross_acc.append(acc)
 
             self._log_and_print("####### Classification report for subject{}: #######".format(subject))
             self._log_and_print("classifier %s:\n%s" % (self, class_report))
-            self._log_and_print("Confusion matrix:\n%s\n" % conf_martix)
+            self._log_and_print("Confusion matrix:\n%s\n" % conf_matrix)
             self._log_and_print("Accuracy score: {}\n".format(acc))
 
         self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
@@ -409,17 +447,18 @@ if __name__ == '__main__':
 
     feature_extraction = dict(
         feature_type=FeatureType.MULTI_FFT_POWER,
-        fft_low=14, fft_high=30, fft_step=2, fft_width=2, fft_ranges=fft_powers
+        fft_ranges=fft_powers
     )
 
     bci = BCISystem()
-    bci.offline_processing(db_name=Databases.GAME_PAR_D,
-                           feature_params=feature_extraction,
-                           fast_load=False,
-                           epoch_tmin=0, epoch_tmax=4,
-                           window_length=1, window_step=.1,
-                           method=XvalidateMethod.SUBJECT,
-                           subject=1,
-                           use_drop_subject_list=True,
-                           subj_n_fold_num=5,
-                           make_binary_classification=True)
+    bci.offline_processing(
+        db_name=Databases.GAME_PAR_D,
+        feature_params=feature_extraction,
+        fast_load=True,
+        epoch_tmin=0, epoch_tmax=4,
+        window_length=1, window_step=.1,
+        method=XvalidateMethod.SUBJECT,
+        subject=1,
+        use_drop_subject_list=True,
+        subj_n_fold_num=5
+    )
