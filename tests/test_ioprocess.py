@@ -16,8 +16,9 @@ class TestPreprocessor(unittest.TestCase):
     def setUpClass(cls):
         cls._path = Path(init_base_config('..'))
         cls._subject = 1
-        path = str(cls._path.joinpath(DIR_FEATURE_DB))
-        rmtree(path)
+        path = cls._path.joinpath(DIR_FEATURE_DB)
+        if path.exists():
+            rmtree(str(path))
         cls.epoch_proc = OfflineDataPreprocessor(cls._path, subject=cls._subject)
 
     # def setUp(self):
@@ -94,6 +95,8 @@ class TestSubjectKFold(unittest.TestCase):
             ans.append((train, test))
         self._check_method(ans)
 
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
+                         'Data for Physionet does not exists. Can not test it.')
     def test_subject_kfold_split_physio(self):
         subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
         self._run_epoch_proc()

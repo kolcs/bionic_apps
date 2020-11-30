@@ -4,6 +4,7 @@ from pathlib import Path
 from shutil import rmtree
 
 from BCISystem import BCISystem, Databases, FeatureType, XvalidateMethod
+from config import Physionet, Game_ParadigmD, DIR_FEATURE_DB
 from online.DataSender import run as send_online_data
 from preprocess import init_base_config
 
@@ -13,14 +14,17 @@ class TestOfflineBciSystem(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        path = init_base_config()
-        path = str(Path(path).joinpath('tmp'))
-        rmtree(path)
+        path = Path(init_base_config('..'))
+        path = path.joinpath(DIR_FEATURE_DB)
+        if path.exists():
+            rmtree(str(path))
         cls.subj = 1
 
     def setUp(self):
         self.bci = BCISystem()
 
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
+                         'Data for Physionet does not exists. Can not test it.')
     def test_physionet_subject_x_val(self):
         feature_extraction = dict(
             feature_type=FeatureType.FFT_POWER,
@@ -34,6 +38,8 @@ class TestOfflineBciSystem(unittest.TestCase):
             subject=self.subj,
         ))
 
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
+                         'Data for Game_paradigmD does not exists. Can not test it.')
     def test_subject_x_val_fft_power(self):
         feature_extraction = dict(
             feature_type=FeatureType.FFT_POWER,
@@ -47,6 +53,8 @@ class TestOfflineBciSystem(unittest.TestCase):
             subject=self.subj,
         ))
 
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
+                         'Data for Game_paradigmD does not exists. Can not test it.')
     def test_subject_x_val_fft_range(self):
         feature_extraction = dict(
             feature_type=FeatureType.FFT_RANGE,
@@ -60,6 +68,8 @@ class TestOfflineBciSystem(unittest.TestCase):
             subject=self.subj,
         ))
 
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
+                         'Data for Game_paradigmD does not exists. Can not test it.')
     def test_subject_x_val_multi_fft_power(self):
         feature_extraction = dict(
             feature_type=FeatureType.MULTI_FFT_POWER,

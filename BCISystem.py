@@ -151,6 +151,7 @@ class BCISystem(object):
             train_y = np.array(train_y)
             classifier.fit(train_x, train_y)
         else:
+            assert batch_size is not None, 'batch_size can not be None in case of neural networks'
             train_ds = train_ds.batch(batch_size).prefetch(tf_data.experimental.AUTOTUNE)
             if validation is not None:
                 val_ds = DataHandler(validation, label_encoder, make_binary_classification). \
