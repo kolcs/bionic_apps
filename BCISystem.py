@@ -275,7 +275,11 @@ class BCISystem(object):
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                              subject=subject, select_eeg_file=select_eeg_file, eeg_file=train_file)
-        self._proc.use_db(db_name).run(**feature_params)
+        self._proc.use_db(db_name)
+        if subject is not None and self._proc.is_subject_in_drop_list(subject):
+            print('Subject{} is in the drop list. Can not process and classify data.'.format(subject))
+            return
+        self._proc.run(**feature_params)
         assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
 
         if self._log:

@@ -541,8 +541,8 @@ class SubjectKFold(object):
                 self._k_fold_num = 5
 
             _do_label_equalization(db_dict)
-            db_dict = _remove_task_tag(db_dict)
-
+            db_dict = _remove_task_tag(db_dict)  # todo: make this after split... otherwise on effect
+            # todo: how to "unconnect" tasks? idea> for cycle and KFold for each task
             kf = KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data)
             for train_ind, test_ind in kf.split(np.arange(len(db_dict))):
                 test_files = _get_file_list(db_dict, test_ind)
@@ -707,6 +707,9 @@ class OfflineDataPreprocessor:
     """
     Database functions
     """
+
+    def is_subject_in_drop_list(self, subject):
+        return subject in self._drop_subject
 
     def _convert_task(self, record_number=None):
         if record_number is None:
