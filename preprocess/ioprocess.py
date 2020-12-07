@@ -540,19 +540,39 @@ class SubjectKFold(object):
             if self._k_fold_num is None:
                 self._k_fold_num = 5
 
-            _do_label_equalization(db_dict)
-            db_dict = _remove_task_tag(db_dict)  # todo: make this after split... otherwise on effect
-            # todo: how to "unconnect" tasks? idea> for cycle and KFold for each task
-            kf = KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data)
-            for train_ind, test_ind in kf.split(np.arange(len(db_dict))):
-                test_files = _get_file_list(db_dict, test_ind)
-                if self._validation_split == 0:
-                    train_files = _get_file_list(db_dict, train_ind)
-                    val_files = None
-                else:
-                    tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
-                    val_files = _get_file_list(db_dict, val_ind)
-                    train_files = _get_file_list(db_dict, tr_ind)
+            if self._equalize_labels:
+                _do_label_equalization(db_dict)
+            kf_dict = {
+                task: KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data).split(np.arange(len(epoch_dict))) for
+                task, epoch_dict in db_dict.items()
+            }
+
+            for _ in range(self._k_fold_num):
+                train_files = list()
+                test_files = list()
+                val_files = list()
+
+                for task, epoch_dict in db_dict.items():
+                    train_ind, test_ind = next(kf_dict[task])
+                    test_files.extend(_get_file_list(epoch_dict, test_ind))
+                    if self._validation_split == 0:
+                        train_files.extend(_get_file_list(epoch_dict, train_ind))
+                        val_files = None
+                    else:
+                        tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
+                        val_files.extend(_get_file_list(epoch_dict, val_ind))
+                        train_files.extend(_get_file_list(epoch_dict, tr_ind))
+
+                train_files = np.array(train_files)
+                test_files = np.array(test_files)
+                val_files = np.array(val_files) if val_files is not None else None
+
+                if self._shuffle_data:
+                    np.random.shuffle(train_files)
+                    np.random.shuffle(test_files)
+                    if val_files is not None:
+                        np.random.shuffle(val_files)
+
                 yield train_files, test_files, val_files, subject
 
 
