@@ -917,7 +917,7 @@ class OfflineDataPreprocessor:
             else:
                 raise NotImplementedError
 
-        task_list = [list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))]
+        task_set = set([list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))])
 
         window_length = self._window_length - 1 / self.fs  # win length correction
         win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
@@ -926,10 +926,10 @@ class OfflineDataPreprocessor:
         feature_extractor = FeatureExtractor(self.feature_type, self.fs, info=self.info, **self.feature_kwargs)
 
         task_dict = dict()
-        for task in task_list:
+        for task in task_set:
             tsk_ep = epochs[task]
             win_epochs = {i: list() for i in range(len(tsk_ep))}
-            for i in range(win_num):
+            for i in range(win_num):  # cannot speed up here with parallel process...
                 ep = tsk_ep.copy()
                 ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
                 feature = feature_extractor.run(ep.get_data())
