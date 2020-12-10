@@ -35,7 +35,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=self.subj,
+            subject_list=self.subj,
         ))
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
@@ -50,7 +50,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=self.subj,
+            subject_list=self.subj,
         ))
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
@@ -65,7 +65,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=self.subj,
+            subject_list=self.subj,
         ))
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
@@ -81,7 +81,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
-            subject=self.subj,
+            subject_list=self.subj,
         ))
 
 

@@ -7,6 +7,7 @@ from time import time
 
 import mne
 import numpy as np
+from joblib import Parallel, delayed
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
@@ -90,23 +91,20 @@ def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs
     run_format_str : str
         The string which will be formatted.
 
-    Returns
+    Yields
     -------
-    rec : list of str
-        filenames for a subject with given runs
+    str
+        filename for a subject with given runs
 
     """
     if type(runs) is not list:
         runs = [runs]
 
-    rec = list()
     for i in runs:
         f = file_path
         f = f.replace('{subj}', subject_format_str.format(subject))
         f = f.replace('{rec}', run_format_str.format(i))
-        rec.append(f)
-
-    return rec
+        yield f
 
 
 def generate_physionet_filenames(file_path, subject, runs):
@@ -304,7 +302,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
 
     Parameters
     ----------
-    filenames : str, list of str
+    filenames : str, list of str, generator
         List of file names from where epochs will be generated.
     task_dict : dict
         Used for creating mne.Epochs.
@@ -461,6 +459,12 @@ def _create_binary_label(label):
     if label is not REST:
         label = CALM if CALM in label else ACTIVE
     return label
+
+
+def _convert_task(db_type, record_number=None):
+    if record_number is None:
+        return db_type.TRIGGER_TASK_CONVERTER
+    return db_type.TRIGGER_CONV_REC_TO_TASK.get(record_number)
 
 
 class SubjectKFold(object):
@@ -781,7 +785,7 @@ class OfflineDataPreprocessor:
             Subject number
         """
         print('Database generated for subject{}'.format(subj))
-        subject_dict = dict()
+        subject_file_dict = dict()
         feature_ind = 0
         for task, ep_dict in subject_data.items():
             ep_file_dict = dict()
@@ -794,19 +798,21 @@ class OfflineDataPreprocessor:
                     win_file_list.append(db_file)
                     feature_ind += 1
                 ep_file_dict[ind] = win_file_list
-            subject_dict[task] = ep_file_dict
+            subject_file_dict[task] = ep_file_dict
+        return subj, subject_file_dict
 
-        self._proc_db_filenames[subj] = subject_dict
+    def _save_fast_load_source_data(self):
+        # self._proc_db_filenames[subj] = subject_file_dict
         # processed db data...
         source = {
-            SourceDB.SUBJECTS: self._get_subject_num(),
+            SourceDB.SUBJECTS: self.get_subject_num(),
             SourceDB.DATA_SOURCE: self._proc_db_filenames,
             SourceDB.INFO: self.info,
             SourceDB.FEATURE_SHAPE: self._feature_shape
         }
         save_pickle_data(self._proc_db_source, source)
 
-    def _get_subject_num(self):
+    def get_subject_num(self):
         """Returns the number of available subjects in Database"""
         if self._db_type is Physionet:
             return self._db_type.SUBJECT_NUM
@@ -818,7 +824,7 @@ class OfflineDataPreprocessor:
 
     def _get_subject_list(self):  # todo: rethink...
         """Returns the list of subjects and removes the unwanted ones."""
-        subject_num = self._get_subject_num()
+        subject_num = self.get_subject_num()
         if self._subject_list is not None:
             for subj in self._subject_list:
                 assert 0 < subj <= subject_num, 'Subject{} is not in subject range: 1 - {}'.format(
@@ -833,45 +839,49 @@ class OfflineDataPreprocessor:
                 print('Dropping subject {}'.format(subj))
         return subject_list
 
-    def _create_physionet_db(self):  # todo: rethink...
-        """Physionet feature db creator function"""
-
+    def _create_physionet_db(self, subj):
+        subject_data = dict()
         keys = self._db_type.TASK_TO_REC.keys()
 
-        for subj in self._get_subject_list():
-
-            subject_data = dict()
-
-            for task in keys:
-                recs = self._db_type.TASK_TO_REC.get(task)
-                task_dict = self._convert_task(recs[0])
-                filenames = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj,
-                                                         recs)
-                epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
-                self.info = epochs.info
-                win_epochs = self._get_windowed_features(epochs, task)
-
-                subject_data.update(win_epochs)
-
-            self._save_preprocessed_subject_data(subject_data, subj)
-
-    def _create_ttk_db(self):
-        """Pilot feature db creator function"""
-        task_dict = self._convert_task()
-
-        for subj in self._get_subject_list():
-            if self._db_type is TTK_DB:
-                filenames = generate_ttk_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-            else:
-                filenames = generate_pilot_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-
-            cut_real_mov = REST in task_dict
-            epochs = get_epochs_from_files(filenames, task_dict,
-                                           self._epoch_tmin, self._epoch_tmax,
-                                           cut_real_movement_tasks=cut_real_mov)
+        for task in keys:
+            recs = self._db_type.TASK_TO_REC.get(task)
+            task_dict = self._convert_task(recs[0])
+            filenames = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj,
+                                                     recs)
+            epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
             self.info = epochs.info
-            subject_data = self._get_windowed_features(epochs)
-            self._save_preprocessed_subject_data(subject_data, subj)
+            win_epochs = self._get_windowed_features(epochs, task)
+
+            subject_data.update(win_epochs)
+
+        return self._save_preprocessed_subject_data(subject_data, subj), (self.info, self._feature_shape)
+
+    def _create_ttk_db(self, subj):
+        task_dict = self._convert_task()
+        if self._db_type is TTK_DB:
+            filenames = generate_ttk_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+        else:
+            filenames = generate_pilot_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+
+        cut_real_mov = REST in task_dict
+        epochs = get_epochs_from_files(filenames, task_dict,
+                                       self._epoch_tmin, self._epoch_tmax,
+                                       cut_real_movement_tasks=cut_real_mov)
+        self.info = epochs.info
+        subject_data = self._get_windowed_features(epochs)
+        return self._save_preprocessed_subject_data(subject_data, subj), (self.info, self._feature_shape)
+
+    def _generate_db(self, func):
+        """Pilot feature db creator function"""
+        subject_list = self._get_subject_list()
+        if len(subject_list) > 1:
+            res = Parallel(n_jobs=-2)(delayed(func)(subject) for subject in subject_list)
+        else:
+            res = [func(subject) for subject in subject_list]
+        data, info = zip(*res)
+        self._proc_db_filenames = dict(data)
+        self.info, self._feature_shape = info[0]
+        self._save_fast_load_source_data()
 
     def _create_db_from_file(self):
         """Game database creation"""
@@ -885,7 +895,8 @@ class OfflineDataPreprocessor:
                                        cut_real_movement_tasks=cut_real_mov)
         self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
-        self._save_preprocessed_subject_data(subject_data, 0)
+        self._proc_db_filenames = dict([self._save_preprocessed_subject_data(subject_data, 0)])
+        self._save_fast_load_source_data()
 
     def _get_windowed_features(self, epochs, task=None):
         """Feature creation from windowed data.
@@ -977,11 +988,12 @@ class OfflineDataPreprocessor:
 
         file = self._proc_db_source
         fastload_source = load_pickle_data(file)
-        n_subjects = self._get_subject_num()
+        n_subjects = self.get_subject_num()
 
         if fastload_source is not None and self._fast_load and \
                 n_subjects == fastload_source[SourceDB.SUBJECTS] and len(fastload_source) == len(SourceDB):
             subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
+            subject_list = [subject for subject in subject_list if subject not in self._drop_subject]
 
             self._proc_db_filenames = fastload_source[SourceDB.DATA_SOURCE]
             if all(subj in fastload_source[SourceDB.DATA_SOURCE] for subj in subject_list):
@@ -994,11 +1006,11 @@ class OfflineDataPreprocessor:
             if self._select_one_file or self.eeg_file is not None:
                 raise NotImplementedError('EEG file selection for Physionet is not implemented!')
             print_creation_message()
-            self._create_physionet_db()
+            self._generate_db(self._create_physionet_db)
 
         elif not self._select_one_file and self.eeg_file is None:
             print_creation_message()
-            self._create_ttk_db()
+            self._generate_db(self._create_ttk_db)
 
         elif self._db_type in [GameDB, Game_ParadigmC, Game_ParadigmD]:
             print_creation_message()

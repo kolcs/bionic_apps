@@ -199,7 +199,7 @@ class BCISystem(object):
                            epoch_tmin=0, epoch_tmax=4,
                            window_length=1.0, window_step=.1,
                            method=XvalidateMethod.SUBJECT,
-                           subject=None, use_drop_subject_list=True, fast_load=True,
+                           subject_list=None, use_drop_subject_list=True, fast_load=True,
                            subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
                            classifier_type=ClassifierType.SVM, classifier_kwargs=None, batch_size=None,
@@ -225,7 +225,7 @@ class BCISystem(object):
             Step of sliding window in seconds.
         method : XvalidateMethod
             The type of cross-validation
-        subject : int or None
+        subject_list : int or list of int or None
             Subject number in a given database.
         use_drop_subject_list : bool
             Whether to use drop subject list from config file or not?
@@ -261,65 +261,83 @@ class BCISystem(object):
         select_eeg_file = False
         if train_file is str:
             select_eeg_file = True
-            subject = 0
+            subject_list = 0
 
         if method == XvalidateMethod.CROSS_SUBJECT:
-            subject = None
+            subject_list = None
         elif method == XvalidateMethod.SUBJECT:
-            if subject is None:
-                subject = 1
-            print('{}, {} - Subject{}'.format(db_name.name, feature_params.get('feature_type').name, subject))
+            if subject_list is None:
+                subject_list = [1]
+            if type(subject_list) is int:
+                subject_list = [subject_list]
+            print('{}, {} - Subjects: {}'.format(db_name.name, feature_params.get('feature_type').name, subject_list))
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
+        proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None
+
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
-                                             subject=subject, select_eeg_file=select_eeg_file, eeg_file=train_file)
+                                             subject=proc_subjects, select_eeg_file=select_eeg_file,
+                                             eeg_file=train_file)
         self._proc.use_db(db_name)
-        if subject is not None and self._proc.is_subject_in_drop_list(subject):
-            print('Subject{} is in the drop list. Can not process and classify data.'.format(subject))
+
+        def skipp_subject(subject):
+            if subject is not None and self._proc.is_subject_in_drop_list(subject):
+                print('Subject{} is in the drop list. Can not process and classify data.'.format(subject))
+                return True
+            return False
+
+        if len(subject_list) == 1 and skipp_subject(subject_list[0]):
             return
+
         self._proc.run(**feature_params)
         assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
 
-        if self._log:
-            self._df_base_data = [db_name.name, method, feature_params.get('feature_type').name, subject,
-                                  epoch_tmin, epoch_tmax,
-                                  window_length, window_step,
-                                  feature_params.get('fft_low'), feature_params.get('fft_high'),
-                                  feature_params.get('fft_step'), feature_params.get('fft_ranges'),
-                                  classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
-                                  ]
+        if subject_list is None:
+            subject_list = [None]
 
         kfold = SubjectKFold(self._proc, subj_n_fold_num, validation_split=validation_split, shuffle_data=shuffle_data)
-
-        cross_acc = list()
 
         labels = self._proc.get_labels(make_binary_classification)
         label_encoder = LabelEncoder()
         label_encoder.fit(labels)
 
-        for train, test, val, subject in kfold.split(subject):
-            if classifier_type is ClassifierType.SVM or not tf_test.is_built_with_gpu_support():
-                class_report, conf_matrix, acc = self._one_offline_step(
-                    train, val, test, classifier_type, labels, classifier_kwargs,
-                    label_encoder, make_binary_classification, batch_size
-                )
-            else:
-                class_report, conf_matrix, acc = _process_run(
-                    self._one_offline_step, train, val, test, classifier_type, labels, classifier_kwargs,
-                    label_encoder, make_binary_classification, batch_size
-                )
-            cross_acc.append(acc)
+        for subject in subject_list:
+            if skipp_subject(subject):
+                continue
 
-            self._log_and_print("####### Classification report for subject{}: #######".format(subject))
-            self._log_and_print("classifier %s:\n%s" % (self, class_report))
-            self._log_and_print("Confusion matrix:\n%s\n" % conf_matrix)
-            self._log_and_print("Accuracy score: {}\n".format(acc))
+            cross_acc = list()
+            if self._log:
+                self._df_base_data = [db_name.name, method, feature_params.get('feature_type').name, subject,
+                                      epoch_tmin, epoch_tmax,
+                                      window_length, window_step,
+                                      feature_params.get('fft_low'), feature_params.get('fft_high'),
+                                      feature_params.get('fft_step'), feature_params.get('fft_ranges'),
+                                      classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
+                                      ]
 
-        self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
-        self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
-        self._save_params((cross_acc, np.mean(cross_acc)))
+            for train, test, val, subj in kfold.split(subject):
+                if classifier_type is ClassifierType.SVM or not tf_test.is_built_with_gpu_support():
+                    class_report, conf_matrix, acc = self._one_offline_step(
+                        train, val, test, classifier_type, labels, classifier_kwargs,
+                        label_encoder, make_binary_classification, batch_size
+                    )
+                else:
+                    class_report, conf_matrix, acc = _process_run(
+                        self._one_offline_step, train, val, test, classifier_type, labels, classifier_kwargs,
+                        label_encoder, make_binary_classification, batch_size
+                    )
+                cross_acc.append(acc)
+
+                self._log_and_print("####### Classification report for subject{}: #######".format(subj))
+                self._log_and_print("classifier %s:\n%s" % (self, class_report))
+                self._log_and_print("Confusion matrix:\n%s\n" % conf_matrix)
+                self._log_and_print("Accuracy score: {}\n".format(acc))
+
+            self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
+            self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
+            self._save_params((cross_acc, np.mean(cross_acc)))
 
     def play_game(self, db_name=Databases.GAME, feature_params=None,
                   epoch_tmin=0, epoch_tmax=4,
@@ -463,7 +481,7 @@ if __name__ == '__main__':
         epoch_tmin=0, epoch_tmax=4,
         window_length=1, window_step=.1,
         method=XvalidateMethod.SUBJECT,
-        subject=1,
+        subject_list=1,
         use_drop_subject_list=True,
         subj_n_fold_num=5
     )

@@ -42,7 +42,7 @@ def _make_one_fft_test(eeg_file, db_name, fft_low, fft_high, classifier_kwargs=N
     bci.offline_processing(
         db_name=db_name,
         feature_params=feature_kwargs,
-        subject=0,
+        subject_list=0,
         method=XvalidateMethod.SUBJECT,
         epoch_tmin=0, epoch_tmax=4,
         window_length=1, window_step=.1,
