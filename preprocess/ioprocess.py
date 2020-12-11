@@ -853,8 +853,7 @@ class OfflineDataPreprocessor:
             win_epochs = self._get_windowed_features(epochs, task)
 
             subject_data.update(win_epochs)
-
-        return self._save_preprocessed_subject_data(subject_data, subj), (self.info, self._feature_shape)
+        return self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_ttk_db(self, subj):
         task_dict = self._convert_task()
@@ -869,18 +868,17 @@ class OfflineDataPreprocessor:
                                        cut_real_movement_tasks=cut_real_mov)
         self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
-        return self._save_preprocessed_subject_data(subject_data, subj), (self.info, self._feature_shape)
+        return self._save_preprocessed_subject_data(subject_data, subj)
 
     def _generate_db(self, func):
         """Pilot feature db creator function"""
         subject_list = self._get_subject_list()
+
         if len(subject_list) > 1:
-            res = Parallel(n_jobs=-2)(delayed(func)(subject) for subject in subject_list)
+            self._proc_db_filenames = dict(
+                Parallel(n_jobs=-2, require='sharedmem')(delayed(func)(subject) for subject in subject_list))
         else:
-            res = [func(subject) for subject in subject_list]
-        data, info = zip(*res)
-        self._proc_db_filenames = dict(data)
-        self.info, self._feature_shape = info[0]
+            self._proc_db_filenames = dict([func(subject) for subject in subject_list])
         self._save_fast_load_source_data()
 
     def _create_db_from_file(self):
