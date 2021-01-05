@@ -1,0 +1,9 @@
+Steps to correctly install BCISystem:
+1) create a python environment (eg. conda env) with python=3.6 (help: conda cheat sheet)
+2) activate the new env
+3) pip install matplotlib==3.2.1 tensorflow (or tensorflow-gpu) pandas mne==0.19.2 pylsl pytest
+
+Now you can use the BCISystem... =)
+
+If you have any problems you can contact:
+- Csaba Köllőd: kollod.csaba@itk.ppke.hu

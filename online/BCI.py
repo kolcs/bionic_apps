@@ -5,11 +5,12 @@ Online BCI
 @author: Köllőd Csaba, kollod.csaba@ikt.ppke.hu
 """
 
-from pylsl import StreamInlet, resolve_stream
-import numpy as np
 # import threading
 import multiprocessing as mp
-from scipy.signal import butter, lfilter, lfilter_zi
+
+import numpy as np
+from pylsl import StreamInlet, resolve_stream
+from scipy import signal
 
 
 class SignalReceiver:
@@ -55,7 +56,7 @@ class SignalReceiver:
 
 class DSP(SignalReceiver):
 
-    def __init__(self):
+    def __init__(self, use_filter=False, order=5, l_freq=1):
         super(DSP, self).__init__()
         self._eeg = list()
         self._filt_eeg = list()  # change it to deque + copy()?
@@ -67,14 +68,27 @@ class DSP(SignalReceiver):
         self._plotter = None
         self._prev_time = 0
         self._recorder_process = None
+        self._filter_signal = use_filter
+
+        if use_filter:
+            self._sos = signal.butter(order, l_freq, btype='high', output='sos', fs=self.fs)
+            self._zi = None
+
+    def _init_zi(self, n):
+        self._zi = signal.sosfilt_zi(self._sos)
+        self._zi = [self._zi] * n
+        self._zi = np.transpose(np.array(self._zi))
 
     def get_eeg_window_in_chunk(self, window_length=1.0):
         eeg_samples, timestamps = self.get_chunk()
 
-        # todo: make realtime filtering here on received chunk.
-
         if len(timestamps) == 0:
             return None, None
+
+        if self._filter_signal:
+            if self._zi is None:
+                self._init_zi(len(eeg_samples[0]))
+            eeg_samples, self._zi = signal.sosfilt(self._sos, eeg_samples, axis=0, zi=self._zi)
 
         self._eeg.extend(eeg_samples)
         self._timestamp.extend(timestamps)
