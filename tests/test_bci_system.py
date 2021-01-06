@@ -17,6 +17,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         path = Path(init_base_config('..'))
         path = path.joinpath(DIR_FEATURE_DB)
         if path.exists():
+            print('Removing old files. It may take longer...')
             rmtree(str(path))
         cls.subj = 1
 

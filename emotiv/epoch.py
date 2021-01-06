@@ -1,9 +1,8 @@
 import numpy as np
+from mne.io import read_raw
 from pandas import DataFrame
-from scipy.io import loadmat
 from pyedflib import EdfWriter, FILETYPE_EDFPLUS
-
-from preprocess import open_raw_file
+from scipy.io import loadmat
 
 WANTED_CHANNELS = ['AF3', 'F7', 'F3', 'FC5', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'FC6', 'F4', 'F8',
                    'AF4']  # , 'GYROX', 'GYROY', 'MARKER']
@@ -29,7 +28,7 @@ def add_trigger_to_edf_file(edf_file, trigger_file):
     -------
 
     """
-    raw = open_raw_file(edf_file)
+    raw = read_raw(edf_file)
     fs = raw.info['sfreq']
     channel_info = [
         {'label': ch, 'dimension': 'V', 'sample_rate': fs, 'physical_max': 0.01, 'physical_min': 0.0,

@@ -41,36 +41,7 @@ class Databases(Enum):
 
 
 def open_raw_with_gui():
-    return open_raw_file(select_file_in_explorer(init_base_config()))
-
-
-def open_raw_file(filename, preload=True, **mne_kwargs):
-    """Wrapper function to open either edf or brainvision files.
-
-    Parameters
-    ----------
-    filename : str
-        Absolute path and filename of raw file.
-    preload : bool
-        Load data to memory.
-    mne_kwargs
-        Arbitrary keywords for mne file opener functions.
-
-    Returns
-    -------
-    mne.Raw
-        Raw mne file.
-    """
-    ext = Path(filename).suffix
-
-    if ext == '.edf':
-        raw = mne.io.read_raw_edf(filename, preload=preload, **mne_kwargs)
-    elif ext == '.vhdr':
-        raw = mne.io.read_raw_brainvision(filename, preload=preload, **mne_kwargs)
-    else:
-        raise NotImplementedError('{} file reading is not implemented.'.format(ext))
-
-    return raw
+    return mne.io.read_raw(select_file_in_explorer(init_base_config()))
 
 
 def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs, run_format_str):
@@ -340,13 +311,14 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     """
     if type(filenames) is str:
         filenames = [filenames]
-    raws = [open_raw_file(file, preload=False) for file in filenames]
-    raw = raws.pop(0)
+    raw = mne.io.concatenate_raws([mne.io.read_raw(file, preload=False) for file in filenames])
 
-    for r in raws:
-        raw.append(r)
-    del raws
-    raw.rename_channels(lambda x: x.strip('.').capitalize())
+    mne.datasets.eegbci.standardize(raw)
+    try:  # check available channel positions
+        mne.channels.make_eeg_layout(raw.info)
+    except RuntimeError:  # if no channel positions are available create them from standard positions
+        montage = mne.channels.make_standard_montage('standard_1005')  # 'standard_1020'
+        raw.set_montage(montage)
 
     if cut_real_movement_tasks:
         raw = _cut_real_movemet_data(raw)
@@ -354,7 +326,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     if prefilter_signal:
         raw.load_data()
         iir_params = dict(order=f_order, ftype=f_type, output='sos')
-        raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params)
+        raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params, skip_by_annotation='edge')
 
     epochs = get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id, preload=preload)
 
@@ -961,10 +933,11 @@ class OfflineDataPreprocessor:
         feature : FeatureType, optional
             Feature used in preprocess.
         """
-        if feature is not None and feature not in FeatureType:
-            raise NotImplementedError('Feature {} is not implemented'.format(feature))
-        if feature in FeatureType:
-            self.feature_type = feature
+        if feature is not None:
+            if feature in FeatureType:
+                self.feature_type = feature
+            else:
+                raise NotImplementedError('Feature {} is not implemented'.format(feature))
         feature_dir = self.feature_type.name + str(self.feature_kwargs).replace(': ', '=').replace("'", '')
         self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, feature_dir,
                                                     'win_len=' + str(self._window_length),

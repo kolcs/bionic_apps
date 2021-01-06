@@ -4,9 +4,10 @@ with proper meta-data to LSL."""
 import time
 
 import numpy as np
+from mne.io import read_raw
 from pylsl import StreamInfo, StreamOutlet, local_clock
 
-from preprocess.ioprocess import open_raw_file, init_base_config
+from preprocess.ioprocess import init_base_config
 
 M_BRAIN_TRAIN = 'mBrainTrain'
 
@@ -50,7 +51,7 @@ def get_data_with_labels(raw):  # only for pilot data
 
 
 def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236', add_extra_data=False):
-    raw = open_raw_file(filename)
+    raw = read_raw(filename)
 
     # strip channel names of "." characters
     raw.rename_channels(lambda x: x.strip('.'))
@@ -132,8 +133,8 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
         time_to_sleep = 1 / (FS + corr)  # max(0, sleep_time - (time.time() - tic))
         # print('time to sleep in hz: {}'.format(1 / (ts)))
         # time.sleep(ts)
-        toc = time.clock() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
-        while time.clock() < toc:
+        toc = time.process_time() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
+        while time.process_time() < toc:
             pass
 
     diffstim = set(stims)
