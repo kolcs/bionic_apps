@@ -198,6 +198,7 @@ class BCISystem(object):
     def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
                            epoch_tmin=0, epoch_tmax=4,
                            window_length=1.0, window_step=.1,
+                           filter_params=None,
                            method=XvalidateMethod.SUBJECT,
                            subject_list=None, use_drop_subject_list=True, fast_load=True,
                            subj_n_fold_num=None, shuffle_data=True,
@@ -223,6 +224,8 @@ class BCISystem(object):
             Length of sliding window in the epochs in seconds.
         window_step : float
             Step of sliding window in seconds.
+        filter_params : dict, optional
+            Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         method : XvalidateMethod
             The type of cross-validation
         subject_list : int or list of int or None
@@ -250,6 +253,8 @@ class BCISystem(object):
         validation_split : float
             How much of the train set should be used as validation data. value range: [0, 1]
         """
+        if filter_params is None:
+            filter_params = {}
         if classifier_kwargs is None:
             classifier_kwargs = {}
         assert feature_params is not None, 'Feature parameters must be defined.'
@@ -279,7 +284,7 @@ class BCISystem(object):
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                              subject=proc_subjects, select_eeg_file=select_eeg_file,
-                                             eeg_file=train_file)
+                                             eeg_file=train_file, filter_params=filter_params)
         self._proc.use_db(db_name)
 
         def skipp_subject(subject):
@@ -342,6 +347,7 @@ class BCISystem(object):
     def play_game(self, db_name=Databases.GAME, feature_params=None,
                   epoch_tmin=0, epoch_tmax=4,
                   window_length=1, pretrain_window_step=0.1,
+                  filter_params=None,
                   command_delay=0.5,
                   make_binary_classification=False,
                   use_binary_game_logger=False,
@@ -367,6 +373,8 @@ class BCISystem(object):
             Length of sliding window in the epochs in seconds.
         pretrain_window_step : float
             Step of sliding window in seconds.
+        filter_params : dict, optional
+            Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         command_delay : float
             Each command can be performed after each t seconds.
         make_binary_classification : bool
@@ -388,6 +396,8 @@ class BCISystem(object):
             Use it only at testing.
         """
 
+        if filter_params is None:
+            filter_params = {}
         if classifier_kwargs is None:
             classifier_kwargs = {}
         assert feature_params is not None, 'Feature parameters must be defined.'
@@ -398,7 +408,8 @@ class BCISystem(object):
 
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax,
                                              window_length, pretrain_window_step,
-                                             fast_load=False, select_eeg_file=True, eeg_file=train_file)
+                                             fast_load=False, select_eeg_file=True, eeg_file=train_file,
+                                             filter_params=filter_params)
 
         self._proc.use_db(db_name).run(**feature_params)
         print('Training...')
@@ -430,7 +441,7 @@ class BCISystem(object):
         if make_opponents:
             create_opponents(main_player=1, game_logger=game_log, reaction=command_delay)
 
-        dsp = online.DSP()
+        dsp = online.DSP(use_filter=len(filter_params) > 0, **filter_params)
         assert dsp.fs == self._proc.fs, 'Sampling rate frequency must be equal for preprocessed and online data.'
 
         controller = GameControl(make_log=True, log_to_stream=True, game_logger=game_log)

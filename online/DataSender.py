@@ -133,8 +133,8 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
         time_to_sleep = 1 / (FS + corr)  # max(0, sleep_time - (time.time() - tic))
         # print('time to sleep in hz: {}'.format(1 / (ts)))
         # time.sleep(ts)
-        toc = time.process_time() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
-        while time.process_time() < toc:
+        toc = time.time() + time_to_sleep  # Busy waiting for realtime sleep on Windows...
+        while time.time() < toc:
             pass
 
     diffstim = set(stims)

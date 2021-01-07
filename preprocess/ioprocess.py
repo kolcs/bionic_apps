@@ -267,7 +267,7 @@ def get_epochs_from_raw(raw, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baselin
 
 
 def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto',
-                          preload=False, prefilter_signal=False, f_type='butter', f_order=5, l_freq=1, h_freq=None,
+                          preload=False, prefilter_signal=False, f_type='butter', order=5, l_freq=1, h_freq=None,
                           cut_real_movement_tasks=False):
     """Generate epochs from files.
 
@@ -325,7 +325,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
 
     if prefilter_signal:
         raw.load_data()
-        iir_params = dict(order=f_order, ftype=f_type, output='sos')
+        iir_params = dict(order=order, ftype=f_type, output='sos')
         raw.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params, skip_by_annotation='edge')
 
     epochs = get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id, preload=preload)
@@ -556,7 +556,7 @@ class OfflineDataPreprocessor:
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True, subject=None, select_eeg_file=False,
-                 eeg_file=None):
+                 eeg_file=None, filter_params=None):
         """Preprocessor for eeg files.
 
         Creates a database, which has all the required information about the eeg files.
@@ -583,7 +583,11 @@ class OfflineDataPreprocessor:
             To select or not an eeg file.
         eeg_file : str, optional
             Absolute path to EEG file.
+        filter_params : dict, optional
+            Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         """
+        if filter_params is None:
+            filter_params = {}
         self._base_dir = Path(base_dir)
         self._epoch_tmin = epoch_tmin
         self._epoch_tmax = epoch_tmax  # seconds
@@ -593,6 +597,7 @@ class OfflineDataPreprocessor:
         self._subject_list = [subject] if type(subject) is int else subject
         self._select_one_file = select_eeg_file
         self.eeg_file = eeg_file
+        self._filter_params = filter_params
 
         self.info = mne.Info()
         self.feature_type = FeatureType.FFT_RANGE
@@ -820,7 +825,9 @@ class OfflineDataPreprocessor:
             task_dict = self._convert_task(recs[0])
             filenames = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj,
                                                      recs)
-            epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax)
+            epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
+                                           prefilter_signal=len(self._filter_params) > 0,
+                                           **self._filter_params)
             self.info = epochs.info
             win_epochs = self._get_windowed_features(epochs, task)
 
@@ -837,7 +844,9 @@ class OfflineDataPreprocessor:
         cut_real_mov = REST in task_dict
         epochs = get_epochs_from_files(filenames, task_dict,
                                        self._epoch_tmin, self._epoch_tmax,
-                                       cut_real_movement_tasks=cut_real_mov)
+                                       cut_real_movement_tasks=cut_real_mov,
+                                       prefilter_signal=len(self._filter_params) > 0,
+                                       **self._filter_params)
         self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
         return self._save_preprocessed_subject_data(subject_data, subj)
@@ -862,7 +871,9 @@ class OfflineDataPreprocessor:
         cut_real_mov = REST in task_dict
         epochs = get_epochs_from_files(self.eeg_file, task_dict,
                                        self._epoch_tmin, self._epoch_tmax,
-                                       cut_real_movement_tasks=cut_real_mov)
+                                       cut_real_movement_tasks=cut_real_mov,
+                                       prefilter_signal=len(self._filter_params) > 0,
+                                       **self._filter_params)
         self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
         self._proc_db_filenames = dict([self._save_preprocessed_subject_data(subject_data, 0)])
