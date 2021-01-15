@@ -302,7 +302,10 @@ class BCISystem(object):
         if subject_list is None:
             subject_list = [None]
 
-        kfold = SubjectKFold(self._proc, subj_n_fold_num, validation_split=validation_split, shuffle_data=shuffle_data)
+        kfold = SubjectKFold(
+            self._proc, subj_n_fold_num, validation_split=validation_split, shuffle_data=shuffle_data,
+            binarize_db=(db_name != Databases.GAME_PAR_D and make_binary_classification)
+        )
 
         labels = self._proc.get_labels(make_binary_classification)
         label_encoder = LabelEncoder()

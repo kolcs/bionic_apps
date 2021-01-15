@@ -370,6 +370,16 @@ def _check_data_equality(data_dict):
         assert ln == first_len, 'Number of data are not equal in each task.'
 
 
+def _create_binary_db(task_dict):
+    bin_dict = {_create_binary_label(label): dict() for label in task_dict}
+    ep_count = {label: 0 for label in bin_dict}
+    for label, ep_dict in task_dict.items():
+        for ind, win_list in ep_dict.items():
+            bin_dict[_create_binary_label(label)][ep_count[_create_binary_label(label)]] = win_list
+            ep_count[_create_binary_label(label)] += 1
+    return bin_dict
+
+
 def _remove_subject_tag(db_dict, subject_list):
     db = {task: dict() for task in db_dict[subject_list[0]]}
     task_ind = {task: 0 for task in db_dict[subject_list[0]]}
@@ -398,8 +408,10 @@ def _get_file_list(db_dict, indexes):
     return [file for i in indexes for file in db_dict[i]]
 
 
-def _generate_file_db(source_db, equalize_labels=True):
+def _generate_file_db(source_db, equalize_labels=True, create_binary_db=False):
     source_db = deepcopy(source_db)
+    if create_binary_db:
+        source_db = _create_binary_db(source_db)
     if equalize_labels:
         _do_label_equalization(source_db)
     source_db = _remove_task_tag(source_db)
@@ -428,7 +440,7 @@ Feature generation methods for train and test
 
 
 def _create_binary_label(label):
-    if label is not REST:
+    if label != REST:
         label = CALM if CALM in label else ACTIVE
     return label
 
@@ -442,7 +454,7 @@ def _convert_task(db_type, record_number=None):
 class SubjectKFold(object):
 
     def __init__(self, source_db, k_fold_num=None, validation_split=0.0, shuffle_subjects=True, shuffle_data=True,
-                 random_state=None, equalize_labels=True):
+                 random_state=None, equalize_labels=True, binarize_db=False):
         """Class to split subject database to train and test set, in an N-fold cross validation manner.
 
         Parameters
@@ -463,6 +475,7 @@ class SubjectKFold(object):
         self._shuffle_data = shuffle_data
         np.random.seed(random_state)
         self._equalize_labels = equalize_labels
+        self._binarize_db = binarize_db
 
     def _get_train_and_val_ind(self, train_ind):
         val_num = int(len(train_ind) * self._validation_split)
@@ -502,12 +515,12 @@ class SubjectKFold(object):
                 test_db = db_dict[test_subj]
                 train_db = _remove_subject_tag(db_dict, tr_subj)
 
-                test_files = _generate_file_db(test_db, self._equalize_labels)
-                train_files = _generate_file_db(train_db, self._equalize_labels)
+                test_files = _generate_file_db(test_db, self._equalize_labels, self._binarize_db)
+                train_files = _generate_file_db(train_db, self._equalize_labels, self._binarize_db)
 
                 if len(val_subj) > 0:
                     val_db = _remove_subject_tag(db_dict, val_subj)
-                    val_files = _generate_file_db(val_db, self._equalize_labels)
+                    val_files = _generate_file_db(val_db, self._equalize_labels, self._binarize_db)
                 else:
                     val_files = None
                 yield train_files, test_files, val_files, subj
@@ -515,9 +528,11 @@ class SubjectKFold(object):
         else:
             if self._k_fold_num is None:
                 self._k_fold_num = 5
-
+            if self._binarize_db:
+                db_dict = _create_binary_db(db_dict)
             if self._equalize_labels:
                 _do_label_equalization(db_dict)
+
             kf_dict = {
                 task: KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data).split(np.arange(len(epoch_dict))) for
                 task, epoch_dict in db_dict.items()
@@ -555,8 +570,9 @@ class SubjectKFold(object):
 class OfflineDataPreprocessor:
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
-                 use_drop_subject_list=True, fast_load=True, subject=None, select_eeg_file=False,
-                 eeg_file=None, filter_params=None):
+                 use_drop_subject_list=True, fast_load=True, subject=None,
+                 *,
+                 select_eeg_file=False, eeg_file=None, filter_params=None):
         """Preprocessor for eeg files.
 
         Creates a database, which has all the required information about the eeg files.
@@ -721,12 +737,12 @@ class OfflineDataPreprocessor:
         return list(self._proc_db_filenames)
 
     def get_processed_db_source(self, subject=None, equalize_labels=True, only_files=False):
-        if not only_files:
+        if not only_files:  # SubjectKFold method
             if subject is None:
                 return self._proc_db_filenames
             return self._proc_db_filenames[subject]
         else:
-            if subject is None:
+            if subject is None:  # online BCI method
                 db_files = self._proc_db_filenames
                 db_files = _remove_subject_tag(db_files, list(db_files))
             else:
@@ -856,11 +872,11 @@ class OfflineDataPreprocessor:
         subject_list = self._get_subject_list()
 
         if len(subject_list) > 1:
-            self._proc_db_filenames = dict(
+            self._proc_db_filenames.update(
                 Parallel(n_jobs=-2, require='sharedmem')(delayed(func)(subject) for subject in subject_list))
         else:
-            self._proc_db_filenames = dict([func(subject) for subject in subject_list])
-        self._save_fast_load_source_data()
+            self._proc_db_filenames.update([func(subject) for subject in subject_list])
+            self._save_fast_load_source_data()
 
     def _create_db_from_file(self):
         """Game database creation"""

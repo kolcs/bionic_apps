@@ -5,7 +5,7 @@ from shutil import rmtree
 from numpy import ndarray as ndarray
 from sklearn.preprocessing import LabelEncoder
 
-from config import Physionet, Game_ParadigmD, DIR_FEATURE_DB
+from config import Physionet, Game_ParadigmC, Game_ParadigmD, DIR_FEATURE_DB
 from preprocess import init_base_config, OfflineDataPreprocessor, FeatureType, SubjectKFold, load_pickle_data, \
     DataHandler
 
@@ -87,7 +87,7 @@ class TestSubjectKFold(unittest.TestCase):
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
                          'Data for Physionet does not exists. Can not test it.')
-    def test_subject_kfold_split_subject_physio(self):
+    def test_split_subject_physio(self):
         subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
         self._run_epoch_proc()
         ans = list()
@@ -97,8 +97,48 @@ class TestSubjectKFold(unittest.TestCase):
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
                          'Data for Physionet does not exists. Can not test it.')
-    def test_subject_kfold_split_physio(self):
+    def test_split_subject_physio_binarize(self):
+        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num, binarize_db=True)
+        self._run_epoch_proc()
+        ans = list()
+        for train, test, val, subj in subj_kfold.split(1):
+            ans.append((train, test))
+        self._check_method(ans)
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
+                         'Data for Physionet does not exists. Can not test it.')
+    def test_cross_split_physio(self):
         subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
+        self._run_epoch_proc()
+        ans = list()
+        for train, test, val, subj in subj_kfold.split():
+            ans.append((train, test))
+        self._check_method(ans)
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
+                         'Data for Physionet does not exists. Can not test it.')
+    def test_cross_split_physio_binarized(self):
+        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num, binarize_db=True)
+        self._run_epoch_proc()
+        ans = list()
+        for train, test, val, subj in subj_kfold.split():
+            ans.append((train, test))
+        self._check_method(ans)
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmC.DIR).exists(),
+                         'Data for Game_ParadigmC does not exists. Can not test it.')
+    def test_split_subject_par_c_binarize(self):
+        subj_kfold = SubjectKFold(self.epoch_proc.use_game_par_c(), self.kfold_num, binarize_db=True)
+        self._run_epoch_proc()
+        ans = list()
+        for train, test, val, subj in subj_kfold.split(1):
+            ans.append((train, test))
+        self._check_method(ans)
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmC.DIR).exists(),
+                         'Data for Game_ParadigmC does not exists. Can not test it.')
+    def test_cross_split_par_c_binarized(self):
+        subj_kfold = SubjectKFold(self.epoch_proc.use_game_par_c(), self.kfold_num, binarize_db=True)
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split():
