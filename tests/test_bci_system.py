@@ -1,12 +1,11 @@
 import unittest
 from multiprocessing import Process
 from pathlib import Path
-from shutil import rmtree
 
 from BCISystem import BCISystem, Databases, FeatureType, XvalidateMethod
 from config import Physionet, Game_ParadigmD, DIR_FEATURE_DB
 from online.DataSender import run as send_online_data
-from preprocess import init_base_config
+from preprocess import init_base_config, recursive_delete_folder
 
 
 # @unittest.skip("Not interested")
@@ -18,7 +17,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         path = path.joinpath(DIR_FEATURE_DB)
         if path.exists():
             print('Removing old files. It may take longer...')
-            rmtree(str(path))
+            recursive_delete_folder(str(path))
         cls.subj = 1
 
     def setUp(self):

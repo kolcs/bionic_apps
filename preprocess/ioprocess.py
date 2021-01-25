@@ -1,8 +1,11 @@
+import subprocess
 from copy import deepcopy
 from enum import Enum
 from json import dump as json_dump, load as json_load
 from pathlib import Path
 from pickle import dump as pkl_dump, load as pkl_load
+from shutil import rmtree
+from sys import platform
 from time import time
 
 import mne
@@ -38,6 +41,23 @@ class Databases(Enum):
     GAME = 'game'
     GAME_PAR_C = 'game_par_c'
     GAME_PAR_D = 'game_par_d'
+
+
+def is_platform(os_platform):
+    if 'win' in os_platform:
+        os_platform = 'win'
+    return platform.startswith(os_platform)
+
+
+def recursive_delete_folder(path):
+    if is_platform('win'):
+        command = r'rmdir {} /S /Q'.format(path)
+        subprocess.call(command, shell=True)
+    elif is_platform('linux'):
+        command = 'rm -r {}'.format(path)
+        subprocess.call(command, shell=True)
+    else:
+        rmtree(path)
 
 
 def open_raw_with_gui():

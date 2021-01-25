@@ -1,7 +1,6 @@
 import time
 from enum import Enum
 from multiprocessing import Queue, Process
-from sys import platform
 from warnings import warn, simplefilter
 
 import numpy as np
@@ -17,7 +16,7 @@ from ai import init_classifier, ClassifierType
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, SubjectKFold, init_base_config, FeatureType, \
-    FeatureExtractor, Databases, DataHandler
+    FeatureExtractor, Databases, DataHandler, is_platform
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -433,7 +432,7 @@ class BCISystem(object):
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
         game_log = None
-        if use_binary_game_logger and platform.startswith('win'):
+        if use_binary_game_logger and is_platform('windows'):
             from brainvision import RemoteControlClient
             rcc = RemoteControlClient(print_received_messages=False)
             rcc.open_recorder()

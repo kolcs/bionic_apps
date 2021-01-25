@@ -1,13 +1,12 @@
 import unittest
 from pathlib import Path
-from shutil import rmtree
 
-from numpy import ndarray as ndarray
+from numpy import ndarray
 from sklearn.preprocessing import LabelEncoder
 
 from config import Physionet, Game_ParadigmC, Game_ParadigmD, DIR_FEATURE_DB
 from preprocess import init_base_config, OfflineDataPreprocessor, FeatureType, SubjectKFold, load_pickle_data, \
-    DataHandler
+    DataHandler, recursive_delete_folder
 
 
 class TestPreprocessor(unittest.TestCase):
@@ -18,7 +17,7 @@ class TestPreprocessor(unittest.TestCase):
         cls._subject = 1
         path = cls._path.joinpath(DIR_FEATURE_DB)
         if path.exists():
-            rmtree(str(path))
+            recursive_delete_folder(str(path))
         cls.epoch_proc = OfflineDataPreprocessor(cls._path, subject=cls._subject)
 
     # def setUp(self):
