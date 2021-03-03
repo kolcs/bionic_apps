@@ -986,9 +986,15 @@ class OfflineDataPreprocessor:
             else:
                 raise NotImplementedError('Feature {} is not implemented'.format(feature))
         feature_dir = self.feature_type.name + str(self.feature_kwargs).replace(': ', '=').replace("'", '')
-        self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, feature_dir,
-                                                    'win_len=' + str(self._window_length),
-                                                    'win_step=' + str(self._window_step))
+
+        if not is_platform('win') and Path(DIR_FEATURE_DB).is_absolute():
+            self.proc_db_path = Path(DIR_FEATURE_DB).joinpath(self._db_type.DIR, feature_dir,
+                                                              'win_len=' + str(self._window_length),
+                                                              'win_step=' + str(self._window_step))
+        else:
+            self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, feature_dir,
+                                                        'win_len=' + str(self._window_length),
+                                                        'win_step=' + str(self._window_step))
 
     def _create_db(self):
         """Base db creator function."""
