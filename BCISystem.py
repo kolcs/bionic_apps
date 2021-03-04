@@ -72,7 +72,7 @@ class BCISystem(object):
     also available.
     """
 
-    def __init__(self, make_logs=False, verbose=True):
+    def __init__(self, make_logs=False, verbose=True, log_file='log.csv'):
         """Constructor for BCI system.
 
         Parameters
@@ -83,6 +83,7 @@ class BCISystem(object):
         self._base_dir = init_base_config()
         self._proc = OfflineDataPreprocessor('.')
         self._log = False
+        self._log_file_name = log_file
 
         self._df = None
         self._df_base_data = list()
@@ -315,14 +316,14 @@ class BCISystem(object):
                 continue
 
             cross_acc = list()
-            if self._log:
-                self._df_base_data = [db_name.name, method, feature_params.get('feature_type').name, subject,
-                                      epoch_tmin, epoch_tmax,
-                                      window_length, window_step,
-                                      feature_params.get('fft_low'), feature_params.get('fft_high'),
-                                      feature_params.get('fft_step'), feature_params.get('fft_ranges'),
-                                      classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
-                                      ]
+            if self._log:  # must be here because of the subject number...
+                self._df_base_data = [
+                    db_name.name, method, feature_params.get('feature_type').name, subject,
+                    epoch_tmin, epoch_tmax, window_length, window_step,
+                    feature_params.get('fft_low'), feature_params.get('fft_high'),
+                    feature_params.get('fft_step'), feature_params.get('fft_ranges'),
+                    classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
+                ]
 
             for train, test, val, subj in kfold.split(subject):
                 if classifier_type is ClassifierType.SVM or not tf_test.is_built_with_gpu_support():
@@ -345,6 +346,7 @@ class BCISystem(object):
             self._log_and_print("Avg accuracy: {}".format(np.mean(cross_acc)))
             self._log_and_print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
             self._save_params((cross_acc, np.mean(cross_acc)))
+            self.log_results(self._log_file_name)
 
     def play_game(self, db_name=Databases.GAME, feature_params=None,
                   epoch_tmin=0, epoch_tmax=4,
