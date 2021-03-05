@@ -18,17 +18,17 @@ class TestPreprocessor(unittest.TestCase):
         path = cls._path.joinpath(DIR_FEATURE_DB)
         if path.exists():
             recursive_delete_folder(str(path))
-        cls.epoch_proc = OfflineDataPreprocessor(cls._path, subject=cls._subject)
+        cls.epoch_proc = OfflineDataPreprocessor(cls._path)
 
     # def setUp(self):
     #     pass
 
-    def _check_method(self):
+    def _check_method(self, subj):
         feature_extraction = dict(
             feature_type=FeatureType.FFT_POWER,
             fft_low=14, fft_high=30
         )
-        self.epoch_proc.run(**feature_extraction)
+        self.epoch_proc.run(subject=subj, **feature_extraction)
         self.assertIsInstance(self.epoch_proc.get_processed_db_source(), dict)
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 0)
 
@@ -36,13 +36,13 @@ class TestPreprocessor(unittest.TestCase):
                          'Data for Physionet does not exists. Can not test it.')
     def test_1_physionet(self):
         self.epoch_proc.use_physionet()
-        self._check_method()
+        self._check_method(self._subject)
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
                          'Data for Game_paradigmD does not exists. Can not test it.')
     def test_2_game_paradigmD(self):
         self.epoch_proc.use_game_par_d()
-        self._check_method()
+        self._check_method(self._subject)
 
     def test_3_fast_load(self):
         self.test_1_physionet()
@@ -51,8 +51,9 @@ class TestPreprocessor(unittest.TestCase):
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
                          'Data for Game_paradigmD does not exists. Can not test it.')
     def test_4_data_update(self):
-        self.epoch_proc = OfflineDataPreprocessor(self._path, subject=self._subject + 1)
-        self.test_2_game_paradigmD()
+        # self.epoch_proc = OfflineDataPreprocessor(self._path, subject=self._subject + 1)
+        self.epoch_proc.use_game_par_d()
+        self._check_method(self._subject + 1)
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
 
 
@@ -61,7 +62,7 @@ class TestSubjectKFold(unittest.TestCase):
     def setUpClass(cls):
         cls._path = Path(init_base_config('..'))
         cls.kfold_num = 5
-        cls.epoch_proc = OfflineDataPreprocessor(cls._path, subject=list(range(1, cls.kfold_num + 1)))
+        cls.epoch_proc = OfflineDataPreprocessor(cls._path)
 
     # def setUp(self):
     #     pass
@@ -71,7 +72,7 @@ class TestSubjectKFold(unittest.TestCase):
             feature_type=FeatureType.FFT_POWER,
             fft_low=14, fft_high=30
         )
-        self.epoch_proc.run(**feature_extraction)
+        self.epoch_proc.run(subject=list(range(1, self.kfold_num + 1)), **feature_extraction)
 
     def _check_method(self, ans):
         self.assertEqual(len(ans), self.kfold_num)
@@ -152,13 +153,13 @@ class TestDataHandler(unittest.TestCase):
     def test_big_data(self):
         path = Path(init_base_config('..'))
         subject = 1
-        epoch_proc = OfflineDataPreprocessor(path, subject=subject)
+        epoch_proc = OfflineDataPreprocessor(path)
         epoch_proc.use_game_par_d()
         feature_extraction = dict(
             feature_type=FeatureType.SPATIAL_FFT_POWER,
             fft_low=14, fft_high=30
         )
-        epoch_proc.run(**feature_extraction)
+        epoch_proc.run(subject, **feature_extraction)
         file_list = epoch_proc.get_processed_db_source(subject, only_files=True)
         labels = epoch_proc.get_labels()
         label_encoder = LabelEncoder()

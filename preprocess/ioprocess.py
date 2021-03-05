@@ -590,7 +590,7 @@ class SubjectKFold(object):
 class OfflineDataPreprocessor:
 
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
-                 use_drop_subject_list=True, fast_load=True, subject=None,
+                 use_drop_subject_list=True, fast_load=True,
                  *,
                  select_eeg_file=False, eeg_file=None, filter_params=None):
         """Preprocessor for eeg files.
@@ -613,8 +613,6 @@ class OfflineDataPreprocessor:
             Whether to use drop subject list from config file or not?
         fast_load : bool
             Handle with extreme care! It loads the result of a previous preprocess task.
-        subject : int, list of int, None
-            ID of selected subjects.
         select_eeg_file : bool
             To select or not an eeg file.
         eeg_file : str, optional
@@ -630,7 +628,7 @@ class OfflineDataPreprocessor:
         self._window_length = window_length  # seconds
         self._window_step = window_step  # seconds
         self._fast_load = fast_load
-        self._subject_list = [subject] if type(subject) is int else subject
+        self._subject_list = list()
         self._select_one_file = select_eeg_file
         self.eeg_file = eeg_file
         self._filter_params = filter_params
@@ -726,16 +724,19 @@ class OfflineDataPreprocessor:
         """
         return mne.EpochsArray(data, self.info)
 
-    def run(self, feature_type=FeatureType.FFT_RANGE, **feature_kwargs):
+    def run(self, subject=None, feature_type=FeatureType.FFT_RANGE, **feature_kwargs):
         """Runs the Database preprocessor with the given features.
 
         Parameters
         ----------
+        subject : int, list of int, None
+            ID of selected subjects.
         feature_type : FeatureType
             Specify the features which will be created in the preprocessing phase.
         feature_kwargs
             Arbitrary keyword arguments for feature extraction.
         """
+        self._subject_list = [subject] if type(subject) is int else subject
         self.feature_type = feature_type
         assert len(feature_kwargs) > 0, 'Feature parameters must be defined!'
         self.feature_kwargs = feature_kwargs

@@ -279,11 +279,9 @@ class BCISystem(object):
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
 
-        proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None
-
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
-                                             subject=proc_subjects, select_eeg_file=select_eeg_file,
+                                             select_eeg_file=select_eeg_file,
                                              eeg_file=train_file, filter_params=filter_params)
         self._proc.use_db(db_name)
 
@@ -296,7 +294,8 @@ class BCISystem(object):
         if len(subject_list) == 1 and skipp_subject(subject_list[0]):
             return
 
-        self._proc.run(**feature_params)
+        proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None
+        self._proc.run(proc_subjects, **feature_params)
         assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
 
         if subject_list is None:
@@ -490,13 +489,13 @@ if __name__ == '__main__':
 
     bci = BCISystem()
     bci.offline_processing(
-        db_name=Databases.GAME_PAR_D,
+        db_name=Databases.PHYSIONET,
         feature_params=feature_extraction,
-        fast_load=True,
+        fast_load=False,
         epoch_tmin=0, epoch_tmax=4,
         window_length=1, window_step=.1,
         method=XvalidateMethod.SUBJECT,
         subject_list=1,
         use_drop_subject_list=True,
-        subj_n_fold_num=5
+        subj_n_fold_num=5,
     )
