@@ -41,7 +41,8 @@ def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
     # make test
     bci = BCISystem(make_logs=True, verbose=verbose, log_file=file_name)
     for subject in subject_list:
-        cp_info[SUBJECT_NUM] = int(subject)
+        subject = int(subject)
+        cp_info[SUBJECT_NUM] = subject
         save_to_json(CHECKPOINT, cp_info)
         bci.offline_processing(db_name=db_name,
                                feature_params=feature,
