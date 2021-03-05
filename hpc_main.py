@@ -38,9 +38,10 @@ def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
     proc.run(subject_list, **feature)
 
     # make test
-    bci = BCISystem(make_logs=True, verbose=verbose)
+    bci = BCISystem(make_logs=True, verbose=verbose, log_file=file_name)
     for subject in subject_list:
         cp_info[SUBJECT_NUM] = subject
+        save_to_json(CHECKPOINT, cp_info)
         bci.offline_processing(db_name=db_name,
                                feature_params=feature,
                                fast_load=True,
@@ -52,8 +53,6 @@ def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
                                use_drop_subject_list=use_drop_subject_list,
                                subj_n_fold_num=subj_n_fold_num,
                                classifier_kwargs=classifier_kwargs)
-        bci.log_results(file_name)
-        save_to_json(CHECKPOINT, cp_info)
 
 
 if __name__ == '__main__':
