@@ -4,7 +4,7 @@ from os import remove
 import numpy as np
 
 import config
-from BCISystem import BCISystem, Databases, XvalidateMethod, FeatureType
+from BCISystem import BCISystem, Databases, XvalidateMethod, FeatureType, ClassifierType
 from preprocess import save_to_json, load_from_json, OfflineDataPreprocessor, init_base_config
 
 CHECKPOINT = 'checkpoint.json'
@@ -17,7 +17,7 @@ def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
               epoch_tmin=0, epoch_tmax=4,
               window_length=1, window_step=.1,
               use_drop_subject_list=True,
-              classifier_kwargs=None, filter_params=None):
+              classifier=ClassifierType.SVM, classifier_kwargs=None, filter_params=None):
     if filter_params is None:
         filter_params = {}
     if classifier_kwargs is None:
@@ -52,6 +52,7 @@ def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
                                subject_list=subject,
                                use_drop_subject_list=use_drop_subject_list,
                                subj_n_fold_num=subj_n_fold_num,
+                               classifier_type=classifier,
                                classifier_kwargs=classifier_kwargs)
 
 
@@ -64,9 +65,20 @@ if __name__ == '__main__':
         cp_info[FEATURE_DIR] = '/scratch{}/bci_{}'.format(np.random.randint(1, 5), user)
         cp_info[SUBJECT_NUM] = 1
         fast_load = False
-
     config.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
 
-    make_test(cp_info[SUBJECT_NUM], feature=FeatureType.FFT_POWER, db_name=Databases.PHYSIONET)
+    # This is where you can setup the parameters
+    feature_extraction = dict(
+        feature_type=FeatureType.FFT_POWER,
+        fft_low=7, fft_high=14
+    )
+    classifier = ClassifierType.SVM
+    classifier_kwargs = dict(
+        # weights=None,
+    )
+
+    # running the test with checkpoints...
+    make_test(cp_info[SUBJECT_NUM], feature=feature_extraction, db_name=Databases.PHYSIONET,
+              classifier=classifier, classifier_kwargs=classifier_kwargs)
 
     remove(CHECKPOINT)
