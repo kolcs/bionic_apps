@@ -35,7 +35,8 @@ def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
     )
     proc.use_db(db_name)
     subject_list = np.arange(subject_from, proc.get_subject_num() + 1)
-    proc.run(subject_list, **feature)
+    proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None
+    proc.run(proc_subjects, **feature)
 
     # make test
     bci = BCISystem(make_logs=True, verbose=verbose, log_file=file_name)
