@@ -168,7 +168,7 @@ def generate_ttk_filenames(file_path, subject, runs=1):
 
 
 def load_pickle_data(filename):
-    if not Path(filename).exists():
+    if not Path(filename).is_file():
         return None
 
     with open(filename, 'rb') as fin:
@@ -897,7 +897,7 @@ class OfflineDataPreprocessor:
                 Parallel(n_jobs=-2, require='sharedmem')(delayed(func)(subject) for subject in subject_list))
         else:
             self._proc_db_filenames.update([func(subject) for subject in subject_list])
-            self._save_fast_load_source_data()
+        self._save_fast_load_source_data()
 
     def _create_db_from_file(self):
         """Game database creation"""

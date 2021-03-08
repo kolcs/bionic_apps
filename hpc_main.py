@@ -80,7 +80,7 @@ if __name__ == '__main__':
     )
 
     # running the test with checkpoints...
-    make_test(cp_info[SUBJECT_NUM], feature=feature_extraction, db_name=Databases.PHYSIONET,
+    make_test(cp_info[SUBJECT_NUM], feature=feature_extraction, db_name=Databases.GAME_PAR_D,
               classifier=classifier, classifier_kwargs=classifier_kwargs)
 
     remove(CHECKPOINT)
