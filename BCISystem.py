@@ -486,6 +486,9 @@ if __name__ == '__main__':
         feature_type=FeatureType.MULTI_FFT_POWER,
         fft_ranges=fft_powers
     )
+    filter_params = dict(
+        order=5, l_freq=1, h_freq=None
+    )
 
     bci = BCISystem()
     bci.offline_processing(
@@ -498,4 +501,5 @@ if __name__ == '__main__':
         subject_list=1,
         use_drop_subject_list=True,
         subj_n_fold_num=5,
+        filter_params=filter_params
     )

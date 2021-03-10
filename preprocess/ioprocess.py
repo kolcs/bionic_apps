@@ -168,9 +168,6 @@ def generate_ttk_filenames(file_path, subject, runs=1):
 
 
 def load_pickle_data(filename):
-    if not Path(filename).is_file():
-        return None
-
     with open(filename, 'rb') as fin:
         data = pkl_load(fin)
     return data
@@ -207,14 +204,14 @@ def init_base_config(path='.'):
     """
     file_dir = Path('.').resolve()
     file = file_dir.joinpath(path, CONFIG_FILE)
-    cfg_dict = load_pickle_data(file)
-    if cfg_dict is None:
+    try:
+        cfg_dict = load_pickle_data(file)
+        base_directory = cfg_dict[BASE_DIR]
+    except FileNotFoundError:
         from gui_handler import select_base_dir
         base_directory = select_base_dir()
         cfg_dict = {BASE_DIR: base_directory}
         save_pickle_data(file, cfg_dict)
-    else:
-        base_directory = cfg_dict[BASE_DIR]
     return base_directory
 
 
@@ -463,12 +460,6 @@ def _create_binary_label(label):
     if label != REST:
         label = CALM if CALM in label else ACTIVE
     return label
-
-
-def _convert_task(db_type, record_number=None):
-    if record_number is None:
-        return db_type.TRIGGER_TASK_CONVERTER
-    return db_type.TRIGGER_CONV_REC_TO_TASK.get(record_number)
 
 
 class SubjectKFold(object):
@@ -722,6 +713,8 @@ class OfflineDataPreprocessor:
         -------
         mne.Epochs
         """
+        if len(data.shape) == 2:
+            data = np.expand_dims(data, 0)
         return mne.EpochsArray(data, self.info)
 
     def run(self, subject=None, feature_type=FeatureType.FFT_RANGE, **feature_kwargs):
@@ -1012,7 +1005,10 @@ class OfflineDataPreprocessor:
             print('{} file is not found. Creating database.'.format(file))
 
         file = self._proc_db_source
-        fastload_source = load_pickle_data(file)
+        try:
+            fastload_source = load_pickle_data(file)
+        except FileNotFoundError:
+            fastload_source = None
         n_subjects = self.get_subject_num()
 
         if fastload_source is not None and self._fast_load and \
@@ -1045,6 +1041,13 @@ class OfflineDataPreprocessor:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
 
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
+
+    def get_feature(self, subject=1, task=None, epoch=0, window=0):
+        sdb = self.get_processed_db_source(subject)
+        if task is None:
+            task = list(sdb)[0]
+        filename = sdb[task][epoch][window]
+        return load_pickle_data(filename)
 
 
 class DataHandler:  # todo: move to TFRecord - https://www.tensorflow.org/guide/data#consuming_tfrecord_data

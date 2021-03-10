@@ -14,6 +14,7 @@ class FeatureType(Enum):
     MULTI_FFT_POWER = auto()
     SPATIAL_FFT_POWER = auto()
     SPATIAL_TEMPORAL = auto()
+    RAW = auto()
 
 
 def _get_fft_power(data, fs, get_abs=True):
@@ -304,6 +305,8 @@ class FeatureExtractor:
             feature = self.calculate_spatial_fft_power(data, self._crop)
         elif self.feature_type == FeatureType.SPATIAL_TEMPORAL:
             feature = self.calculate_spatial_temporal(data, self._crop)
+        elif self.feature_type == FeatureType.RAW:
+            feature = data
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))
