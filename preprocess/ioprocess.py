@@ -731,7 +731,6 @@ class OfflineDataPreprocessor:
         """
         self._subject_list = [subject] if type(subject) is int else subject
         self.feature_type = feature_type
-        assert len(feature_kwargs) > 0, 'Feature parameters must be defined!'
         self.feature_kwargs = feature_kwargs
         self._create_db()
 

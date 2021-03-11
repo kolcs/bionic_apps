@@ -153,6 +153,40 @@ class FeatureExtractor:
         self._crop = crop
         self._info = info  # todo: change back info to interp when it is possible...
 
+        self._check_params()
+
+    def _check_params(self):
+        if self.feature_type == FeatureType.FFT_POWER:
+            self._check_fft_low_and_high()
+        elif self.feature_type == FeatureType.MULTI_FFT_POWER:
+            self._check_fft_ranges()
+        elif self.feature_type == FeatureType.FFT_RANGE:
+            self._check_fft_low_and_high()
+        elif self.feature_type == FeatureType.SPATIAL_FFT_POWER:
+            if self.fft_ranges is not None:
+                self._check_fft_ranges()
+            else:
+                self._check_fft_low_and_high()
+            self._check_info()
+        elif self.feature_type == FeatureType.SPATIAL_TEMPORAL:
+            self._check_info()
+        elif self.feature_type == FeatureType.RAW:
+            pass  # no parameters are required for this feature
+
+        else:
+            raise NotImplementedError("Parameter constrains for {} are not defined.".format(self.feature_type.name))
+
+    def _check_fft_low_and_high(self):
+        assert self.fft_low is not None and self.fft_high is not None, \
+            'fft_low and fft_high must be defined for {} feature'.format(self.feature_type.name)
+
+    def _check_fft_ranges(self):
+        assert type(self.fft_ranges) is list and type(self.fft_ranges[0]) is tuple, \
+            'fft_ranges parameter not defined correctly for {} feature'.format(self.feature_type.name)
+
+    def _check_info(self):
+        assert self._info is not None, 'info must be defined {} feature'.format(self.feature_type.name)
+
     def calculate_multi_fft_power(self, data):
         """Calculating fft power in all ranges given in fft_ranges. (General case of FFT_RANGE)
 
@@ -167,9 +201,6 @@ class FeatureExtractor:
             Feature extracted data. Shape: (data_points, n_fft, n_channels)
 
         """
-        assert type(self.fft_ranges) is list and type(self.fft_ranges[0]) is tuple, \
-            'Invalid argument for MULTI_FFT_POWER'
-
         fft_res, freqs = _get_fft_power(data, self.fs)
 
         data = list()
@@ -195,7 +226,6 @@ class FeatureExtractor:
         np.ndarray
             Feature extracted data.
         """
-        assert self.fft_low is not None and self.fft_high is not None, 'fft_low and fft_high must be defined.'
         self.fft_ranges = [(self.fft_low, self.fft_high)]
         return self.calculate_multi_fft_power(data)
 
