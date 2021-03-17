@@ -291,7 +291,7 @@ class BCISystem(object):
                 return True
             return False
 
-        if len(subject_list) == 1 and skipp_subject(subject_list[0]):
+        if subject_list is not None and len(subject_list) == 1 and skipp_subject(subject_list[0]):
             return
 
         proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None

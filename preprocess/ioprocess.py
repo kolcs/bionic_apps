@@ -422,7 +422,8 @@ def _remove_task_tag(db_dict):
 
 
 def _get_file_list(db_dict, indexes):
-    return [file for i in indexes for file in db_dict[i]]
+    # return [file for i in indexes for file in db_dict[i]]
+    return [db_dict[i] for i in indexes]
 
 
 def _generate_file_db(source_db, equalize_labels=True, create_binary_db=False):
@@ -792,18 +793,18 @@ class OfflineDataPreprocessor:
         """
         print('Database generated for subject{}'.format(subj))
         subject_file_dict = dict()
-        feature_ind = 0
+        epoch_ind = 0
         for task, ep_dict in subject_data.items():
             ep_file_dict = dict()
             for ind, ep_list in ep_dict.items():
-                win_file_list = list()
-                for ep in ep_list:
-                    db_file = 'subj{}-feature{}.data'.format(subj, feature_ind)
-                    db_file = str(self.proc_db_path.joinpath(db_file))
-                    save_pickle_data(db_file, ep)
-                    win_file_list.append(db_file)
-                    feature_ind += 1
-                ep_file_dict[ind] = win_file_list
+                # win_file_list = list()
+                db_file = 'subj{}-epoch{}.data'.format(subj, epoch_ind)
+                db_file = str(self.proc_db_path.joinpath(db_file))
+                save_pickle_data(db_file, ep_list)
+                epoch_ind += 1
+                # for ep in ep_list:
+                #     win_file_list.append(db_file)
+                ep_file_dict[ind] = db_file
             subject_file_dict[task] = ep_file_dict
         return subj, subject_file_dict
 
@@ -1051,28 +1052,38 @@ class OfflineDataPreprocessor:
 
 class DataHandler:  # todo: move to TFRecord - https://www.tensorflow.org/guide/data#consuming_tfrecord_data
 
-    def __init__(self, file_list, label_encoder, binary_classification=False, shuffle=True):
-        if shuffle:
+    def __init__(self, file_list, label_encoder, binary_classification=False, shuffle_epochs=True,
+                 shuffle_windows=True):
+        if shuffle_epochs:
             np.random.shuffle(file_list)
         self._file_list = file_list
         self._label_encoder = label_encoder
         self._binary_classification = binary_classification
-        data, label = load_pickle_data(file_list[0])
+        data, label = load_pickle_data(file_list[0])[0]
         self._data_shape = data.shape
         self._label_shape = label.shape
+        self._shuffle_windows = shuffle_windows
 
-    # def _load_data(self, filename):
-    #     data, label = load_pickle_data(filename)
-    #     label = self._label_encoder.transform(label)
-    #     return data, label
-
-    def _generate_data(self):
-        for filename in self._file_list:
-            data, labels = load_pickle_data(filename)
+    def _load_data(self, filename):
+        window_list = load_pickle_data(filename)
+        data_list = list()
+        for data, labels in window_list:
             if self._binary_classification:
                 labels = [_create_binary_label(label) for label in labels]
             labels = self._label_encoder.transform(labels)
-            yield data, labels
+            data_list.append((data, labels))
+        if self._shuffle_windows:
+            np.random.shuffle(data_list)
+        return data_list
+
+    # def get_numpy_dataset(self):
+    #     dataset = Parallel(n_jobs=-2)(delayed(self._load_data)(filename) for filename in self._file_list)
+    #     return dataset
+
+    def _generate_data(self):
+        for filename in self._file_list:
+            for data, label in self._load_data(filename):
+                yield data, label
 
     def get_tf_dataset(self):
         # dataset = tf.data.Dataset.from_tensor_slices(self._file_list)  # or generator

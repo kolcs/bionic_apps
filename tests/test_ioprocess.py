@@ -17,6 +17,7 @@ class TestPreprocessor(unittest.TestCase):
         cls._subject = 1
         path = cls._path.joinpath(DIR_FEATURE_DB)
         if path.exists():
+            print('Removing old files. It may take longer...')
             recursive_delete_folder(str(path))
         cls.epoch_proc = OfflineDataPreprocessor(cls._path)
 
@@ -81,7 +82,8 @@ class TestSubjectKFold(unittest.TestCase):
         self.assertTrue(Path(train[0]).exists())
         self.assertTrue(Path(test[0]).exists())
 
-        data = load_pickle_data(train[0])
+        window_list = load_pickle_data(train[0])
+        data = window_list[0]
         self.assertIsInstance(data[0], ndarray)
         self.assertIn(type(data[1]), [str, int, float, list, ndarray])
 
