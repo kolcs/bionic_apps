@@ -1046,8 +1046,9 @@ class OfflineDataPreprocessor:
         sdb = self.get_processed_db_source(subject)
         if task is None:
             task = list(sdb)[0]
-        filename = sdb[task][epoch][window]
-        return load_pickle_data(filename)
+        filename = sdb[task][epoch]
+        window_list = load_pickle_data(filename)
+        return window_list[window]
 
 
 class DataHandler:  # todo: move to TFRecord - https://www.tensorflow.org/guide/data#consuming_tfrecord_data
