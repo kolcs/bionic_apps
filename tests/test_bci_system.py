@@ -58,7 +58,7 @@ class TestOfflineBciSystem(unittest.TestCase):
     def test_subject_x_val_fft_range(self):
         feature_extraction = dict(
             feature_type=FeatureType.FFT_RANGE,
-            fft_low=14, fft_high=30, fft_step=2, fft_width=2
+            fft_low=14, fft_high=30
         )
         self.assertIsNone(self.bci.offline_processing(
             Databases.GAME_PAR_D, feature_params=feature_extraction,
@@ -81,6 +81,22 @@ class TestOfflineBciSystem(unittest.TestCase):
             epoch_tmin=0, epoch_tmax=4,
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
+            subject_list=self.subj,
+        ))
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
+                         'Data for Game_paradigmD does not exists. Can not test it.')
+    def test_cross_subject_fft_power(self):
+        feature_extraction = dict(
+            feature_type=FeatureType.FFT_POWER,
+            fft_low=14, fft_high=30
+        )
+        self.assertIsNone(self.bci.offline_processing(
+            Databases.GAME_PAR_D, feature_params=feature_extraction,
+            epoch_tmin=0, epoch_tmax=4,
+            window_length=1, window_step=.1,
+            method=XvalidateMethod.CROSS_SUBJECT,
+            subj_n_fold_num=2,
             subject_list=self.subj,
         ))
 
