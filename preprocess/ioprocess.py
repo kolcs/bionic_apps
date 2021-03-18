@@ -498,85 +498,104 @@ class SubjectKFold(object):
         tr_ind = train_ind[val_num:]
         return tr_ind, val_ind
 
-    def split(self, subject=None):
+    def _split_one_versus_rest(self, subject, db_dict, subject_list):
+        train_subj = subject_list.copy()
+        test_subj = train_subj.pop(train_subj.index(subject))
+
+        if self._k_fold_num is not None:
+            k_fold_num = max(1, self._k_fold_num - 1)
+            train_subj = train_subj[:k_fold_num]
+
+        tr_subj, val_subj = self._get_train_and_val_ind(train_subj)
+        test_db = db_dict[test_subj]
+        train_db = _remove_subject_tag(db_dict, tr_subj)
+
+        test_files = _generate_file_db(test_db, self._equalize_labels, self._binarize_db)
+        train_files = _generate_file_db(train_db, self._equalize_labels, self._binarize_db)
+
+        if len(val_subj) > 0:
+            val_db = _remove_subject_tag(db_dict, val_subj)
+            val_files = _generate_file_db(val_db, self._equalize_labels, self._binarize_db)
+        else:
+            val_files = None
+        return train_files, test_files, val_files, subject
+
+    def _split_cross_subjects(self, subject):
+        db_dict = self._source_db.get_processed_db_source(None)
+        subject_list = list(db_dict)
+
+        if self._shuffle_subj:
+            np.random.shuffle(subject_list)
+
+        if subject is not None:
+            yield self._split_one_versus_rest(subject, db_dict, subject_list)
+        else:
+            if self._k_fold_num is not None:
+                k_fold_num = max(1, self._k_fold_num)
+                subject_list = subject_list[:k_fold_num]
+                self._k_fold_num = None  # skipp this in _split_one_versus_rest()
+
+            for subj in subject_list:
+                yield self._split_one_versus_rest(subj, db_dict, subject_list)
+
+    def _split_subject(self, subject):
+        db_dict = self._source_db.get_processed_db_source(subject)
+        if self._k_fold_num is None:
+            self._k_fold_num = 5
+        if self._binarize_db:
+            db_dict = _create_binary_db(db_dict)
+        if self._equalize_labels:
+            _do_label_equalization(db_dict)
+
+        kf_dict = {
+            task: KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data).split(np.arange(len(epoch_dict))) for
+            task, epoch_dict in db_dict.items()
+        }
+
+        for _ in range(self._k_fold_num):
+            train_files = list()
+            test_files = list()
+            val_files = list()
+
+            for task, epoch_dict in db_dict.items():
+                train_ind, test_ind = next(kf_dict[task])
+                test_files.extend(_get_file_list(epoch_dict, test_ind))
+                if self._validation_split == 0:
+                    train_files.extend(_get_file_list(epoch_dict, train_ind))
+                    val_files = None
+                else:
+                    tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
+                    val_files.extend(_get_file_list(epoch_dict, val_ind))
+                    train_files.extend(_get_file_list(epoch_dict, tr_ind))
+
+            train_files = np.array(train_files)
+            test_files = np.array(test_files)
+            val_files = np.array(val_files) if val_files is not None else None
+
+            if self._shuffle_data:
+                np.random.shuffle(train_files)
+                np.random.shuffle(test_files)
+                if val_files is not None:
+                    np.random.shuffle(val_files)
+
+            yield train_files, test_files, val_files, subject
+
+    def split(self, subject=None, cross_subject=False):
         """Split database to train and test sets in k-fold manner.
 
         Parameters
         ----------
         subject : int or None
-            If subject is not defined the whole database will be split according
-            to generate cross subject data. Otherwise only the subject data
-            will be split.
+            If cross subject is True the whole database will tested against
+            the defined subject.
+        cross_subject : bool
+
         """
-        db_dict = self._source_db.get_processed_db_source(subject)
-
-        if subject is None:
-            subject_list = list(db_dict)
-
-            if self._shuffle_subj:
-                np.random.shuffle(subject_list)
-
-            if self._k_fold_num is not None:
-                self._k_fold_num = max(1, self._k_fold_num)
-                subject_list = subject_list[:self._k_fold_num]
-
-            for subj in subject_list:
-                train_subj = subject_list.copy()
-                test_subj = train_subj.pop(train_subj.index(subj))
-                tr_subj, val_subj = self._get_train_and_val_ind(train_subj)
-                test_db = db_dict[test_subj]
-                train_db = _remove_subject_tag(db_dict, tr_subj)
-
-                test_files = _generate_file_db(test_db, self._equalize_labels, self._binarize_db)
-                train_files = _generate_file_db(train_db, self._equalize_labels, self._binarize_db)
-
-                if len(val_subj) > 0:
-                    val_db = _remove_subject_tag(db_dict, val_subj)
-                    val_files = _generate_file_db(val_db, self._equalize_labels, self._binarize_db)
-                else:
-                    val_files = None
-                yield train_files, test_files, val_files, subj
-
+        if cross_subject:
+            return self._split_cross_subjects(subject)
         else:
-            if self._k_fold_num is None:
-                self._k_fold_num = 5
-            if self._binarize_db:
-                db_dict = _create_binary_db(db_dict)
-            if self._equalize_labels:
-                _do_label_equalization(db_dict)
-
-            kf_dict = {
-                task: KFold(n_splits=self._k_fold_num, shuffle=self._shuffle_data).split(np.arange(len(epoch_dict))) for
-                task, epoch_dict in db_dict.items()
-            }
-
-            for _ in range(self._k_fold_num):
-                train_files = list()
-                test_files = list()
-                val_files = list()
-
-                for task, epoch_dict in db_dict.items():
-                    train_ind, test_ind = next(kf_dict[task])
-                    test_files.extend(_get_file_list(epoch_dict, test_ind))
-                    if self._validation_split == 0:
-                        train_files.extend(_get_file_list(epoch_dict, train_ind))
-                        val_files = None
-                    else:
-                        tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
-                        val_files.extend(_get_file_list(epoch_dict, val_ind))
-                        train_files.extend(_get_file_list(epoch_dict, tr_ind))
-
-                train_files = np.array(train_files)
-                test_files = np.array(test_files)
-                val_files = np.array(val_files) if val_files is not None else None
-
-                if self._shuffle_data:
-                    np.random.shuffle(train_files)
-                    np.random.shuffle(test_files)
-                    if val_files is not None:
-                        np.random.shuffle(val_files)
-
-                yield train_files, test_files, val_files, subject
+            assert subject is not None, 'Subject must be defined for subject split!'
+            return self._split_subject(subject)
 
 
 class OfflineDataPreprocessor:

@@ -75,8 +75,10 @@ class TestSubjectKFold(unittest.TestCase):
         )
         self.epoch_proc.run(subject=list(range(1, self.kfold_num + 1)), **feature_extraction)
 
-    def _check_method(self, ans):
-        self.assertEqual(len(ans), self.kfold_num)
+    def _check_method(self, ans, kfold_num=None):
+        if kfold_num is None:
+            kfold_num = self.kfold_num
+        self.assertEqual(len(ans), kfold_num)
 
         train, test = ans[0]
         self.assertTrue(Path(train[0]).exists())
@@ -113,9 +115,19 @@ class TestSubjectKFold(unittest.TestCase):
         subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
         self._run_epoch_proc()
         ans = list()
-        for train, test, val, subj in subj_kfold.split():
+        for train, test, val, subj in subj_kfold.split(cross_subject=True):
             ans.append((train, test))
         self._check_method(ans)
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
+                         'Data for Physionet does not exists. Can not test it.')
+    def test_cross_split_one_physio(self):
+        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
+        self._run_epoch_proc()
+        ans = list()
+        for train, test, val, subj in subj_kfold.split(1, cross_subject=True):
+            ans.append((train, test))
+        self._check_method(ans, 1)
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
                          'Data for Physionet does not exists. Can not test it.')
@@ -123,7 +135,7 @@ class TestSubjectKFold(unittest.TestCase):
         subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num, binarize_db=True)
         self._run_epoch_proc()
         ans = list()
-        for train, test, val, subj in subj_kfold.split():
+        for train, test, val, subj in subj_kfold.split(cross_subject=True):
             ans.append((train, test))
         self._check_method(ans)
 
@@ -143,7 +155,7 @@ class TestSubjectKFold(unittest.TestCase):
         subj_kfold = SubjectKFold(self.epoch_proc.use_game_par_c(), self.kfold_num, binarize_db=True)
         self._run_epoch_proc()
         ans = list()
-        for train, test, val, subj in subj_kfold.split():
+        for train, test, val, subj in subj_kfold.split(cross_subject=True):
             ans.append((train, test))
         self._check_method(ans)
 

@@ -268,8 +268,10 @@ class BCISystem(object):
             select_eeg_file = True
             subject_list = 0
 
+        cross_subject = False
         if method == XvalidateMethod.CROSS_SUBJECT:
             subject_list = None
+            cross_subject = True
         elif method == XvalidateMethod.SUBJECT:
             if subject_list is None:
                 subject_list = [1]
@@ -294,7 +296,11 @@ class BCISystem(object):
         if subject_list is not None and len(subject_list) == 1 and skipp_subject(subject_list[0]):
             return
 
-        proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None
+        if subject_list is not None and not cross_subject:
+            proc_subjects = set(np.array(subject_list).flatten())
+        else:
+            proc_subjects = None
+
         self._proc.run(proc_subjects, **feature_params)
         assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
 
@@ -324,7 +330,7 @@ class BCISystem(object):
                     classifier_kwargs.get('C'), classifier_kwargs.get('gamma')
                 ]
 
-            for train, test, val, subj in kfold.split(subject):
+            for train, test, val, subj in kfold.split(subject, cross_subject=cross_subject):
                 if classifier_type is ClassifierType.SVM or not tf_test.is_built_with_gpu_support():
                     class_report, conf_matrix, acc = self._one_offline_step(
                         train, val, test, classifier_type, labels, classifier_kwargs,

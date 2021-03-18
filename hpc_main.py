@@ -13,7 +13,8 @@ SUBJECT_NUM = 'subj_num'
 cp_info = dict()
 
 
-def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
+def make_test(subject_from, feature, db_name, verbose=False,
+              method=XvalidateMethod.SUBJECT, subj_n_fold_num=5,
               epoch_tmin=0, epoch_tmax=4,
               window_length=1, window_step=.1,
               use_drop_subject_list=True,
@@ -50,7 +51,7 @@ def make_test(subject_from, feature, db_name, verbose=False, subj_n_fold_num=5,
                                epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                window_length=window_length, window_step=window_step,
                                filter_params=filter_params,
-                               method=XvalidateMethod.SUBJECT,
+                               method=method,
                                subject_list=subject,
                                use_drop_subject_list=use_drop_subject_list,
                                subj_n_fold_num=subj_n_fold_num,
@@ -81,6 +82,7 @@ if __name__ == '__main__':
 
     # running the test with checkpoints...
     make_test(cp_info[SUBJECT_NUM], feature=feature_extraction, db_name=Databases.GAME_PAR_D,
+              method=XvalidateMethod.SUBJECT,
               classifier=classifier, classifier_kwargs=classifier_kwargs)
 
     remove(CHECKPOINT)
