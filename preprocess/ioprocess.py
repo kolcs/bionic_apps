@@ -816,13 +816,10 @@ class OfflineDataPreprocessor:
         for task, ep_dict in subject_data.items():
             ep_file_dict = dict()
             for ind, ep_list in ep_dict.items():
-                # win_file_list = list()
                 db_file = 'subj{}-epoch{}.data'.format(subj, epoch_ind)
                 db_file = str(self.proc_db_path.joinpath(db_file))
                 save_pickle_data(db_file, ep_list)
                 epoch_ind += 1
-                # for ep in ep_list:
-                #     win_file_list.append(db_file)
                 ep_file_dict[ind] = db_file
             subject_file_dict[task] = ep_file_dict
         return subj, subject_file_dict
@@ -998,16 +995,15 @@ class OfflineDataPreprocessor:
                 self.feature_type = feature
             else:
                 raise NotImplementedError('Feature {} is not implemented'.format(feature))
-        feature_dir = self.feature_type.name + str(self.feature_kwargs).replace(': ', '=').replace("'", '')
+        feature_dir = self.feature_type.name + str(list(self.feature_kwargs.values())).replace(' ', '')
+        filter_dir = str(list(self._filter_params.values())).replace(' ', '').replace('[', '').replace(']', '')
 
         if not is_platform('win') and Path(DIR_FEATURE_DB).is_absolute():
-            self.proc_db_path = Path(DIR_FEATURE_DB).joinpath(self._db_type.DIR, feature_dir,
-                                                              'win_len=' + str(self._window_length),
-                                                              'win_step=' + str(self._window_step))
+            self.proc_db_path = Path(DIR_FEATURE_DB)
         else:
-            self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB, self._db_type.DIR, feature_dir,
-                                                        'win_len=' + str(self._window_length),
-                                                        'win_step=' + str(self._window_step))
+            self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB)
+        self.proc_db_path = self.proc_db_path.joinpath(self._db_type.DIR, feature_dir, filter_dir,
+                                                       str(self._window_length), str(self._window_step))
 
     def _create_db(self):
         """Base db creator function."""
