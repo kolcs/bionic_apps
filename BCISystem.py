@@ -52,7 +52,12 @@ def _validate_feature_classifier_pair(feature_type, classifier_type):
 
 
 def __wrapper_func(func, queue, *args):
-    queue.put(func(*args))
+    ans = dict(result=None, exception=None)
+    try:
+        ans['result'] = func(*args)
+    except Exception as e:
+        ans['exception'] = e
+    queue.put(ans)
 
 
 def _process_run(func, *args):
@@ -60,9 +65,12 @@ def _process_run(func, *args):
     queue = Queue()
     p = Process(target=__wrapper_func, args=(func, queue) + args)
     p.start()
-    result = queue.get()
+    ans = queue.get()
     p.join()
-    return result
+    if ans['exception'] is not None:
+        print('The error came from {}'.format(func))
+        raise ans['exception']
+    return ans['result']
 
 
 class BCISystem(object):
