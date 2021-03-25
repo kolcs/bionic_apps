@@ -1111,17 +1111,14 @@ class DataHandler:  # todo: move to TFRecord - https://www.tensorflow.org/guide/
             labels = self._label_encoder.transform(labels)
             self._data_list.append((data, labels))
 
-    def _pre_load_epochs(self):
-        for i in range(self._preload_epoch_num):
-            self._load_epoch(self._file_list.pop(0))
-
     def _generate_data(self):
-        self._pre_load_epochs()
-        for filename in self._file_list:
-            self._load_epoch(filename)
+        for i in range(self._preload_epoch_num):
+            self._load_epoch(self._file_list[i])
+        for i in range(self._preload_epoch_num, len(self._file_list)):
+            self._load_epoch(self._file_list[i])
             if self._shuffle_windows:
                 np.random.shuffle(self._data_list)
-            for i in range(self._win_num):
+            for _ in range(self._win_num):
                 yield self._data_list.pop(0)
 
         while len(self._data_list) > 0:  # all files loaded
