@@ -239,7 +239,7 @@ class Physionet:
     }
 
     TASK_TO_REC = {  # same trigger in leg-hand and left-right
-        REST: [i for i in range(4, 15, 2)],
+        # REST: [i for i in range(4, 15, 2)],
         LEFT_HAND: [i for i in range(4, 15, 4)],
         RIGHT_HAND: [i for i in range(4, 15, 4)],
         BOTH_HANDS: [i for i in range(6, 15, 4)],

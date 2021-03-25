@@ -27,7 +27,7 @@ class TestOfflineBciSystem(unittest.TestCase):
                          'Data for Physionet does not exists. Can not test it.')
     def test_physionet_subject_x_val(self):
         feature_extraction = dict(
-            feature_type=FeatureType.FFT_POWER,
+            feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
         self.assertIsNone(self.bci.offline_processing(
@@ -42,7 +42,7 @@ class TestOfflineBciSystem(unittest.TestCase):
                          'Data for Game_paradigmD does not exists. Can not test it.')
     def test_subject_x_val_fft_power(self):
         feature_extraction = dict(
-            feature_type=FeatureType.FFT_POWER,
+            feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
         self.assertIsNone(self.bci.offline_processing(
@@ -72,7 +72,7 @@ class TestOfflineBciSystem(unittest.TestCase):
                          'Data for Game_paradigmD does not exists. Can not test it.')
     def test_subject_x_val_multi_fft_power(self):
         feature_extraction = dict(
-            feature_type=FeatureType.MULTI_FFT_POWER,
+            feature_type=FeatureType.MULTI_AVG_FFT_POW,
             fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
                         (22, 32), (22, 36), (26, 32), (26, 36)]
         )
@@ -88,7 +88,7 @@ class TestOfflineBciSystem(unittest.TestCase):
                          'Data for Game_paradigmD does not exists. Can not test it.')
     def test_cross_subject_fft_power(self):
         feature_extraction = dict(
-            feature_type=FeatureType.FFT_POWER,
+            feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
         self.assertIsNone(self.bci.offline_processing(
@@ -125,7 +125,7 @@ class TestOnlineBci(unittest.TestCase):
     def test_play_game(self):
         test_time_out = 2  # sec
         feature_extraction = dict(
-            feature_type=FeatureType.MULTI_FFT_POWER,
+            feature_type=FeatureType.MULTI_AVG_FFT_POW,
             fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
                         (22, 32), (22, 36), (26, 32), (26, 36)]
         )

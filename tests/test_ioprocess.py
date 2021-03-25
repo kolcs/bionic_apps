@@ -26,7 +26,7 @@ class TestPreprocessor(unittest.TestCase):
 
     def _check_method(self, subj):
         feature_extraction = dict(
-            feature_type=FeatureType.FFT_POWER,
+            feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
         self.epoch_proc.run(subject=subj, **feature_extraction)
@@ -70,7 +70,7 @@ class TestSubjectKFold(unittest.TestCase):
 
     def _run_epoch_proc(self):
         feature_extraction = dict(
-            feature_type=FeatureType.FFT_POWER,
+            feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
         self.epoch_proc.run(subject=list(range(1, self.kfold_num + 1)), **feature_extraction)
@@ -170,7 +170,7 @@ class TestDataHandler(unittest.TestCase):
         epoch_proc = OfflineDataPreprocessor(path)
         epoch_proc.use_game_par_d()
         feature_extraction = dict(
-            feature_type=FeatureType.SPATIAL_FFT_POWER,
+            feature_type=FeatureType.SPATIAL_AVG_FFT_POW,
             fft_low=14, fft_high=30
         )
         epoch_proc.run(subject, **feature_extraction)

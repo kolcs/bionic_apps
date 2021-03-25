@@ -36,7 +36,7 @@ def _make_one_fft_test(eeg_file, db_name, fft_low, fft_high, classifier_kwargs=N
 
     bci = BCISystem(make_logs=True)
     feature_kwargs = dict(
-        feature_type=FeatureType.FFT_POWER,
+        feature_type=FeatureType.AVG_FFT_POWER,
         fft_low=fft_low, fft_high=fft_high,
     )
     bci.offline_processing(

@@ -13,18 +13,19 @@ SUBJECT_NUM = 'subj_num'
 cp_info = dict()
 
 
-def make_test(subject_from, feature, db_name, verbose=False,
+def make_test(feature_params, db_name, subject_from=1, verbose=True,
               method=XvalidateMethod.SUBJECT, subj_n_fold_num=5,
               epoch_tmin=0, epoch_tmax=4,
               window_length=1, window_step=.1,
-              use_drop_subject_list=True,
-              classifier=ClassifierType.SVM, classifier_kwargs=None, filter_params=None):
+              use_drop_subject_list=True, fast_load=False,
+              classifier=ClassifierType.SVM, classifier_kwargs=None, filter_params=None,
+              batch_size=None):
     if filter_params is None:
         filter_params = {}
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
-    file_name = 'log_{}_{}.csv'.format(feature['feature_type'].name, subject_from)
+    file_name = 'log_{}_{}.csv'.format(feature_params['feature_type'].name, subject_from)
 
     # generate database if not available
     proc = OfflineDataPreprocessor(
@@ -37,16 +38,18 @@ def make_test(subject_from, feature, db_name, verbose=False,
     proc.use_db(db_name)
     subject_list = np.arange(subject_from, proc.get_subject_num() + 1)
     proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None
-    proc.run(proc_subjects, **feature)
+    proc.run(proc_subjects, **feature_params)
 
     # make test
     bci = BCISystem(make_logs=True, verbose=verbose, log_file=file_name)
     for subject in subject_list:
         subject = int(subject)
-        cp_info[SUBJECT_NUM] = subject
-        save_to_json(CHECKPOINT, cp_info)
+        if len(cp_info) > 0:
+            cp_info[SUBJECT_NUM] = subject
+            save_to_json(CHECKPOINT, cp_info)
+
         bci.offline_processing(db_name=db_name,
-                               feature_params=feature,
+                               feature_params=feature_params,
                                fast_load=True,
                                epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                window_length=window_length, window_step=window_step,
@@ -56,10 +59,16 @@ def make_test(subject_from, feature, db_name, verbose=False,
                                use_drop_subject_list=use_drop_subject_list,
                                subj_n_fold_num=subj_n_fold_num,
                                classifier_type=classifier,
-                               classifier_kwargs=classifier_kwargs)
+                               classifier_kwargs=classifier_kwargs,
+                               batch_size=batch_size)
 
 
-if __name__ == '__main__':
+def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
+    global cp_info
+    global CHECKPOINT
+    if checkpoint is str:
+        CHECKPOINT = checkpoint
+
     user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
     fast_load = True
     try:
@@ -70,19 +79,28 @@ if __name__ == '__main__':
         fast_load = False
     config.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
 
-    # This is where you can setup the parameters
-    feature_extraction = dict(
-        feature_type=FeatureType.FFT_POWER,
-        fft_low=7, fft_high=14
-    )
-    classifier = ClassifierType.SVM
-    classifier_kwargs = dict(
-        # weights=None,
-    )
-
     # running the test with checkpoints...
-    make_test(cp_info[SUBJECT_NUM], feature=feature_extraction, db_name=Databases.GAME_PAR_D,
-              method=XvalidateMethod.SUBJECT,
-              classifier=classifier, classifier_kwargs=classifier_kwargs)
+    make_test(subject_from=cp_info[SUBJECT_NUM], fast_load=fast_load,
+              verbose=verbose, **test_kwargs)
 
     remove(CHECKPOINT)
+
+
+if __name__ == '__main__':
+    # This is an example how to run HPC code:
+    hpc_kwargs = dict(
+        db_name=Databases.GAME_PAR_D,
+        method=XvalidateMethod.SUBJECT,
+        filter_params=dict(
+            # order=5, l_freq=1, h_freq=None
+        ),
+        feature_params=dict(
+            feature_type=FeatureType.AVG_FFT_POWER,
+            fft_low=7, fft_high=14
+        ),
+        classifier=ClassifierType.SVM,
+        classifier_kwargs=dict(
+            # weights=None,
+        ),
+    )
+    hpc_run(**hpc_kwargs)

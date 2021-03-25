@@ -35,13 +35,15 @@ LOG_COLS = ['Database', 'Method', 'Feature', 'Subject', 'Epoch tmin', 'Epoch tma
 
 def _validate_feature_classifier_pair(feature_type, classifier_type):
     if classifier_type is ClassifierType.SVM and feature_type in \
-            [FeatureType.FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_FFT_POWER]:
+            [FeatureType.AVG_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_AVG_FFT_POW]:
         valid = True
     elif classifier_type is ClassifierType.CASCADE_CONV_REC and feature_type is FeatureType.SPATIAL_TEMPORAL:
         valid = True
     elif classifier_type in [ClassifierType.DENSE_NET_121, ClassifierType.DENSE_NET_169, ClassifierType.DENSE_NET_201,
                              ClassifierType.VGG16, ClassifierType.VGG19] and \
-            feature_type in [FeatureType.MULTI_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.SPATIAL_FFT_POWER]:
+            feature_type in [FeatureType.MULTI_AVG_FFT_POW, FeatureType.FFT_RANGE, FeatureType.SPATIAL_AVG_FFT_POW]:
+        valid = True
+    elif classifier_type is ClassifierType.KOLCS_NET and FeatureType.FFT_POWER:
         valid = True
     else:
         valid = False
@@ -497,7 +499,7 @@ if __name__ == '__main__':
                   (22, 32), (22, 36), (26, 32), (26, 36)]
 
     feature_extraction = dict(
-        feature_type=FeatureType.MULTI_FFT_POWER,
+        feature_type=FeatureType.MULTI_AVG_FFT_POW,
         fft_ranges=fft_powers
     )
     filter_params = dict(

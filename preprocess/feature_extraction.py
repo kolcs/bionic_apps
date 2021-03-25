@@ -9,21 +9,25 @@ from scipy import stats
 
 # features
 class FeatureType(Enum):
-    FFT_POWER = auto()
+    AVG_FFT_POWER = auto()
     FFT_RANGE = auto()
-    MULTI_FFT_POWER = auto()
-    SPATIAL_FFT_POWER = auto()
+    MULTI_AVG_FFT_POW = auto()
+    SPATIAL_AVG_FFT_POW = auto()
     SPATIAL_TEMPORAL = auto()
     RAW = auto()
+    FFT_POWER = auto()
 
 
-def _get_fft_power(data, fs, get_abs=True):
+def _get_fft(data, fs, method='absolute'):
     """Calculating the frequency power."""
     n_data_point, n_channel, n_timeponts = data.shape
     fft_res = np.fft.rfft(data)
-    if get_abs:
+    if method == 'absolute':
         fft_res = np.abs(fft_res)
-    # fft_res = fft_res**2
+    elif method == 'power':
+        fft_res = np.power(fft_res, 2)
+    else:
+        raise NotImplementedError('{} method is not defined in fft calculation.')
     freqs = np.fft.rfftfreq(n_timeponts, 1. / fs)
     return fft_res, freqs
 
@@ -156,13 +160,14 @@ class FeatureExtractor:
         self._check_params()
 
     def _check_params(self):
-        if self.feature_type == FeatureType.FFT_POWER:
+        if self.feature_type == FeatureType.AVG_FFT_POWER:
             self._check_fft_low_and_high()
-        elif self.feature_type == FeatureType.MULTI_FFT_POWER:
+        elif self.feature_type == FeatureType.MULTI_AVG_FFT_POW:
             self._check_fft_ranges()
         elif self.feature_type == FeatureType.FFT_RANGE:
             self._check_fft_low_and_high()
-        elif self.feature_type == FeatureType.SPATIAL_FFT_POWER:
+
+        elif self.feature_type == FeatureType.SPATIAL_AVG_FFT_POW:
             if self.fft_ranges is not None:
                 self._check_fft_ranges()
             else:
@@ -172,6 +177,8 @@ class FeatureExtractor:
             self._check_info()
         elif self.feature_type == FeatureType.RAW:
             pass  # no parameters are required for this feature
+        elif self.feature_type == FeatureType.FFT_POWER:
+            self._check_fft_low_and_high()
 
         else:
             raise NotImplementedError("Parameter constrains for {} are not defined.".format(self.feature_type.name))
@@ -187,7 +194,7 @@ class FeatureExtractor:
     def _check_info(self):
         assert self._info is not None, 'info must be defined {} feature'.format(self.feature_type.name)
 
-    def calculate_multi_fft_power(self, data):
+    def calculate_multi_avg_fft_power(self, data):
         """Calculating fft power in all ranges given in fft_ranges. (General case of FFT_RANGE)
 
         Parameters
@@ -201,7 +208,7 @@ class FeatureExtractor:
             Feature extracted data. Shape: (data_points, n_fft, n_channels)
 
         """
-        fft_res, freqs = _get_fft_power(data, self.fs)
+        fft_res, freqs = _get_fft(data, self.fs)
 
         data = list()
         for fft_low, fft_high in self.fft_ranges:
@@ -213,7 +220,7 @@ class FeatureExtractor:
         data = np.transpose(data, (1, 0, 2))
         return data
 
-    def calculate_fft_power(self, data):
+    def calculate_avg_fft_power(self, data):
         """Calculating fft power for eeg data
 
         Parameters
@@ -227,7 +234,7 @@ class FeatureExtractor:
             Feature extracted data.
         """
         self.fft_ranges = [(self.fft_low, self.fft_high)]
-        return self.calculate_multi_fft_power(data)
+        return self.calculate_multi_avg_fft_power(data)
 
     def calculate_fft_range(self, data):
         """Calculating fft power all ranges between fft_low and fft_high.
@@ -244,9 +251,9 @@ class FeatureExtractor:
 
         """
         self.fft_ranges = [(f, f + self.fft_width) for f in np.arange(self.fft_low, self.fft_high, self.fft_step)]
-        return self.calculate_multi_fft_power(data)
+        return self.calculate_multi_avg_fft_power(data)
 
-    def calculate_spatial_fft_power(self, data, crop=True):
+    def calculate_spatial_avg_fft_power(self, data, crop=True):
         """Spatial data from epochs.
 
         Creates spatially distributed data for each epoch in the window.
@@ -266,7 +273,7 @@ class FeatureExtractor:
         """
         if self.fft_ranges is None:
             self.fft_ranges = [(self.fft_low, self.fft_high)]
-        epochs = self.calculate_multi_fft_power(data)
+        epochs = self.calculate_multi_avg_fft_power(data)
 
         def interpol_one_epoch(ep, info, crop_img, i=None):
             interp_list = list()
@@ -316,6 +323,13 @@ class FeatureExtractor:
             res = [interpol_one_epoch(ep, self._info, crop) for ep in data]
         return np.array(res)
 
+    def calculate_fft(self, data, method='absolute'):
+        fft_data, freqs = _get_fft(data, self.fs, method=method)
+
+        fft_mask = (freqs >= self.fft_low) & (freqs <= self.fft_high)
+        data = fft_data[:, :, fft_mask]  # (epoch, channel, fft)
+        return data
+
     def run(self, data):
 
         if len(data.shape) == 2:
@@ -324,19 +338,21 @@ class FeatureExtractor:
             data = data[:, self.channel_list, :]
             print('It is assumed that the reference electrode is POz!!!')
 
-        if self.feature_type == FeatureType.FFT_POWER:
-            feature = self.calculate_fft_power(data)
+        if self.feature_type == FeatureType.AVG_FFT_POWER:
+            feature = self.calculate_avg_fft_power(data)
         elif self.feature_type == FeatureType.FFT_RANGE:
             feature = self.calculate_fft_range(data)
-        elif self.feature_type == FeatureType.MULTI_FFT_POWER:
-            feature = self.calculate_multi_fft_power(data)
+        elif self.feature_type == FeatureType.MULTI_AVG_FFT_POW:
+            feature = self.calculate_multi_avg_fft_power(data)
 
-        elif self.feature_type == FeatureType.SPATIAL_FFT_POWER:
-            feature = self.calculate_spatial_fft_power(data, self._crop)
+        elif self.feature_type == FeatureType.SPATIAL_AVG_FFT_POW:
+            feature = self.calculate_spatial_avg_fft_power(data, self._crop)
         elif self.feature_type == FeatureType.SPATIAL_TEMPORAL:
             feature = self.calculate_spatial_temporal(data, self._crop)
         elif self.feature_type == FeatureType.RAW:
             feature = data
+        elif self.feature_type == FeatureType.FFT_POWER:
+            feature = self.calculate_fft(data, method='absolute')
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))

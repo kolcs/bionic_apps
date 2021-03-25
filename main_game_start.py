@@ -30,7 +30,7 @@ if __name__ == '__main__':
     )
 
     feature_extraction = dict(
-        feature_type=FeatureType.MULTI_FFT_POWER,
+        feature_type=FeatureType.MULTI_AVG_FFT_POW,
         fft_low=14, fft_high=30, fft_step=2, fft_width=2,
         fft_ranges=fft_ranges
     )

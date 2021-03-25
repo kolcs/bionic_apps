@@ -1,49 +1,14 @@
 from enum import Enum, auto
 
-import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-from ai.interface import ClassifierInterface
+from ai.interface import BaseNet
 
 
 class VggType(Enum):
     VGG16 = auto()
     VGG19 = auto()
-
-
-class BaseNet(ClassifierInterface):
-
-    def __init__(self, input_shape, output_shape):
-        self._input_shape = input_shape
-        self._output_shape = output_shape
-
-        input_tensor, outputs = self._build_graph()
-        self._create_model(input_tensor, outputs)
-
-    def _create_model(self, input_tensor, outputs):
-        self._model = keras.Model(inputs=input_tensor, outputs=outputs)
-        self._model.compile(
-            optimizer=keras.optimizers.Adam(),
-            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=["accuracy"]
-        )
-
-    def _build_graph(self):
-        raise NotImplementedError("Model build function is not implemented")
-
-    def predict(self, x):
-        predictions = self._model.predict(x)
-        return np.argmax(predictions, axis=-1)
-
-    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=8):
-        self._model.fit(x, y, validation_data=validation_data, batch_size=batch_size, epochs=epochs)
-
-    def summary(self):
-        self._model.summary()
-
-    def evaluate(self, x, y=None):
-        self._model.evaluate(x, y)
 
 
 class VGG(BaseNet):
@@ -178,7 +143,9 @@ class CascadeConvRecNet(BaseNet):  # https://github.com/Kearlay/research/blob/ma
 
 class BasicNet(BaseNet):
 
-    def __init__(self, input_shape, classes):
+    def __init__(self, input_shape, classes, resize_shape=(64, 64), resize_method='bilinear'):
+        self._resize_shape = resize_shape
+        self._resize_method = resize_method
         super(BasicNet, self).__init__(input_shape, classes)
 
     def _build_graph(self):
@@ -186,6 +153,10 @@ class BasicNet(BaseNet):
         x = input_tensor
         if len(self._input_shape) == 2:
             x = keras.layers.Lambda(lambda tens: tf.expand_dims(tens, axis=-1))(x)
+
+        x = keras.layers.BatchNormalization()(x)
+        x = keras.layers.Lambda(lambda tens: tf.image.resize(tens, self._resize_shape, self._resize_method))(x)
+
         conv_filters = [16, 32, 64]
         kernel_sizes = [(3, 3), (5, 5)]
         x_list = list()
@@ -193,11 +164,17 @@ class BasicNet(BaseNet):
             y = x
             for filt in conv_filters:
                 y = keras.layers.Conv2D(filt, kernel, activation=keras.layers.LeakyReLU())(y)
+            y = keras.layers.Flatten()(y)
             x_list.append(y)
         x = keras.layers.concatenate(x_list)
+
+        x = keras.layers.Dense(units=1024, activation=tf.nn.leaky_relu)(x)
+        x = keras.layers.Dense(units=512, activation=tf.nn.leaky_relu)(x)
+        x = keras.layers.Dense(units=256, activation=tf.nn.leaky_relu)(x)
+        x = keras.layers.Dense(self._output_shape, activation='softmax')(x)
         return input_tensor, x
 
 
 if __name__ == '__main__':
-    nn = BaseNet(2, (8, 63))
+    nn = BasicNet((64, 120), 2)
     nn.summary()
