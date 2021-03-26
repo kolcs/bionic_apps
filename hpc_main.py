@@ -17,8 +17,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
               epoch_tmin=0, epoch_tmax=4,
               window_length=1, window_step=.1,
               use_drop_subject_list=True, fast_load=False,
-              classifier=ClassifierType.SVM, classifier_kwargs=None, filter_params=None,
-              batch_size=None):
+              classifier_type=ClassifierType.SVM, classifier_kwargs=None, filter_params=None):
     if filter_params is None:
         filter_params = {}
     if classifier_kwargs is None:
@@ -57,9 +56,8 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
                                subject_list=subject,
                                use_drop_subject_list=use_drop_subject_list,
                                subj_n_fold_num=subj_n_fold_num,
-                               classifier_type=classifier,
-                               classifier_kwargs=classifier_kwargs,
-                               batch_size=batch_size)
+                               classifier_type=classifier_type,
+                               classifier_kwargs=classifier_kwargs)
 
 
 def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
@@ -96,9 +94,11 @@ if __name__ == '__main__':
             feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=7, fft_high=14
         ),
-        classifier=ClassifierType.SVM,
+        classifier_type=ClassifierType.SVM,
         classifier_kwargs=dict(
             # weights=None,
+            # batch_size=32,
+            # epochs=10,
         ),
     )
     hpc_run(**hpc_kwargs)

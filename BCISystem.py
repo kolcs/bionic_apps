@@ -147,8 +147,8 @@ class BCISystem(object):
             self._df.to_csv(out_file_name, sep=';', encoding='utf-8', index=False)
 
     @staticmethod
-    def _train_classifier(train, validation, classifier_type, input_shape, output_classes, classifier_kwargs,
-                          label_encoder, make_binary_classification, batch_size=None):
+    def _train_classifier(train, validation, classifier_type, input_shape, output_classes, label_encoder,
+                          make_binary_classification, batch_size=32, epochs=1, **classifier_kwargs):
 
         classifier = init_classifier(classifier_type, input_shape, output_classes,
                                      **classifier_kwargs)
@@ -166,20 +166,20 @@ class BCISystem(object):
             if validation is not None:
                 val_ds = DataHandler(validation, label_encoder, make_binary_classification). \
                     get_tf_dataset().batch(batch_size)
-                classifier.fit(train_ds, validation_data=val_ds)
+                classifier.fit(train_ds, validation_data=val_ds, epochs=epochs)
             else:
-                classifier.fit(train_ds)
+                classifier.fit(train_ds, epochs=epochs)
         return classifier
 
     def _one_offline_step(self, train, val, test, classifier_type, labels, classifier_kwargs, label_encoder,
-                          make_binary_classification, batch_size):
+                          make_binary_classification):
         t = time.time()
         if self._verbose:
             print('Training...')
 
         classifier = self._train_classifier(train, val, classifier_type, self._proc.get_feature_shape(),
-                                            len(labels), classifier_kwargs, label_encoder,
-                                            make_binary_classification, batch_size)
+                                            len(labels), label_encoder,
+                                            make_binary_classification, **classifier_kwargs)
 
         t = time.time() - t
         if self._verbose:
@@ -213,7 +213,7 @@ class BCISystem(object):
                            subject_list=None, use_drop_subject_list=True, fast_load=True,
                            subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
-                           classifier_type=ClassifierType.SVM, classifier_kwargs=None, batch_size=None,
+                           classifier_type=ClassifierType.SVM, classifier_kwargs=None,
                            validation_split=0):
         """Offline data processing.
 
@@ -257,9 +257,6 @@ class BCISystem(object):
             The type of the classifier.
         classifier_kwargs : dict, optional
              Arbitrary keyword arguments for classifier.
-        batch_size : int or None
-            Define if batch size data generation is required. Otherwise all
-            features will be created before training.
         validation_split : float
             How much of the train set should be used as validation data. value range: [0, 1]
         """
@@ -344,12 +341,12 @@ class BCISystem(object):
                 if classifier_type is ClassifierType.SVM or not tf_test.is_built_with_gpu_support():
                     class_report, conf_matrix, acc = self._one_offline_step(
                         train, val, test, classifier_type, labels, classifier_kwargs,
-                        label_encoder, make_binary_classification, batch_size
+                        label_encoder, make_binary_classification
                     )
                 else:
                     class_report, conf_matrix, acc = _process_run(
                         self._one_offline_step, train, val, test, classifier_type, labels, classifier_kwargs,
-                        label_encoder, make_binary_classification, batch_size
+                        label_encoder, make_binary_classification
                     )
                 cross_acc.append(acc)
 
@@ -443,8 +440,8 @@ class BCISystem(object):
         label_encoder.fit(labels)
 
         classifier = self._train_classifier(data_list, None, classifier_type, self._proc.get_feature_shape(),
-                                            len(labels), classifier_kwargs, label_encoder, make_binary_classification,
-                                            batch_size)
+                                            len(labels), label_encoder, make_binary_classification,
+                                            batch_size, **classifier_kwargs)
 
         print("Training elapsed {} seconds.".format(int(time.time() - t)))
 
@@ -494,16 +491,18 @@ class BCISystem(object):
 
 
 if __name__ == '__main__':
-    # only for MULTI_FFT_POWER, tested by grid-search...
-    fft_powers = [(14, 36), (18, 32), (18, 36), (22, 28),
-                  (22, 32), (22, 36), (26, 32), (26, 36)]
-
     feature_extraction = dict(
-        feature_type=FeatureType.MULTI_AVG_FFT_POW,
-        fft_ranges=fft_powers
+        feature_type=FeatureType.AVG_FFT_POWER,
+        fft_low=14, fft_high=30
     )
     filter_params = dict(
         order=5, l_freq=1, h_freq=None
+    )
+    classifier_type = ClassifierType.SVM
+    classifier_kwargs = dict(
+        # weights=None,
+        # batch_size=32,
+        # epochs=10,
     )
 
     bci = BCISystem()
@@ -517,5 +516,7 @@ if __name__ == '__main__':
         subject_list=1,
         use_drop_subject_list=True,
         subj_n_fold_num=5,
-        filter_params=filter_params
+        filter_params=filter_params,
+        classifier_type=classifier_type,
+        classifier_kwargs=classifier_kwargs
     )
