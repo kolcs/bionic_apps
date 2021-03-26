@@ -3,9 +3,8 @@ from os import remove
 
 import numpy as np
 
-import config
 from BCISystem import BCISystem, Databases, XvalidateMethod, FeatureType, ClassifierType
-from preprocess import save_to_json, load_from_json, OfflineDataPreprocessor, init_base_config
+from preprocess import save_to_json, load_from_json, OfflineDataPreprocessor, init_base_config, ioprocess
 
 CHECKPOINT = 'checkpoint.json'
 FEATURE_DIR = 'feature_dir'
@@ -64,8 +63,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
 
 
 def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
-    global cp_info
-    global CHECKPOINT
+    global cp_info, CHECKPOINT
     if checkpoint is str:
         CHECKPOINT = checkpoint
 
@@ -77,7 +75,7 @@ def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
         cp_info[FEATURE_DIR] = '/scratch{}/bci_{}'.format(np.random.randint(1, 5), user)
         cp_info[SUBJECT_NUM] = 1
         fast_load = False
-    config.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
+    ioprocess.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
 
     # running the test with checkpoints...
     make_test(subject_from=cp_info[SUBJECT_NUM], fast_load=fast_load,
