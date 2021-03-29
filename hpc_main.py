@@ -1,4 +1,5 @@
 import subprocess
+from datetime import datetime
 from os import remove
 
 import numpy as np
@@ -24,7 +25,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
-    file_name = 'log_{}_{}.csv'.format(feature_params['feature_type'].name, subject_from)
+    file_name = 'log_{}_{}.csv'.format(feature_params['feature_type'].name, datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     # generate database if not available
     proc = OfflineDataPreprocessor(
@@ -64,7 +65,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
 
 def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
     global cp_info, CHECKPOINT
-    if checkpoint is str:
+    if type(checkpoint) is str:
         CHECKPOINT = checkpoint
 
     user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
