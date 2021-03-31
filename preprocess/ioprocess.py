@@ -14,7 +14,7 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
-    DIR_FEATURE_DB, REST, CALM, ACTIVE
+    DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b
 from gui_handler import select_file_in_explorer
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
@@ -41,6 +41,9 @@ class Databases(Enum):
     GAME = 'game'
     GAME_PAR_C = 'game_par_c'
     GAME_PAR_D = 'game_par_d'
+    BCI_COMP_IV_1 = 'BCICompIV1'
+    BCI_COMP_IV_2A = 'BCICompIV2a'
+    BCI_COMP_IV_2B = 'BCICompIV2b'
 
 
 def is_platform(os_platform):
@@ -64,7 +67,7 @@ def open_raw_with_gui():
     return mne.io.read_raw(select_file_in_explorer(init_base_config()))
 
 
-def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs, run_format_str):
+def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs=1, run_format_str=None):
     """Filename generator for one subject
 
     Generating filenames from a given string with {subj} and {rec} which will be replaced.
@@ -94,7 +97,8 @@ def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs
     for i in runs:
         f = file_path
         f = f.replace('{subj}', subject_format_str.format(subject))
-        f = f.replace('{rec}', run_format_str.format(i))
+        if run_format_str is not None:
+            f = f.replace('{rec}', run_format_str.format(i))
         yield f
 
 
@@ -121,7 +125,7 @@ def generate_physionet_filenames(file_path, subject, runs):
     return _generate_filenames_for_subject(file_path, subject, '{:03d}', runs, '{:02d}')
 
 
-def generate_pilot_filenames(file_path, subject, runs=1):
+def generate_pilot_filename(file_path, subject, runs=1):
     """Filename generator for pilot db
 
         Generating filenames from a given string with {subj} and {rec} which are will be replaced.
@@ -144,7 +148,7 @@ def generate_pilot_filenames(file_path, subject, runs=1):
     return _generate_filenames_for_subject(file_path, subject, '{}', runs, '{:02d}')
 
 
-def generate_ttk_filenames(file_path, subject, runs=1):
+def generate_ttk_filename(file_path, subject, runs=1):
     """Filename generator for pilot db
 
         Generating filenames from a given string with {subj} and {rec} which are will be replaced.
@@ -165,6 +169,10 @@ def generate_ttk_filenames(file_path, subject, runs=1):
 
         """
     return _generate_filenames_for_subject(file_path, subject, '{:02d}', runs, '{:02d}')
+
+
+def generate_bci_comp_4_2a_filename(file_path, subject):
+    return _generate_filenames_for_subject(file_path, subject, '{:02d}')
 
 
 def load_pickle_data(filename):
@@ -335,7 +343,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
         mne.channels.make_eeg_layout(raw.info)
     except RuntimeError:  # if no channel positions are available create them from standard positions
         montage = mne.channels.make_standard_montage('standard_1005')  # 'standard_1020'
-        raw.set_montage(montage)
+        raw.set_montage(montage, on_missing='warn')
 
     if cut_real_movement_tasks:
         raw = _cut_real_movemet_data(raw)
@@ -673,6 +681,12 @@ class OfflineDataPreprocessor:
             self.use_game_par_c()
         elif db_name == Databases.GAME_PAR_D:
             self.use_game_par_d()
+        elif db_name == Databases.BCI_COMP_IV_1:
+            self.use_bci_comp_4_1()
+        elif db_name == Databases.BCI_COMP_IV_2A:
+            self.use_bci_comp_4_2a()
+        elif db_name == Databases.BCI_COMP_IV_2B:
+            self.use_bci_comp_4_2b()
 
         else:
             raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
@@ -715,6 +729,18 @@ class OfflineDataPreprocessor:
 
     def use_game_par_d(self):
         self._use_db(Game_ParadigmD)
+        return self
+
+    def use_bci_comp_4_1(self):
+        self._use_db(BciCompIV1)
+        return self
+
+    def use_bci_comp_4_2a(self):
+        self._use_db(BciCompIV2a)
+        return self
+
+    def use_bci_comp_4_2b(self):
+        self._use_db(BciCompIV2b)
         return self
 
     @property
@@ -837,11 +863,13 @@ class OfflineDataPreprocessor:
 
     def get_subject_num(self):
         """Returns the number of available subjects in Database"""
-        if self._db_type is Physionet:
-            return self._db_type.SUBJECT_NUM
-
-        file = 'rec01.vhdr'
-        subject_num = len(sorted(Path(self._data_path).rglob(file)))
+        if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
+            subject_num = self._db_type.SUBJECT_NUM
+        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD]:
+            file = 'rec01.vhdr'
+            subject_num = len(sorted(Path(self._data_path).rglob(file)))
+        else:
+            raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
 
         return subject_num
 
@@ -880,15 +908,24 @@ class OfflineDataPreprocessor:
             subject_data.update(win_epochs)
         return self._save_preprocessed_subject_data(subject_data, subj)
 
-    def _create_ttk_db(self, subj):
+    def _create_x_db(self, subj):
         task_dict = self._convert_task()
         if self._db_type is TTK_DB:
-            filenames = generate_ttk_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+            fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+        elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD]:
+            fn_gen = generate_pilot_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+        elif self._db_type in [BciCompIV1, BciCompIV2a]:
+            fn_gen = generate_bci_comp_4_2a_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+        elif self._db_type is BciCompIV2b:
+            s_ind = subj - 1
+            s = s_ind // 3 + 1
+            rec = s_ind % 3 + 1
+            fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), s, rec)
         else:
-            filenames = generate_pilot_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+            raise NotImplementedError('Database loading for {} is not implemented'.format(self._db_type))
 
         cut_real_mov = REST in task_dict
-        epochs = get_epochs_from_files(filenames, task_dict,
+        epochs = get_epochs_from_files(fn_gen, task_dict,
                                        self._epoch_tmin, self._epoch_tmax,
                                        cut_real_movement_tasks=cut_real_mov,
                                        prefilter_signal=len(self._filter_params) > 0,
@@ -968,7 +1005,7 @@ class OfflineDataPreprocessor:
             tsk_ep = epochs[task]
             win_epochs = {i: list() for i in range(len(tsk_ep))}
             for i in range(win_num):  # cannot speed up here with parallel process...
-                ep = tsk_ep.copy()
+                ep = tsk_ep.copy().pick('eeg')
                 ep.crop(ep.tmin + i * self._window_step, ep.tmin + window_length + i * self._window_step)
                 feature = feature_extractor.run(ep.get_data())
                 f_shape = feature.shape[1:]
@@ -1046,7 +1083,7 @@ class OfflineDataPreprocessor:
 
         elif not self._select_one_file and self.eeg_file is None:
             print_creation_message()
-            self._generate_db(self._create_ttk_db)
+            self._generate_db(self._create_x_db)
 
         elif self._db_type in [GameDB, Game_ParadigmC, Game_ParadigmD]:
             print_creation_message()

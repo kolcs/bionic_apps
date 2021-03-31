@@ -15,6 +15,7 @@ BOTH_LEGS = 'both legs'
 REST = 'rest'
 ACTIVE = 'active'
 CALM = 'calm'
+TONGUE = 'tongue'
 
 SUBJECT = 'subject'
 
@@ -69,7 +70,6 @@ class GameDB:
         BOTH_LEGS: ControlCommand.HEADLIGHT
     }
 
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
     DROP_SUBJECTS = []
 
 
@@ -94,8 +94,6 @@ class Game_ParadigmC:
         BOTH_LEGS: ControlCommand.HEADLIGHT
     }
 
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-
     DROP_SUBJECTS = []
 
 
@@ -112,8 +110,6 @@ class Game_ParadigmD:
         CALM + '1': 7,
         CALM + '2': 11
     }
-
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
     DROP_SUBJECTS = []
 
@@ -132,8 +128,6 @@ class PilotDB_ParadigmA:
         LEFT_LEG: 11
     }
 
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-
     DROP_SUBJECTS = []  # [] or [1, 4] or [2, 3]
 
 
@@ -151,8 +145,6 @@ class PilotDB_ParadigmB:
         BOTH_LEGS: 11
     }
 
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-
     DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
 
 
@@ -169,8 +161,6 @@ class TTK_DB:
         RIGHT_LEG: 9,
         LEFT_LEG: 11
     }
-
-    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
     DROP_SUBJECTS = [1, 9, 17]
 
@@ -262,3 +252,48 @@ class Physionet:
     CHANNEL_TRANSFORMATION = [35, 36, 37, 38, 39, 40, 41, 46, 47, 48, 49, 50, 51, 52, 57, 58, 59, 60, 61, 62, 63, 4, 5,
                               6, 14, 15, 16, 17, 18, 23, 24, 25, 26, 27, 28, 29, 30, 31, 34, 42, 45, 53, 44, 54, 56, 64,
                               67, 68, 69, 70, 71, 72, 73, 74, 75, 80, 81, 82, 83, 84, 92, 93, 94, 104]
+
+
+class BciCompIV2a:
+    DIR = "BCI_comp/4/2a"
+    FILE_PATH = 'A{subj}T_raw.fif'  # .gdf
+    SUBJECT_NUM = 9
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        LEFT_HAND: 7,
+        RIGHT_HAND: 8,
+        BOTH_LEGS: 9,
+        TONGUE: 10
+    }
+
+    DROP_SUBJECTS = []
+
+
+class BciCompIV2b:
+    DIR = "BCI_comp/4/2b"
+    FILE_PATH = 'B{subj}{rec}T_raw.fif'  # .gdf
+    SUBJECT_NUM = 27  # actually 9 but one subject has 3 sessions: 1,2 - no feedback, 3 - feedback
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        LEFT_HAND: 10,
+        RIGHT_HAND: 11,
+    }
+
+    DROP_SUBJECTS = []
+
+
+class BciCompIV1:
+    """
+    In this dataset there are only 2 classes out of left, right, foot at each subject.
+    It is not suggested to train it in a cross subject fashion...
+    """
+    DIR = "BCI_comp/4/1"
+    FILE_PATH = 'calib_ds_subj{subj}_raw.fif'  # .gdf
+    SUBJECT_NUM = 7
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        'class1': 1,
+        'class2': 2,
+    }
+
+    DROP_SUBJECTS = []

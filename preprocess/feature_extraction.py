@@ -352,7 +352,7 @@ class FeatureExtractor:
         elif self.feature_type == FeatureType.RAW:
             feature = data
         elif self.feature_type == FeatureType.FFT_POWER:
-            feature = self.calculate_fft(data, method='absolute')
+            feature = self.calculate_fft(data, method='power')
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))
