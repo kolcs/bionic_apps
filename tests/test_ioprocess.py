@@ -89,6 +89,17 @@ class TestSubjectKFold(unittest.TestCase):
         self.assertIsInstance(data[0], ndarray)
         self.assertIn(type(data[1]), [str, int, float, list, ndarray])
 
+    @staticmethod
+    def _distinct(list1, list2):
+        return not any(item in list1 for item in list2)
+
+    def _check_distinct_state(self, train, test, val=None):
+        msg = 'Datasets can not contain the same data'
+        self.assertTrue(self._distinct(train, test), msg)
+        if val is not None:
+            self.assertTrue(self._distinct(train, val), msg)
+            self.assertTrue(self._distinct(val, test), msg)
+
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
                          'Data for Physionet does not exists. Can not test it.')
     def test_split_subject_physio(self):
@@ -96,6 +107,7 @@ class TestSubjectKFold(unittest.TestCase):
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split(1):
+            self._check_distinct_state(train, test, val)
             ans.append((train, test))
         self._check_method(ans)
 
@@ -106,6 +118,7 @@ class TestSubjectKFold(unittest.TestCase):
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split(1):
+            self._check_distinct_state(train, test, val)
             ans.append((train, test))
         self._check_method(ans)
 
@@ -116,6 +129,7 @@ class TestSubjectKFold(unittest.TestCase):
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split(cross_subject=True):
+            self._check_distinct_state(train, test, val)
             ans.append((train, test))
         self._check_method(ans)
 
@@ -126,6 +140,19 @@ class TestSubjectKFold(unittest.TestCase):
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split(1, cross_subject=True):
+            self._check_distinct_state(train, test, val)
+            ans.append((train, test))
+        self._check_method(ans, 1)
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
+                         'Data for Physionet does not exists. Can not test it.')
+    def test_cross_split_one_validation_physio(self):
+        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num,
+                                  validation_split=.2)
+        self._run_epoch_proc()
+        ans = list()
+        for train, test, val, subj in subj_kfold.split(1, cross_subject=True):
+            self._check_distinct_state(train, test, val)
             ans.append((train, test))
         self._check_method(ans, 1)
 
@@ -136,6 +163,7 @@ class TestSubjectKFold(unittest.TestCase):
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split(cross_subject=True):
+            self._check_distinct_state(train, test, val)
             ans.append((train, test))
         self._check_method(ans)
 
@@ -146,6 +174,7 @@ class TestSubjectKFold(unittest.TestCase):
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split(1):
+            self._check_distinct_state(train, test, val)
             ans.append((train, test))
         self._check_method(ans)
 
@@ -156,6 +185,7 @@ class TestSubjectKFold(unittest.TestCase):
         self._run_epoch_proc()
         ans = list()
         for train, test, val, subj in subj_kfold.split(cross_subject=True):
+            self._check_distinct_state(train, test, val)
             ans.append((train, test))
         self._check_method(ans)
 

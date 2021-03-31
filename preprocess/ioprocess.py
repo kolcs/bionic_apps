@@ -514,18 +514,33 @@ class SubjectKFold(object):
             k_fold_num = max(1, self._k_fold_num - 1)
             train_subj = train_subj[:k_fold_num]
 
-        tr_subj, val_subj = self._get_train_and_val_ind(train_subj)
         test_db = db_dict[test_subj]
-        train_db = _remove_subject_tag(db_dict, tr_subj)
+        train_db = _remove_subject_tag(db_dict, train_subj)
 
-        test_files = _generate_file_db(test_db, self._equalize_labels, self._binarize_db)
-        train_files = _generate_file_db(train_db, self._equalize_labels, self._binarize_db)
+        if self._validation_split > 0:  # creating validation set from train set not from one subject
+            if self._binarize_db:
+                train_db = _create_binary_db(train_db)
+            if self._equalize_labels:
+                _do_label_equalization(train_db)
+            train_files = list()
+            val_files = list()
+            for task in list(train_db):
+                train_ind = list(train_db[task])
+                tr_ind, val_ind = self._get_train_and_val_ind(train_ind)
+                val_files.extend(_get_file_list(train_db[task], val_ind))
+                train_files.extend(_get_file_list(train_db[task], tr_ind))
 
-        if len(val_subj) > 0:
-            val_db = _remove_subject_tag(db_dict, val_subj)
-            val_files = _generate_file_db(val_db, self._equalize_labels, self._binarize_db)
+            # train_files = np.array(train_files)
+            # val_files = np.array(val_files)
+
+            if self._shuffle_data:
+                np.random.shuffle(train_files)
+                np.random.shuffle(val_files)
         else:
             val_files = None
+            train_files = _generate_file_db(train_db, self._equalize_labels, self._binarize_db)
+
+        test_files = _generate_file_db(test_db, self._equalize_labels, self._binarize_db)
         return train_files, test_files, val_files, subject
 
     def _split_cross_subjects(self, subject):
