@@ -1,6 +1,7 @@
 import subprocess
 from datetime import datetime
 from os import remove
+from shutil import rmtree
 
 import numpy as np
 
@@ -73,7 +74,9 @@ def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
     try:
         cp_info = load_from_json(CHECKPOINT)
     except FileNotFoundError:
-        cp_info[FEATURE_DIR] = '/scratch{}/bci_{}'.format(np.random.randint(1, 5), user)
+        path = '/scratch{}/bci_{}'.format(np.random.randint(1, 5), user)
+        rmtree(path, ignore_errors=True)
+        cp_info[FEATURE_DIR] = path
         cp_info[SUBJECT_NUM] = 1
         fast_load = False
     ioprocess.DIR_FEATURE_DB = cp_info[FEATURE_DIR]

@@ -277,16 +277,16 @@ class BCISystem(object):
 
         cross_subject = False
         if method == XvalidateMethod.CROSS_SUBJECT:
-            subject_list = None
             cross_subject = True
         elif method == XvalidateMethod.SUBJECT:
             if subject_list is None:
                 subject_list = [1]
-            if type(subject_list) is int:
-                subject_list = [subject_list]
-            print('{}, {} - Subjects: {}'.format(db_name.name, feature_params.get('feature_type').name, subject_list))
         else:
             raise NotImplementedError('Method {} is not implemented'.format(method))
+
+        if type(subject_list) is int:
+            subject_list = [subject_list]
+        print('{}, {} - Subjects: {}'.format(db_name.name, feature_params.get('feature_type').name, subject_list))
 
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
@@ -311,9 +311,6 @@ class BCISystem(object):
         self._proc.run(proc_subjects, **feature_params)
         assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
 
-        if subject_list is None:
-            subject_list = [None]
-
         kfold = SubjectKFold(
             self._proc, subj_n_fold_num, validation_split=validation_split, shuffle_data=shuffle_data,
             binarize_db=(db_name != Databases.GAME_PAR_D and make_binary_classification)
@@ -322,6 +319,9 @@ class BCISystem(object):
         labels = self._proc.get_labels(make_binary_classification)
         label_encoder = LabelEncoder()
         label_encoder.fit(labels)
+
+        if subject_list is None:
+            subject_list = [None]
 
         for subject in subject_list:
             if skipp_subject(subject):
