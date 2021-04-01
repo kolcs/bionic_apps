@@ -49,12 +49,20 @@ def convert_bcicompIV2b():
         raw.save(filename, overwrite=True)
 
 
+def _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description):
+    info = mne.create_info(ch_names, ch_types=ch_types, sfreq=fs)
+    raw = mne.io.RawArray(eeg, info)
+    annotation = mne.Annotations(onset, duration, description)
+    raw = raw.set_annotations(annotation)
+    return raw
+
+
 def convert_bcicompIV1():
     filenames = get_filenames_from_dir('.mat')
     for i, file in enumerate(filenames):
         mat = read_mat(str(file))
 
-        eeg = mat['cnt'].transpose().astype('double') * 1e-7  # convert to 1 Volt
+        eeg = mat['cnt'].transpose().astype('double') * 1e-7  # convert to 1 Volt unit
         ch_names = mat['nfo']['clab']
         ch_types = ['eeg'] * len(ch_names)
         fs = mat['nfo']['fs']
@@ -66,14 +74,35 @@ def convert_bcicompIV1():
         description = description.astype(object)
         description[description == 1] = classes[0]
         description[description == -1] = classes[1]
-
-        info = mne.create_info(ch_names, ch_types=ch_types, sfreq=fs)
-        raw = mne.io.RawArray(eeg, info)
-        annotation = mne.Annotations(onset, duration, description)
-        raw = raw.set_annotations(annotation)
         filename = file.parent.joinpath('calib_ds_subj{:02d}_raw.fif'.format(i + 1))
+
+        raw = _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description)
+        raw.save(str(filename), overwrite=True)
+
+
+def convert_giga():
+    filenames = get_filenames_from_dir('.mat')
+    for file in filenames:
+        mat = read_mat(str(file))
+        raw_list = list()
+        for state in ['EEG_MI_train', 'EEG_MI_test']:
+            data_dict = mat[state]
+            eeg = data_dict['x'].transpose() * 1e-6  # todo: waiting for info! convert to 1 Volt unit
+            ch_names = data_dict['chan']
+            ch_types = ['eeg'] * len(ch_names)
+            fs = data_dict['fs']
+            onset = data_dict['t'] / fs
+            duration = [4] * len(onset)
+            description = data_dict['y_class']
+
+            raw_list.append(_create_raw(eeg, ch_names, ch_types, fs, onset, duration, description))
+
+        raw = mne.concatenate_raws(raw_list)  # todo: same experiment?
+
+        filename = str(file).strip('.mat') + '_raw.fif'
+        # filename = file.parent.joinpath('calib_ds_subj{:02d}_raw.fif'.format(i + 1))
         raw.save(str(filename), overwrite=True)
 
 
 if __name__ == '__main__':
-    convert_bcicompIV1()
+    convert_giga()
