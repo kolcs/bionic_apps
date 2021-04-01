@@ -21,7 +21,7 @@ class TestParameterSelection(unittest.TestCase):
     def test_1_make_one_test(self):
         fft = [(i, i + 4) for i in range(20, 36, 4)]
         res = [
-            _make_one_fft_test(self._path.joinpath('rec01.vhdr').as_posix(), Databases.GAME_PAR_D, fft_low, fft_high)
+            _make_one_fft_test(str(self._path.joinpath('rec01.vhdr')), Databases.GAME_PAR_D, fft_low, fft_high)
             for fft_low, fft_high in fft]
         self.assertGreater(len(res), 0)
         self.assertIsInstance(res[0], DataFrame)
@@ -34,7 +34,7 @@ class TestParameterSelection(unittest.TestCase):
         self.assertFalse(res.empty, 'Result of _generate_table() can not be empty!')
 
     def test_3_parallel_search_for_fft_params(self):
-        res = parallel_search_for_fft_params(self._path.joinpath('rec01.vhdr').as_posix(), Databases.GAME_PAR_D,
+        res = parallel_search_for_fft_params(str(self._path.joinpath('rec01.vhdr')), Databases.GAME_PAR_D,
                                              20, 40, 6, 5)
         self.assertGreater(len(res), 0)
         self.assertIsInstance(res, list)
