@@ -246,6 +246,31 @@ def _cut_real_movemet_data(raw):
     return raw
 
 
+def standardize_channel_names(raw):
+    """Standardize channel positions and names.
+
+    Specially designed for EEG channel standardization.
+    source: mne.datasets.eegbci.standardize
+
+    Parameters
+    ----------
+    raw : instance of Raw
+        The raw data to standardize. Operates in-place.
+    """
+    rename = dict()
+    for name in raw.ch_names:
+        std_name = name.strip('.')
+        std_name = std_name.upper()
+        if std_name.endswith('Z'):
+            std_name = std_name[:-1] + 'z'
+        if 'FP' in std_name:
+            std_name.replace('FP', 'Fp')
+        if std_name.endswith('H'):
+            std_name = std_name[:-1] + 'h'
+        rename[name] = std_name
+    raw.rename_channels(rename)
+
+
 def get_epochs_from_raw(raw, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baseline=None, event_id='auto', preload=True):
     """Generate epochs from files.
 
@@ -338,7 +363,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
         filenames = [filenames]
     raw = mne.io.concatenate_raws([mne.io.read_raw(file, preload=False) for file in filenames])
 
-    mne.datasets.eegbci.standardize(raw)
+    standardize_channel_names(raw)
     try:  # check available channel positions
         mne.channels.make_eeg_layout(raw.info)
     except RuntimeError:  # if no channel positions are available create them from standard positions
