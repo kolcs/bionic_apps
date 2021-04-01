@@ -1,11 +1,9 @@
 from abc import ABC, abstractmethod
-from datetime import datetime
+from pathlib import Path
 
 from numpy import argmax as np_argmax
 from tensorflow import keras
-from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
-
-from pathlib import Path
+from tensorflow.keras.callbacks import ModelCheckpoint
 
 TF_LOG = 'tf_log/'
 
@@ -49,6 +47,7 @@ class BaseNet(ClassifierInterface):
         best_model_cp_file = Path(TF_LOG).joinpath('models')
         best_model_cp_file.mkdir(parents=True, exist_ok=True)
         best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')
+        best_model_cp_file.unlink(missing_ok=True)
 
         self._model.fit(
             x, y,
