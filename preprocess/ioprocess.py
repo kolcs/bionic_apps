@@ -14,7 +14,7 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
-    DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b
+    DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC
 from gui_handler import select_file_in_explorer
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
@@ -44,6 +44,7 @@ class Databases(Enum):
     BCI_COMP_IV_1 = 'BCICompIV1'
     BCI_COMP_IV_2A = 'BCICompIV2a'
     BCI_COMP_IV_2B = 'BCICompIV2b'
+    ParadigmC = 'par_c'
 
 
 def is_platform(os_platform):
@@ -480,6 +481,8 @@ def get_db_name_by_filename(filename):
         db_name = Databases.PILOT_PAR_B
     elif Physionet.DIR in filename:
         db_name = Databases.PHYSIONET
+    elif ParadigmC.DIR in filename:
+        db_name = Databases.ParadigmC
     else:
         raise ValueError('No database defined with path {}'.format(filename))
     return db_name
@@ -727,6 +730,8 @@ class OfflineDataPreprocessor:
             self.use_bci_comp_4_2a()
         elif db_name == Databases.BCI_COMP_IV_2B:
             self.use_bci_comp_4_2b()
+        elif db_name == Databases.ParadigmC:
+            self.use_par_c()
 
         else:
             raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
@@ -781,6 +786,10 @@ class OfflineDataPreprocessor:
 
     def use_bci_comp_4_2b(self):
         self._use_db(BciCompIV2b)
+        return self
+
+    def use_par_c(self):
+        self._use_db(ParadigmC)
         return self
 
     @property
@@ -905,7 +914,7 @@ class OfflineDataPreprocessor:
         """Returns the number of available subjects in Database"""
         if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
             subject_num = self._db_type.SUBJECT_NUM
-        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD]:
+        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
             file = 'rec01.vhdr'
             subject_num = len(sorted(Path(self._data_path).rglob(file)))
         else:
@@ -952,7 +961,7 @@ class OfflineDataPreprocessor:
         task_dict = self._convert_task()
         if self._db_type is TTK_DB:
             fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-        elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD]:
+        elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
             fn_gen = generate_pilot_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
         elif self._db_type in [BciCompIV1, BciCompIV2a]:
             fn_gen = generate_bci_comp_4_2a_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
@@ -1125,7 +1134,7 @@ class OfflineDataPreprocessor:
             print_creation_message()
             self._generate_db(self._create_x_db)
 
-        elif self._db_type in [GameDB, Game_ParadigmC, Game_ParadigmD]:
+        elif self._db_type in [GameDB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
             print_creation_message()
             self._create_db_from_file()
 

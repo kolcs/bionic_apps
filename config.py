@@ -97,6 +97,30 @@ class Game_ParadigmC:
     DROP_SUBJECTS = []
 
 
+class ParadigmC:
+    DIR = "ParC/"
+    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        # REST: 1,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        CALM: 9,
+        BOTH_LEGS: 11
+    }
+
+    COMMAND_CONV = {
+        CALM: ControlCommand.STRAIGHT,
+        RIGHT_HAND: ControlCommand.RIGHT,
+        LEFT_HAND: ControlCommand.LEFT,
+        BOTH_LEGS: ControlCommand.HEADLIGHT
+    }
+
+    DROP_SUBJECTS = []
+
+
 class Game_ParadigmD:
     DIR = "Game/paradigmD/"
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
