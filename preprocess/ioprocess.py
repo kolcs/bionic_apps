@@ -1151,9 +1151,34 @@ class OfflineDataPreprocessor:
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
 
     def get_feature(self, subject=1, task=None, epoch=0, window=0):
+        """Select a feature form processed Database
+
+        Parameters
+        ----------
+        subject : int
+            Subject number.
+        task : str, int
+            Number or name of the task in the database.
+        epoch : int
+            Number of epoch
+        window : int
+            Number of window in epoch
+
+        Returns
+        -------
+        tuple
+            Datapoint with label. (datapoint, label)
+            Datapoint is an ndarray.
+        """
         sdb = self.get_processed_db_source(subject)
         if task is None:
             task = list(sdb)[0]
+        elif type(task) is int:
+            task = list(sdb)[task]
+        elif type(task) is str:
+            pass
+        else:
+            raise TypeError('Task type must be int or str.')
         filename = sdb[task][epoch]
         window_list = load_pickle_data(filename)
         return window_list[window]
