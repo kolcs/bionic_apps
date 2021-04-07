@@ -265,7 +265,7 @@ def standardize_channel_names(raw):
         if std_name.endswith('Z'):
             std_name = std_name[:-1] + 'z'
         if 'FP' in std_name:
-            std_name.replace('FP', 'Fp')
+            std_name = std_name.replace('FP', 'Fp')
         if std_name.endswith('H'):
             std_name = std_name[:-1] + 'h'
         rename[name] = std_name
@@ -978,6 +978,7 @@ class OfflineDataPreprocessor:
                                        self._epoch_tmin, self._epoch_tmax,
                                        cut_real_movement_tasks=cut_real_mov,
                                        prefilter_signal=len(self._filter_params) > 0,
+                                       event_id=self._db_type.TRIGGER_EVENT_ID,
                                        **self._filter_params)
         self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
@@ -1005,6 +1006,7 @@ class OfflineDataPreprocessor:
                                        self._epoch_tmin, self._epoch_tmax,
                                        cut_real_movement_tasks=cut_real_mov,
                                        prefilter_signal=len(self._filter_params) > 0,
+                                       event_id=self._db_type.TRIGGER_EVENT_ID,
                                        **self._filter_params)
         self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
@@ -1043,9 +1045,14 @@ class OfflineDataPreprocessor:
 
         task_set = set([list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))])
 
+        assert self._window_length <= self._epoch_tmax - self._epoch_tmin, 'Can not create windows ' \
+                                                                           'smaller than an epoch'
+
         window_length = self._window_length - 1 / self.fs  # win length correction
-        win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) \
-            if self._window_step > 0 else 1
+        if self._window_step == 0 or self._window_length == self._epoch_tmax - self._epoch_tmin:
+            win_num = 1
+        else:
+            win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step)
 
         feature_extractor = FeatureExtractor(self.feature_type, self.fs, info=self.info, **self.feature_kwargs)
 
