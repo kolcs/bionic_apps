@@ -1043,10 +1043,9 @@ class OfflineDataPreprocessor:
             else:
                 raise NotImplementedError
 
-        task_set = set([list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))])
-
-        assert self._window_length <= self._epoch_tmax - self._epoch_tmin, 'Can not create windows ' \
-                                                                           'smaller than an epoch'
+        assert self._window_length <= self._epoch_tmax - self._epoch_tmin, \
+            'Can not create {} sec long windows, because it is longer than the {} sec long epoch'.format(
+                self._window_length, self._epoch_tmax - self._epoch_tmin)
 
         window_length = self._window_length - 1 / self.fs  # win length correction
         if self._window_step == 0 or self._window_length == self._epoch_tmax - self._epoch_tmin:
@@ -1056,6 +1055,7 @@ class OfflineDataPreprocessor:
 
         feature_extractor = FeatureExtractor(self.feature_type, self.fs, info=self.info, **self.feature_kwargs)
 
+        task_set = set([list(epochs[i].event_id.keys())[0] for i in range(len(epochs.selection))])
         task_dict = dict()
         for task in task_set:
             tsk_ep = epochs[task]
