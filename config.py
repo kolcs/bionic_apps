@@ -70,6 +70,8 @@ class GameDB:
         BOTH_LEGS: ControlCommand.HEADLIGHT
     }
 
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
     DROP_SUBJECTS = []
 
 
@@ -93,6 +95,8 @@ class Game_ParadigmC:
         LEFT_HAND: ControlCommand.LEFT,
         BOTH_LEGS: ControlCommand.HEADLIGHT
     }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
     DROP_SUBJECTS = []
 
@@ -118,6 +122,8 @@ class ParadigmC:
         BOTH_LEGS: ControlCommand.HEADLIGHT
     }
 
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
     DROP_SUBJECTS = []
 
 
@@ -134,6 +140,8 @@ class Game_ParadigmD:
         CALM + '1': 7,
         CALM + '2': 11
     }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
     DROP_SUBJECTS = []
 
@@ -152,6 +160,8 @@ class PilotDB_ParadigmA:
         LEFT_LEG: 11
     }
 
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
     DROP_SUBJECTS = []  # [] or [1, 4] or [2, 3]
 
 
@@ -169,6 +179,8 @@ class PilotDB_ParadigmB:
         BOTH_LEGS: 11
     }
 
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
     DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
 
 
@@ -185,6 +197,8 @@ class TTK_DB:
         RIGHT_LEG: 9,
         LEFT_LEG: 11
     }
+
+    TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
     DROP_SUBJECTS = [1, 9, 17]
 
@@ -284,11 +298,14 @@ class BciCompIV2a:
     SUBJECT_NUM = 9
 
     TRIGGER_TASK_CONVERTER = {  # imagined
-        LEFT_HAND: 7,
-        RIGHT_HAND: 8,
-        BOTH_LEGS: 9,
-        TONGUE: 10
+        LEFT_HAND: 4,
+        RIGHT_HAND: 5,
+        BOTH_LEGS: 6,
+        TONGUE: 7
     }
+
+    TRIGGER_EVENT_ID = {str(el): i + 1 for i, el in enumerate([276, 277, 768, 769, 770, 771, 772, 783,
+                                                               1023, 1072, 32766])}
 
     DROP_SUBJECTS = []
 
@@ -299,9 +316,12 @@ class BciCompIV2b:
     SUBJECT_NUM = 27  # actually 9 but one subject has 3 sessions: 1,2 - no feedback, 3 - feedback
 
     TRIGGER_TASK_CONVERTER = {  # imagined
-        LEFT_HAND: 10,
-        RIGHT_HAND: 11,
+        LEFT_HAND: 4,
+        RIGHT_HAND: 5,
     }
+
+    TRIGGER_EVENT_ID = {str(el): i + 1 for i, el in enumerate([276, 277, 768, 769, 770, 781, 783, 1023,
+                                                               1077, 1078, 1079, 1081, 32766])}
 
     DROP_SUBJECTS = []
 
@@ -319,5 +339,7 @@ class BciCompIV1:
         'class1': 1,
         'class2': 2,
     }
+
+    TRIGGER_EVENT_ID = 'auto'
 
     DROP_SUBJECTS = []
