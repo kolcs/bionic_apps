@@ -64,7 +64,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
                                validation_split=validation_split)
 
 
-def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
+def hpc_run_cp(checkpoint=None, verbose=False, test_func=make_test, **test_kwargs):
     global cp_info, CHECKPOINT
     if type(checkpoint) is str:
         CHECKPOINT = checkpoint
@@ -82,10 +82,18 @@ def hpc_run(checkpoint=None, verbose=False, **test_kwargs):
     ioprocess.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
 
     # running the test with checkpoints...
-    make_test(subject_from=cp_info[SUBJECT_NUM], fast_load=fast_load,
+    test_func(subject_from=cp_info[SUBJECT_NUM], fast_load=fast_load,
               verbose=verbose, **test_kwargs)
 
     remove(CHECKPOINT)
+
+
+def hpc_run_nocp(test_func, **test_kwargs):
+    user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
+    tmp_data_path = '/scratch{}/bci_{}'.format(np.random.randint(1, 5), user)
+    ioprocess.DIR_FEATURE_DB = tmp_data_path
+    test_func(**test_kwargs)
+    # rmtree(tmp_data_path, ignore_errors=True)
 
 
 if __name__ == '__main__':
@@ -108,4 +116,4 @@ if __name__ == '__main__':
         ),
         validation_split=0
     )
-    hpc_run(**hpc_kwargs)
+    hpc_run_cp(**hpc_kwargs)

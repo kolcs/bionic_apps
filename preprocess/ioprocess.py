@@ -1150,7 +1150,7 @@ class OfflineDataPreprocessor:
 
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
 
-    def get_feature(self, subject=1, task=None, epoch=0, window=0):
+    def get_feature(self, subject=1, task=0, epoch=0, window=0):
         """Select a feature form processed Database
 
         Parameters
@@ -1171,9 +1171,7 @@ class OfflineDataPreprocessor:
             Datapoint is an ndarray.
         """
         sdb = self.get_processed_db_source(subject)
-        if task is None:
-            task = list(sdb)[0]
-        elif type(task) is int:
+        if type(task) is int:
             task = list(sdb)[task]
         elif type(task) is str:
             pass
