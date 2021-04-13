@@ -214,7 +214,7 @@ class BCISystem(object):
                            subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
                            classifier_type=ClassifierType.SVM, classifier_kwargs=None,
-                           validation_split=0):
+                           validation_split=0, do_artefact_rejection=False, artefact_thresholds=None):
         """Offline data processing.
 
         This method creates an offline BCI-System which make the data preprocessing
@@ -259,6 +259,8 @@ class BCISystem(object):
              Arbitrary keyword arguments for classifier.
         validation_split : float
             How much of the train set should be used as validation data. value range: [0, 1]
+        do_artefact_rejection : bool
+            To do artefact-rejection preprocessing or no
         """
         if filter_params is None:
             filter_params = {}
@@ -291,7 +293,9 @@ class BCISystem(object):
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                              select_eeg_file=select_eeg_file,
-                                             eeg_file=train_file, filter_params=filter_params)
+                                             eeg_file=train_file, filter_params=filter_params,
+                                             do_artefact_rejection=do_artefact_rejection,
+                                             artefact_thresholds=artefact_thresholds)
         self._proc.use_db(db_name)
 
         def skipp_subject(subject):
