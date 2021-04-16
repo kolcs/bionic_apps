@@ -4,7 +4,7 @@ import numpy as np
 from joblib import Parallel, delayed
 from mne.viz import plot_topomap
 from mne.viz.topomap import _prepare_topomap_plot
-from scipy import stats
+from scipy import stats, signal
 
 
 # features
@@ -328,6 +328,13 @@ class FeatureExtractor:
 
         fft_mask = (freqs >= self.fft_low) & (freqs <= self.fft_high)
         data = fft_data[:, :, fft_mask]  # (epoch, channel, fft)
+        return data
+
+    def calculate_psd(self, data):
+        freqs, psd = signal.welch(data, self.fs, scaling='density', average='mean')
+
+        fft_mask = (freqs >= self.fft_low) & (freqs <= self.fft_high)
+        data = psd[:, :, fft_mask]  # (epoch, channel, fft)
         return data
 
     def run(self, data):
