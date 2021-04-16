@@ -16,6 +16,7 @@ class FeatureType(Enum):
     SPATIAL_TEMPORAL = auto()
     RAW = auto()
     FFT_POWER = auto()
+    PSD = auto()
 
 
 def _get_fft(data, fs, method='absolute'):
@@ -179,6 +180,8 @@ class FeatureExtractor:
             pass  # no parameters are required for this feature
         elif self.feature_type == FeatureType.FFT_POWER:
             self._check_fft_low_and_high()
+        elif self.feature_type == FeatureType.PSD:
+            self._check_fft_low_and_high()
 
         else:
             raise NotImplementedError("Parameter constrains for {} are not defined.".format(self.feature_type.name))
@@ -330,8 +333,8 @@ class FeatureExtractor:
         data = fft_data[:, :, fft_mask]  # (epoch, channel, fft)
         return data
 
-    def calculate_psd(self, data):
-        freqs, psd = signal.welch(data, self.fs, scaling='density', average='mean')
+    def calculate_psd(self, data, scaling='density', average='mean'):
+        freqs, psd = signal.welch(data, self.fs, scaling=scaling, average=average)
 
         fft_mask = (freqs >= self.fft_low) & (freqs <= self.fft_high)
         data = psd[:, :, fft_mask]  # (epoch, channel, fft)
@@ -360,6 +363,8 @@ class FeatureExtractor:
             feature = data
         elif self.feature_type == FeatureType.FFT_POWER:
             feature = self.calculate_fft(data, method='power')
+        elif self.feature_type == FeatureType.PSD:
+            feature = self.calculate_psd(data)
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))
