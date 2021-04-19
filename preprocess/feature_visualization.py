@@ -53,6 +53,7 @@ def show_mne_feature(proc, subject=None, task=None, epoch=0, window=0):
 
 
 def show_numpy_feature(proc, subject=None, task=None, epoch=0, window=0):
+    assert proc.feature_type == FeatureType.RAW, 'This method is only compatible with RAW feature'
     if subject is None:
         subject = 1
     data, label = proc.get_feature(subject, task, epoch, window)

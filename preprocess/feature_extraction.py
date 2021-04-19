@@ -343,6 +343,7 @@ class FeatureExtractor:
         return data
 
     def run(self, data):
+        data *= 10e6  # scale to microVoltage from Voltage
 
         if len(data.shape) == 2:
             data = np.expand_dims(data, 0)
