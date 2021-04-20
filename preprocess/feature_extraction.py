@@ -5,6 +5,7 @@ from joblib import Parallel, delayed
 from mne.viz import plot_topomap
 from mne.viz.topomap import _prepare_topomap_plot
 from scipy import stats, signal
+from sklearn.preprocessing import minmax_scale
 
 
 # features
@@ -218,6 +219,7 @@ class FeatureExtractor:
             fft_mask = (freqs >= fft_low) & (freqs <= fft_high)
             assert np.any(fft_mask), 'Empty frequency range between {} and {} Hz'.format(fft_low, fft_high)
             fft_power = np.average(fft_res[:, :, fft_mask], axis=-1)
+            fft_power = minmax_scale(fft_power, axis=-1)
             data.append(fft_power)
 
         data = np.transpose(data, (1, 0, 2))
