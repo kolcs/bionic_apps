@@ -1,15 +1,11 @@
-from hpc_main import hpc_run_nocp, hpc_run_cp, make_test
 import subprocess
 import sys
-from shutil import rmtree
-from enum import Enum
 from datetime import datetime
-
-import numpy as np
-
-from BCISystem import BCISystem, Databases, XvalidateMethod, FeatureType, ClassifierType
-from preprocess import OfflineDataPreprocessor, ioprocess
+from enum import Enum
 from pathlib import Path
+
+from BCISystem import Databases, XvalidateMethod, FeatureType, ClassifierType
+from hpc_main import hpc_run_cp, hpc_run_nocp, make_test
 
 # stuff to script:
 # python -c "from kolcs.hpc.big_test import start_big_test; start_big_test()"
@@ -99,10 +95,11 @@ def start_big_test():  # call this from script of from python
         for feature in [TestFeature.ALPHA, TestFeature.BETA, TestFeature.RANGE30, TestFeature.RANGE40,
                         TestFeature.MULTI]:
             if feature in [TestFeature.RANGE40, TestFeature.RANGE30, TestFeature.MULTI]:
-                cmd = 'sbatch script/path.sh {}'.format(subject)  # todo
+                cmd = f'sbatch {LOG_DIR}/multi_cpu.sh'
             else:
-                cmd = 'sbatch script/path.sh {}'.format(subject)  # todo
-            subprocess.Popen(cmd)
+                cmd = f'sbatch {LOG_DIR}/single_cpu.sh'
+            cmd_args = f' {__file__} {db_name.name} {feature.name}'
+            subprocess.Popen(cmd + cmd_args)
 
 
 if __name__ == '__main__':
