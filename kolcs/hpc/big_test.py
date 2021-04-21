@@ -92,16 +92,22 @@ def make_one_test():
 
 
 def start_big_test():  # call this from script of from python
+    job_list = 'Submitted batch jobs'
     for db_name in [Databases.PHYSIONET, Databases.TTK]:
-        for feature in [TestFeature.ALPHA, TestFeature.BETA, TestFeature.RANGE30, TestFeature.RANGE40,
-                        TestFeature.MULTI]:
-            cmd = f'sbatch ../{LOG_DIR}/'
+        for feature in [TestFeature.ALPHA, TestFeature.BETA,
+                        TestFeature.RANGE30,
+                        TestFeature.RANGE40,
+                        TestFeature.MULTI
+                        ]:
+            cmd = f'sbatch {LOG_DIR}/'
             if feature in [TestFeature.RANGE40, TestFeature.RANGE30, TestFeature.MULTI]:
                 cmd += 'multi_cpu.sh'
             else:
                 cmd += 'single_cpu.sh'
-            cmd_args = f' {__file__} {db_name.name} {feature.name}'
-            subprocess.Popen(cmd + cmd_args)
+            cmd += f' {__file__} {db_name.value} {feature.value}'
+            ans = subprocess.check_output(cmd, shell=True)
+            job_list += ' ' + ans.decode('utf-8').strip('\n').strip('\r').strip('Submitted batch job')
+    print(job_list)
 
 
 if __name__ == '__main__':
