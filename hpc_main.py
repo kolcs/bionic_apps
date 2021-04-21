@@ -20,13 +20,14 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
               window_length=1, window_step=.1,
               use_drop_subject_list=True, fast_load=False,
               classifier_type=ClassifierType.SVM, classifier_kwargs=None, filter_params=None,
-              validation_split=0):
+              validation_split=0, log_file=None):
     if filter_params is None:
         filter_params = {}
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
-    file_name = 'log_{}_{}.csv'.format(feature_params['feature_type'].name, datetime.now().strftime("%Y%m%d-%H%M%S"))
+    if log_file is None:
+        log_file = 'log_{}_{}.csv'.format(feature_params['feature_type'].name, datetime.now().strftime("%Y%m%d-%H%M%S"))
 
     # generate database if not available
     proc = OfflineDataPreprocessor(
@@ -42,7 +43,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
     proc.run(proc_subjects, **feature_params)
 
     # make test
-    bci = BCISystem(make_logs=True, verbose=verbose, log_file=file_name)
+    bci = BCISystem(make_logs=True, verbose=verbose, log_file=log_file)
     for subject in subject_list:
         subject = int(subject)
         if len(cp_info) > 0:
