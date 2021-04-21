@@ -121,6 +121,7 @@ class FeatureExtractor:
 
     def __init__(self, feature_type, fs=None,
                  fft_low=None, fft_high=None, fft_step=2, fft_width=2, fft_ranges=None,
+                 fft_method='psd',
                  channel_list=None, info=None, crop=True):
         """Class for feature extraction.
 
@@ -141,6 +142,8 @@ class FeatureExtractor:
         fft_ranges : list of (float, float)
             a list of frequency ranges. Each each element of the list is a tuple, where the
             first element of a tuple corresponds to fft_min and the second is fft_max
+        fft_method : {'fft', 'psd'}
+            Method for frequency feature generation. fft - pure FFT, psd - wlechs psd gen.
         channel_list : list of int, optional
             Dummy eeg channel selection. Do not use it.
         info : mne.Info
@@ -154,6 +157,7 @@ class FeatureExtractor:
         self.fft_step = fft_step
         self.fft_width = fft_width
         self.fft_ranges = fft_ranges
+        self.fft_method = fft_method
 
         self.channel_list = channel_list
         self._crop = crop
@@ -212,7 +216,12 @@ class FeatureExtractor:
             Feature extracted data. Shape: (data_points, n_fft, n_channels)
 
         """
-        fft_res, freqs = _get_fft(data, self.fs)
+        if self.fft_method == 'fft':
+            fft_res, freqs = _get_fft(data, self.fs)
+        elif self.fft_method == 'psd':
+            freqs, fft_res = signal.welch(data, self.fs)
+        else:
+            raise NotImplementedError(f'{self.fft_method} is not implemetned for FFT calculation.')
 
         data = list()
         for fft_low, fft_high in self.fft_ranges:

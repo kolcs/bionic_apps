@@ -3,7 +3,6 @@ from joblib import Parallel, delayed
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Normalizer
 from sklearn.svm import SVC
-from sklearn.linear_model import SGDClassifier
 
 from ai.interface import ClassifierInterface
 
@@ -32,7 +31,11 @@ class OnlinePipeline(Pipeline):
 def _fit_one_svm(svm, svm_kargs, data, label, num):
     if svm is None:
         # svm = OnlinePipeline([('norm', Normalizer()), ('svm', SGDClassifier(**svm_kargs))])
-        svm = Pipeline([('norm', Normalizer()), ('svm', SVC(**svm_kargs))])  # or StandardScaler()
+        svm = Pipeline([
+            ('norm', Normalizer()),
+            # ('minmax', MinMaxScaler()),
+            # ('stamdard', StandardScaler()),
+            ('svm', SVC(**svm_kargs))])  # or StandardScaler()
     svm.fit(data, label)
     return num, svm
 
