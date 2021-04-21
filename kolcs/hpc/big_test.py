@@ -7,9 +7,6 @@ from pathlib import Path
 from BCISystem import Databases, XvalidateMethod, FeatureType, ClassifierType
 from hpc_main import hpc_run_cp, hpc_run_nocp, make_test
 
-# stuff to script:
-# python -c "from kolcs.hpc.big_test import start_big_test; start_big_test()"
-
 LOG_DIR = 'big_test'
 
 hpc_kwargs = dict(
@@ -90,14 +87,19 @@ def make_one_test():
     hpc_run_nocp(make_test, **hpc_kwargs)
 
 
+# stuff to script:
+# python -c "from kolcs.hpc.big_test import start_big_test; start_big_test()"
+
+
 def start_big_test():  # call this from script of from python
     for db_name in [Databases.PHYSIONET, Databases.TTK]:
         for feature in [TestFeature.ALPHA, TestFeature.BETA, TestFeature.RANGE30, TestFeature.RANGE40,
                         TestFeature.MULTI]:
+            cmd = f'sbatch ../{LOG_DIR}/'
             if feature in [TestFeature.RANGE40, TestFeature.RANGE30, TestFeature.MULTI]:
-                cmd = f'sbatch {LOG_DIR}/multi_cpu.sh'
+                cmd += 'multi_cpu.sh'
             else:
-                cmd = f'sbatch {LOG_DIR}/single_cpu.sh'
+                cmd += 'single_cpu.sh'
             cmd_args = f' {__file__} {db_name.name} {feature.name}'
             subprocess.Popen(cmd + cmd_args)
 
