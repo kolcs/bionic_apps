@@ -1,7 +1,7 @@
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import Normalizer
+from sklearn.preprocessing import Normalizer, MinMaxScaler, StandardScaler
 from sklearn.svm import SVC
 
 from ai.interface import ClassifierInterface
