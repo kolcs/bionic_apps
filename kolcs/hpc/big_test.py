@@ -93,6 +93,7 @@ def make_one_test():
 
 def start_big_test():  # call this from script of from python
     job_list = 'Submitted batch jobs'
+    Path(LOG_DIR).joinpath('out').mkdir(parents=True, exist_ok=True)  # sdt out and error files
     for db_name in [Databases.PHYSIONET, Databases.TTK]:
         for feature in [TestFeature.ALPHA, TestFeature.BETA,
                         TestFeature.RANGE30,

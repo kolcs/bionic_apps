@@ -151,7 +151,7 @@ class PilotDB_ParadigmA:
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
-        REST: 1,
+        # REST: 1,
         # EYE_OPEN: 2,
         # EYE_CLOSED: 3,
         RIGHT_HAND: 5,
@@ -170,7 +170,7 @@ class PilotDB_ParadigmB:
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
-        REST: 1,
+        # REST: 1,
         # EYE_OPEN: 2,
         # EYE_CLOSED: 3,
         RIGHT_HAND: 5,
@@ -189,7 +189,7 @@ class TTK_DB:
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
-        REST: 1,
+        # REST: 1,
         # EYE_OPEN: 2,
         # EYE_CLOSED: 3,
         RIGHT_HAND: 5,
