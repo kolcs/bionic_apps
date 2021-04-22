@@ -7,6 +7,7 @@ from pathlib import Path
 from BCISystem import Databases, XvalidateMethod, FeatureType, ClassifierType
 from hpc_main import hpc_run_cp, hpc_run_nocp, make_test
 
+LOG_TYPE = ''
 LOG_DIR = 'big_test'
 
 hpc_kwargs = dict(
@@ -74,7 +75,7 @@ def get_feature_params(test_feature):
 def make_one_test():
     _, db_name, test_feature = sys.argv
 
-    folder = Path(LOG_DIR).joinpath(db_name)
+    folder = Path(LOG_DIR).joinpath(db_name, LOG_TYPE)
     folder.mkdir(parents=True, exist_ok=True)
     file = str(folder.joinpath('{}-{}.csv'.format(test_feature, datetime.now().strftime("%Y%m%d-%H%M%S"))))
 
