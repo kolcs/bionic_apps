@@ -28,7 +28,7 @@ class OnlinePipeline(Pipeline):
         return self
 
 
-def _fit_one_svm(svm, svm_kargs, data, label, num):
+def _init_one_svm(svm, svm_kargs):
     if svm is None:
         # svm = OnlinePipeline([('norm', Normalizer()), ('svm', SGDClassifier(**svm_kargs))])
         svm = Pipeline([
@@ -36,6 +36,10 @@ def _fit_one_svm(svm, svm_kargs, data, label, num):
             # ('minmax', MinMaxScaler()),
             # ('stamdard', StandardScaler()),
             ('svm', SVC(**svm_kargs))])  # or StandardScaler()
+    return svm
+
+
+def _fit_one_svm(svm, data, label, num):
     svm.fit(data, label)
     return num, svm
 
@@ -65,6 +69,7 @@ class MultiSVM(ClassifierInterface):
         """
         X = np.array(X)
         n_svms = X.shape[1]
+        self._svms = {i: _init_one_svm(self._svms.get(i), self._svm_kargs) for i in range(n_svms)}
         # self._svms = [SVM(*self._svm_args) for _ in range(n_svms)]  # serial: 3 times slower
         # for i in range(len(self._svms)):
         #     self._fit_svm(i, X[:, i, :], y)
@@ -72,9 +77,9 @@ class MultiSVM(ClassifierInterface):
             y = np.ravel(y)
         if n_svms > 1:
             svms = Parallel(n_jobs=-2)(
-                delayed(_fit_one_svm)(self._svms.get(i), self._svm_kargs, X[:, i, :], y, i) for i in range(n_svms))
+                delayed(_fit_one_svm)(self._svms[i], X[:, i, :], y, i) for i in range(n_svms))
         else:
-            svms = [_fit_one_svm(self._svms.get(0), self._svm_kargs, X[:, 0, :], y, 0)]
+            svms = [_fit_one_svm(self._svms[0], X[:, 0, :], y, 0)]
         self._svms = dict(svms)
 
     def predict(self, X):
