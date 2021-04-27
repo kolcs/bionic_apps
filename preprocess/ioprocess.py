@@ -18,6 +18,8 @@ from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, Game
 from gui_handler import select_file_in_explorer
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
+import preprocess.artefact_faster as art
+
 EPOCH_DB = 'preprocessed_database'
 
 # config options
@@ -654,7 +656,8 @@ class OfflineDataPreprocessor:
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True,
                  *,
-                 select_eeg_file=False, eeg_file=None, filter_params=None):
+                 select_eeg_file=False, eeg_file=None, filter_params=None,
+                 do_artefact_rejection=False, artefact_thresholds=None):
         """Preprocessor for eeg files.
 
         Creates a database, which has all the required information about the eeg files.
@@ -681,6 +684,8 @@ class OfflineDataPreprocessor:
             Absolute path to EEG file.
         filter_params : dict, optional
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
+        do_artefact_rejection : bool
+            To do or not artefact-rejection
         """
         if filter_params is None:
             filter_params = {}
@@ -706,6 +711,13 @@ class OfflineDataPreprocessor:
         self.proc_db_path = Path()
         self._proc_db_filenames = dict()
         self._proc_db_source = str()
+
+        self._do_artefact_rejection = do_artefact_rejection
+
+        if self._do_artefact_rejection:
+            self.artefact_filter = art.ArtefactFilter(thresholds=artefact_thresholds)
+        else:
+            self.artefact_filter = None
 
         self._drop_subject = set() if use_drop_subject_list else None
 
@@ -1035,6 +1047,12 @@ class OfflineDataPreprocessor:
         """
         if task is not None:
             epochs = epochs[task]
+
+        if self._do_artefact_rejection:
+            if self._db_type == Physionet and False:
+                raise NotImplementedError('Artefact rejection is not yet implemented for physionet database')
+            else:
+                epochs = self.artefact_filter.offline_filter(epochs)
 
         epochs.load_data()
         if self.feature_type is FeatureType.SPATIAL_TEMPORAL:  # todo: move it after epoch corp?

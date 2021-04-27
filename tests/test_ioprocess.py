@@ -19,7 +19,7 @@ class TestPreprocessor(unittest.TestCase):
         if path.exists():
             print('Removing old files. It may take longer...')
             recursive_delete_folder(str(path))
-        cls.epoch_proc = OfflineDataPreprocessor(cls._path)
+        cls.epoch_proc = OfflineDataPreprocessor(str(cls._path))
 
     # def setUp(self):
     #     pass

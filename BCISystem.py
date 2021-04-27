@@ -372,7 +372,8 @@ class BCISystem(object):
                   classifier_type=ClassifierType.SVM,
                   classifier_kwargs=None,
                   batch_size=None,
-                  time_out=None):
+                  time_out=None,
+                  do_artefact_rejection=False):
         """Function for online BCI game and control.
 
         Parameters
@@ -410,6 +411,8 @@ class BCISystem(object):
             features will be created before training.
         time_out : float, optional
             Use it only at testing.
+        do_artefact_rejection:
+            If True, FASTER artefact rejection is performed before processing the signal
         """
 
         if filter_params is None:
@@ -425,7 +428,7 @@ class BCISystem(object):
         self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax,
                                              window_length, pretrain_window_step,
                                              fast_load=False, select_eeg_file=True, eeg_file=train_file,
-                                             filter_params=filter_params)
+                                             filter_params=filter_params, do_artefact_rejection=do_artefact_rejection)
 
         self._proc.use_db(db_name).run(**feature_params)
         print('Training...')
@@ -471,6 +474,9 @@ class BCISystem(object):
             timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
             if timestamp is not None:
                 eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
+
+                if do_artefact_rejection:  # todo> check!!!
+                    eeg = self._proc.artefact_filter.online_filter(eeg)
 
                 data = feature_extractor.run(eeg)
                 y_pred = classifier.predict(data)
