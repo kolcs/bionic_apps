@@ -634,36 +634,41 @@ class ArtefactFilter:
         -------
         """
 
-        self._info = epochs.info
         epochs, self._bad_channels, self._ica, self._ica_scores \
             = run_faster(epochs, apply_frequency_filter=self.apply_frequency_filter,
                          filter_low=self.filter_low, filter_high=self.filter_high,
                          verbose=self.verbose, thresholds=self.thresholds,
                          apply_avg_reference=self.apply_avg_reference
                          )
+        self._info = epochs.info
         return epochs
 
     def online_filter(self, data):
-        """
-        Filters the input data with the FASTER algorithm, with the saved parameters of during offline filtering
+        """Online Faster
+
+        Filters the input data with the FASTER algorithm, with the saved parameters of
+        during offline filtering.
+
         Parameters
         ----------
-        data : numpy array
+        data : ndarray
             A data to filter, (with the previously saved parameters during offline filtering)
+
         Returns
         -------
-        data : numpy array
+        ndarray
             The filtered data
         """
 
         if self._ica is None or self._info is None or self._bad_channels is None:
             raise Exception("offline filter should be applied before")
 
-        data = np.expand_dims(data, axis=0)
+        if len(data.shape) == 2:
+            data = np.expand_dims(data, 0)
         epoch = mne.EpochsArray(data, self._info)
 
         filtered_epoch = online_faster(epoch, self._bad_channels, self._ica, self._ica_scores,
-                                       apply_frequency_filter=False,
+                                       apply_frequency_filter=self.apply_frequency_filter,
                                        filter_low=self.filter_low,
                                        filter_high=self.filter_high,
                                        thresholds=[self.thresholds[0], self.thresholds[2]],

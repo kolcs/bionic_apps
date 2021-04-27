@@ -214,7 +214,7 @@ class BCISystem(object):
                            subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
                            classifier_type=ClassifierType.SVM, classifier_kwargs=None,
-                           validation_split=0, do_artefact_rejection=False, artefact_thresholds=None):
+                           validation_split=0, do_artefact_rejection=False):
         """Offline data processing.
 
         This method creates an offline BCI-System which make the data preprocessing
@@ -294,8 +294,7 @@ class BCISystem(object):
                                              use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                              select_eeg_file=select_eeg_file,
                                              eeg_file=train_file, filter_params=filter_params,
-                                             do_artefact_rejection=do_artefact_rejection,
-                                             artefact_thresholds=artefact_thresholds)
+                                             do_artefact_rejection=do_artefact_rejection)
         self._proc.use_db(db_name)
 
         def skipp_subject(subject):
@@ -479,7 +478,7 @@ class BCISystem(object):
             if timestamp is not None:
                 eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
 
-                if do_artefact_rejection:  # todo> check!!!
+                if do_artefact_rejection:
                     eeg = self._proc.artefact_filter.online_filter(eeg)
 
                 data = feature_extractor.run(eeg)
@@ -505,8 +504,8 @@ if __name__ == '__main__':
         feature_type=FeatureType.AVG_FFT_POWER,
         fft_low=14, fft_high=30
     )
-    filter_params = dict(
-        order=5, l_freq=1, h_freq=None
+    filter_params = dict(  # required for FASTER artefact filter
+        order=5, l_freq=1, h_freq=45
     )
     classifier_type = ClassifierType.SVM
     classifier_kwargs = dict(
@@ -517,16 +516,17 @@ if __name__ == '__main__':
 
     bci = BCISystem()
     bci.offline_processing(
-        db_name=Databases.PHYSIONET,
+        db_name=Databases.TTK,
         feature_params=feature_extraction,
         fast_load=False,
         epoch_tmin=0, epoch_tmax=4,
         window_length=1, window_step=.1,
         method=XvalidateMethod.SUBJECT,
-        subject_list=1,
+        subject_list=2,
         use_drop_subject_list=True,
         subj_n_fold_num=5,
         filter_params=filter_params,
         classifier_type=classifier_type,
-        classifier_kwargs=classifier_kwargs
+        classifier_kwargs=classifier_kwargs,
+        do_artefact_rejection=True
     )

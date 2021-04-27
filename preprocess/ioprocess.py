@@ -715,7 +715,7 @@ class OfflineDataPreprocessor:
         self._do_artefact_rejection = do_artefact_rejection
 
         if self._do_artefact_rejection:
-            self.artefact_filter = art.ArtefactFilter(thresholds=artefact_thresholds)
+            self.artefact_filter = art.ArtefactFilter(thresholds=artefact_thresholds, apply_frequency_filter=False)
         else:
             self.artefact_filter = None
 
@@ -1020,8 +1020,8 @@ class OfflineDataPreprocessor:
                                        prefilter_signal=len(self._filter_params) > 0,
                                        event_id=self._db_type.TRIGGER_EVENT_ID,
                                        **self._filter_params)
-        self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
+        self.info = epochs.info
         self._proc_db_filenames = dict([self._save_preprocessed_subject_data(subject_data, 0)])
         self._save_fast_load_source_data()
 
