@@ -219,7 +219,7 @@ class FeatureExtractor:
         if self.fft_method == 'fft':
             fft_res, freqs = _get_fft(data, self.fs)
         elif self.fft_method == 'psd':
-            freqs, fft_res = signal.welch(data, self.fs)
+            freqs, fft_res = signal.welch(data, self.fs, nperseg=np.size(data, -1) // 4)
         else:
             raise NotImplementedError(f'{self.fft_method} is not implemetned for FFT calculation.')
 
@@ -264,7 +264,8 @@ class FeatureExtractor:
             Feature extracted data.
 
         """
-        self.fft_ranges = [(f, f + self.fft_width) for f in np.arange(self.fft_low, self.fft_high, self.fft_step)]
+        self.fft_ranges = [(f, f + self.fft_width) for f in
+                           np.arange(self.fft_low, self.fft_high, self.fft_step)]  # todo: self.fft_high +.1
         return self.calculate_multi_avg_fft_power(data)
 
     def calculate_spatial_avg_fft_power(self, data, crop=True):
