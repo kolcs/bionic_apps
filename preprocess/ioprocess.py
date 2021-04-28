@@ -13,12 +13,11 @@ import numpy as np
 from joblib import Parallel, delayed
 from sklearn.model_selection import KFold
 
+import preprocess.artefact_faster as art
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC
 from gui_handler import select_file_in_explorer
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
-
-import preprocess.artefact_faster as art
 
 EPOCH_DB = 'preprocessed_database'
 
@@ -982,6 +981,9 @@ class OfflineDataPreprocessor:
             s = s_ind // 3 + 1
             rec = s_ind % 3 + 1
             fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), s, rec)
+        elif self._db_type is Physionet and Physionet.USE_NEW_CONFIG:
+            fn_gen = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)),
+                                                  subj, [1, 2, 3])
         else:
             raise NotImplementedError('Database loading for {} is not implemented'.format(self._db_type))
 
@@ -992,7 +994,6 @@ class OfflineDataPreprocessor:
                                        prefilter_signal=len(self._filter_params) > 0,
                                        event_id=self._db_type.TRIGGER_EVENT_ID,
                                        **self._filter_params)
-        self.info = epochs.info
         subject_data = self._get_windowed_features(epochs)
         return self._save_preprocessed_subject_data(subject_data, subj)
 
@@ -1021,7 +1022,6 @@ class OfflineDataPreprocessor:
                                        event_id=self._db_type.TRIGGER_EVENT_ID,
                                        **self._filter_params)
         subject_data = self._get_windowed_features(epochs)
-        self.info = epochs.info
         self._proc_db_filenames = dict([self._save_preprocessed_subject_data(subject_data, 0)])
         self._save_fast_load_source_data()
 
@@ -1045,16 +1045,18 @@ class OfflineDataPreprocessor:
             task -> epoch -> windowed features
 
         """
-        if task is not None:
+        if task is not None:  # only for Physionet old config
             epochs = epochs[task]
 
         if self._do_artefact_rejection:
-            if self._db_type == Physionet and False:
+            if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
                 raise NotImplementedError('Artefact rejection is not yet implemented for physionet database')
             else:
                 epochs = self.artefact_filter.offline_filter(epochs)
 
+        self.info = epochs.info
         epochs.load_data()
+
         if self.feature_type is FeatureType.SPATIAL_TEMPORAL:  # todo: move it after epoch corp?
             if self._db_type is not Databases.PHYSIONET:
                 epochs.resample(62.5, n_jobs=-1)  # form 500 Hz / 8 --> maxf = 31.25 Hz
@@ -1149,7 +1151,7 @@ class OfflineDataPreprocessor:
                 return  # fast load ok. Do not create database.
             # extend existing fast load database.
 
-        if self._db_type is Physionet:
+        if self._db_type is Physionet and not Physionet.USE_NEW_CONFIG:
             if self._select_one_file or self.eeg_file is not None:
                 raise NotImplementedError('EEG file selection for Physionet is not implemented!')
             print_creation_message()

@@ -3,9 +3,10 @@ from pathlib import Path
 import mne
 from mne.externals.pymatreader import read_mat
 
-from config import BciCompIV2a, BciCompIV2b
+from config import BciCompIV2a, BciCompIV2b, Physionet, IMAGINED_MOVEMENT, BOTH_LEGS
 from gui_handler import select_folder_in_explorer
-from preprocess import generate_bci_comp_4_2a_filename, init_base_config, generate_ttk_filename
+from preprocess import generate_bci_comp_4_2a_filename, init_base_config, generate_ttk_filename, \
+    generate_physionet_filenames
 
 
 def get_filenames_from_dir(ext):
@@ -102,6 +103,42 @@ def convert_giga():
         filename = str(file).strip('.mat') + '_raw.fif'
         # filename = file.parent.joinpath('calib_ds_subj{:02d}_raw.fif'.format(i + 1))
         raw.save(str(filename), overwrite=True)
+
+
+def convert_physionet():
+    base_dir = Path(init_base_config('..')).joinpath(Physionet.DIR)
+    for s in range(Physionet.SUBJECT_NUM):
+        subj = s + 1
+        rec_nums = Physionet.TYPE_TO_REC[IMAGINED_MOVEMENT]
+        raw_list = list()
+        new_rec_num = 1
+        for rec in rec_nums:
+            filename = next(
+                generate_physionet_filenames(str(base_dir.joinpath(Physionet.FILE_PATH)), subj, rec)
+            )
+            trigger_id = Physionet.TRIGGER_CONV_REC_TO_TASK[rec]
+            raw = mne.io.read_raw(filename, preload=True)
+            if BOTH_LEGS in trigger_id:
+                description = list()
+                for t in raw.annotations.description:
+                    if t == 'T0':
+                        description.append(t)
+                    elif t == 'T1':
+                        description.append('T3')
+                    elif t == 'T2':
+                        description.append('T4')
+                    else:
+                        raise ValueError(f'{t} is not supported...')
+                raw.annotations.description = description
+            raw_list.append(raw)
+
+            if len(raw_list) == 2:
+                raw = mne.io.concatenate_raws(raw_list)
+                raw_list = list()
+                file = base_dir.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, new_rec_num))
+                file.parent.mkdir(parents=True, exist_ok=True)
+                new_rec_num += 1
+                raw.save(str(file), overwrite=True)
 
 
 if __name__ == '__main__':
