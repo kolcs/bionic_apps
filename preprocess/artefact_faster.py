@@ -519,7 +519,7 @@ def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=Tr
 
     Parameters
     ----------
-    data : mne.Epochs
+    data : mne.Epochs, mne.EpochsArray
         An mne epoch to filter
     bad_channels :
         The offline marked globally bad channels
