@@ -121,7 +121,7 @@ def generate_physionet_filenames(file_path, subject, runs):
 
     Returns
     -------
-    rec : list of str
+    rec : generator
         filenames for a subject with given runs
 
     """
@@ -144,7 +144,7 @@ def generate_pilot_filename(file_path, subject, runs=1):
 
         Returns
         -------
-        rec : list of str
+        rec : generator
             filenames for a subject with given runs
 
         """
@@ -167,7 +167,7 @@ def generate_ttk_filename(file_path, subject, runs=1):
 
         Returns
         -------
-        rec : list of str
+        rec : generator
             filenames for a subject with given runs
 
         """

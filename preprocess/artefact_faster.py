@@ -1,9 +1,8 @@
-import numpy as np
-import scipy.signal
 import mne
-from scipy.stats import kurtosis
-from numpy import nanmean
+import numpy as np
 from mne.utils import logger
+from scipy import signal
+from scipy.stats import kurtosis, zscore
 
 
 def hurst(x):
@@ -27,11 +26,11 @@ def hurst(x):
     b2 = [1, 0, -2, 0, 1]
 
     # second order derivative
-    y1 = scipy.signal.lfilter(b1, 1, y, axis=1)
+    y1 = signal.lfilter(b1, 1, y, axis=1)
     y1 = y1[:, len(b1) - 1:-1]  # first values contain filter artifacts
 
     # wider second order derivative
-    y2 = scipy.signal.lfilter(b2, 1, y, axis=1)
+    y2 = signal.lfilter(b2, 1, y, axis=1)
     y2 = y2[:, len(b2) - 1:-1]  # first values contain filter artifacts
 
     s1 = np.mean(y1 ** 2, axis=1)
@@ -43,10 +42,10 @@ def hurst(x):
 def _freqs_power(data, sfreq, freqs):
     """A feature to evaluate channels/components"""
 
-    fs, ps = scipy.signal.welch(data, sfreq,
-                                nperseg=2 ** int(np.log2(10 * sfreq) + 1),
-                                noverlap=0,
-                                axis=-1)
+    fs, ps = signal.welch(data, sfreq,
+                          nperseg=2 ** int(np.log2(10 * sfreq) + 1),
+                          noverlap=0,
+                          axis=-1)
     return np.sum([ps[..., np.searchsorted(fs, f)] for f in freqs], axis=0)
 
 
@@ -54,7 +53,7 @@ def _power_gradient(ica, source_data):
     """A feature to evaluate channels/components"""
 
     # Compute power spectrum
-    f, Ps = scipy.signal.welch(source_data, ica.info['sfreq'])
+    f, Ps = signal.welch(source_data, ica.info['sfreq'])
 
     # Limit power spectrum to upper frequencies
     Ps = Ps[:, np.searchsorted(f, 25):np.searchsorted(f, 45)]
@@ -200,7 +199,6 @@ def online_faster_bad_components(ica, epochs, ica_scores, thres=3, use_metrics=N
 
 
 def find_outliers(X, threshold=3.0, max_iter=2):
-    from scipy.stats import zscore
     my_mask = np.zeros(len(X), dtype=np.bool)
     for _ in range(max_iter):
         X = np.ma.masked_array(X, my_mask)
@@ -243,7 +241,7 @@ def faster_bad_channels(epochs, picks=None, thres=3, use_metrics=None, verbose=T
     """
     metrics = {
         'variance': lambda x: np.var(x, axis=1),
-        'correlation': lambda x: nanmean(
+        'correlation': lambda x: np.nanmean(
             np.ma.masked_array(
                 np.corrcoef(x),
                 np.identity(len(x), dtype=bool)
@@ -279,13 +277,14 @@ def faster_bad_channels(epochs, picks=None, thres=3, use_metrics=None, verbose=T
 
 def _deviation(data):
     """Computes the deviation from mean for each channel in a set of epochs.
+
     This is not implemented as a lambda function, because the channel means
     should be cached during the computation.
 
     Parameters
     ----------
     data : ndarray
-        The epochs (epochs x #hannels x samples).
+        The epochs (epochs x channels x samples).
 
     Returns
     -------
