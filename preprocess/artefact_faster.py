@@ -8,14 +8,17 @@ from mne.utils import logger
 
 def hurst(x):
     """Estimate Hurst exponent on a timeseries.
+
     The estimation is based on the second order discrete derivative.
+
     Parameters
     ----------
     x : 1D numpy array
         The timeseries to estimate the Hurst exponent for.
+
     Returns
     -------
-    h : float
+    float
         The estimation of the Hurst exponent for the given timeseries.
     """
     y = np.cumsum(np.diff(x, axis=1), axis=1)
@@ -38,9 +41,7 @@ def hurst(x):
 
 
 def _freqs_power(data, sfreq, freqs):
-    """
-        A feature to evaluate channels/components
-    """
+    """A feature to evaluate channels/components"""
 
     fs, ps = scipy.signal.welch(data, sfreq,
                                 nperseg=2 ** int(np.log2(10 * sfreq) + 1),
@@ -50,9 +51,7 @@ def _freqs_power(data, sfreq, freqs):
 
 
 def _power_gradient(ica, source_data):
-    """
-        A feature to evaluate channels/components
-    """
+    """A feature to evaluate channels/components"""
 
     # Compute power spectrum
     f, Ps = scipy.signal.welch(source_data, ica.info['sfreq'])
@@ -69,6 +68,7 @@ def faster_bad_components(ica, epochs, thres=3, use_metrics=None, verbose=True):
 
     This function attempts to automatically mark bad ICA components by
     performing outlier detection.
+
     Parameters
     ----------
     ica : Instance of ICA
@@ -84,10 +84,12 @@ def faster_bad_components(ica, epochs, thres=3, use_metrics=None, verbose=True):
             'median_gradient'
         Defaults to all of them.
     verbose: bool
+
     Returns
     -------
     bads : list of int
         The indices of the bad components.
+
     See also
     --------
     ICA.find_bads_ecg
@@ -130,11 +132,10 @@ def faster_bad_components(ica, epochs, thres=3, use_metrics=None, verbose=True):
 
 
 def online_faster_bad_components(ica, epochs, ica_scores, thres=3, use_metrics=None, verbose=True):
-    """
+    """Implements the third step of the FASTER algorithm for ONLINE use.
 
     Parameters
     ----------
-
     ica : Instance of ICA
         The ICA operator, already fitted to the supplied Epochs object.
     epochs : Instance of Epochs
@@ -150,6 +151,7 @@ def online_faster_bad_components(ica, epochs, ica_scores, thres=3, use_metrics=N
             'median_gradient'
         Defaults to all of them.
     verbose: bool
+
     Returns
     -------
     bads : list of int
@@ -218,9 +220,10 @@ def faster_bad_channels(epochs, picks=None, thres=3, use_metrics=None, verbose=T
     This function attempts to automatically mark bad EEG channels by performing
     outlier detection. It operated on epoched data, to make sure only relevant
     data is analyzed.
+
     Parameters
     ----------
-    epochs : Instance of Epochs
+    epochs : mne.Epochs
         The epochs for which bad channels need to be marked
     picks : list of int | None
         Channels to operate on. Defaults to EEG channels.
@@ -229,9 +232,10 @@ def faster_bad_channels(epochs, picks=None, thres=3, use_metrics=None, verbose=T
         crossing this threshold value is marked as bad. Defaults to 3.
     use_metrics : list of str
         List of metrics to use. Can be any combination of:
-            'variance', 'correlation', 'hurst', 'kurtosis', 'line_noise'
+        'variance', 'correlation', 'hurst', 'kurtosis', 'line_noise'
         Defaults to all of them.
     verbose: bool
+
     Returns
     -------
     bads : list of str
@@ -280,11 +284,12 @@ def _deviation(data):
 
     Parameters
     ----------
-    data : 3D numpy array
-        The epochs (#epochs x #channels x #samples).
+    data : ndarray
+        The epochs (epochs x #hannels x samples).
+
     Returns
     -------
-    dev : 1D numpy array
+    dev : ndarray
         For each epoch, the mean deviation of the channels.
     """
     ch_mean = np.mean(data, axis=2)
@@ -296,9 +301,10 @@ def faster_bad_epochs(epochs, picks=None, thres=3, use_metrics=None, verbose=Tru
 
     This function attempts to automatically mark bad epochs by performing
     outlier detection.
+
     Parameters
     ----------
-    epochs : Instance of Epochs
+    epochs : mne.Epochs
         The epochs to analyze.
     picks : list of int | None
         Channels to operate on. Defaults to EEG channels.
@@ -310,6 +316,7 @@ def faster_bad_epochs(epochs, picks=None, thres=3, use_metrics=None, verbose=Tru
             'amplitude', 'variance', 'deviation'
         Defaults to all of them.
     verbose: bool
+
     Returns
     -------
     bads : list of int
@@ -346,9 +353,10 @@ def faster_bad_channels_in_epochs(epochs, picks=None, thres=3, use_metrics=None,
 
     This function attempts to automatically mark bad channels in each epochs by
     performing outlier detection.
+
     Parameters
     ----------
-    epochs : Instance of Epochs
+    epochs : mne.Epochs
         The epochs to analyze.
     picks : list of int | None
         Channels to operate on. Defaults to EEG channels.
@@ -360,6 +368,7 @@ def faster_bad_channels_in_epochs(epochs, picks=None, thres=3, use_metrics=None,
             'amplitude', 'variance', 'deviation', 'median_gradient'
         Defaults to all of them.
     verbose: bool
+
     Returns
     -------
     bads : list of lists of int
@@ -404,7 +413,7 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
 
     Parameters
     ----------
-    epochs : Instance of Epoch
+    epochs : mne.Epoch
         The epochs to analyze
     thresholds : float or int or array
         The threshold value, in standard deviations, to apply. An epoch
@@ -423,10 +432,6 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
         Upper bound of frequency filter
     verbose : bool
         If true, display more information on the command line
-
-    Returns
-    -------
-
     """
     if thresholds is None:
         thresholds = [3, 3, 3, 3]
@@ -510,11 +515,11 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
 
 def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=True, filter_low=0.5, filter_high=45,
                   thresholds=None, verbose=False, apply_avg_reference=True):
-    """
+    """Online FASTER algorithm
 
     Parameters
     ----------
-    data : Instance of epoch
+    data : mne.Epochs
         An mne epoch to filter
     bad_channels :
         The offline marked globally bad channels
@@ -523,7 +528,8 @@ def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=Tr
     ica_scores :
         the scores to ICA channels, computed during the offline filtering
     apply_frequency_filter : bool
-        Determines weather an initial frequency filter should be applied before the FASTER algorithm
+        Determines weather an initial frequency filter should be applied
+        before the FASTER algorithm
     filter_low : float
         Lower bound of frequency filter
     filter_high : float
@@ -533,13 +539,16 @@ def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=Tr
     thresholds : float or int or array
         The threshold value, in standard deviations, to apply. An epoch
         crossing this threshold value is marked as bad. Defaults to 3.
-        Can be given as an array of 2 elements, where the n-th element is the threshold of the n-th
-        step of FASTER algorithm. If a threshold is set to 0, it means that actual step will be left out
+        Can be given as an array of 2 elements, where the n-th element is
+        the threshold of the n-th step of FASTER algorithm. If a threshold
+        is set to 0, it means that actual step will be left out
     apply_avg_reference : bool
-        If true, as the last step, the average of all electrodes applied as the reference
+        If true, as the last step, the average of all electrodes applied
+        as the reference.
+
     Returns
     -------
-    data : Instance of epoch
+    data : mne.Epochs
         The filtered epoch
     """
 
@@ -575,13 +584,16 @@ class ArtefactFilter:
 
     def __init__(self, apply_frequency_filter=True, filter_low=0.5, filter_high=45,
                  thresholds=None, copy=False, apply_avg_reference=True, verbose=True):
-        """
-        The object, responsible for storing parameters (such as ICA weights) between offline and online FASTER filtering
+        """FASTER algorithm for artefact filtering
+
+        The object, responsible for storing parameters (such as ICA weights)
+        between offline and online FASTER filtering
 
         Parameters
         ----------
         apply_frequency_filter : bool
-            Determines weather an initial frequency filter should be applied before the FASTER algorithm
+            Determines weather an initial frequency filter should be applied
+            before the FASTER algorithm
         filter_low : float
             Lower bound of frequency filter
         filter_high : float
@@ -589,15 +601,17 @@ class ArtefactFilter:
         thresholds : float or int or List[float] or List[int]
             The threshold value, in standard deviations, to apply. An epoch
             crossing this threshold value is marked as bad. Defaults to 3.
-            Can be given as an array of 4 elements, where the n-th element is the threshold of the n-th
-            step of FASTER algorithm. If a threshold is set to 0, it means that actual step will be left out
+            Can be given as an array of 4 elements, where the n-th element
+            is the threshold of the n-th step of FASTER algorithm. If a
+            threshold is set to 0, it means that actual step will be left out.
         copy : bool
-            Determines if to work on the actual data, or to make a copy of it, and return with it
+            Determines if to work on the actual data, or to make a copy of it,
+            and return with it
         verbose :
             If true, display more information on the command line during filtering
         apply_avg_reference : bool
-            If true, as the last step, the average of all electrodes applied as the reference
-
+            If true, as the last step, the average of all electrodes applied
+            as the reference
         """
 
         self._info = None
@@ -620,18 +634,20 @@ class ArtefactFilter:
         self.apply_avg_reference = apply_avg_reference
 
     def offline_filter(self, epochs):
-        """
-        Filters the input epochs, and saves the parameters (such as ICA weights), for the possibility of online filtering
+        """Offline Faster algorithm
+
+        Filters the input epochs, and saves the parameters (such as ICA weights),
+        for the possibility of online filtering
+
         Parameters
         ----------
-        epochs : Instance of Epoch
+        epochs : mne.Epochs
             The epochs to analyze
 
         Returns
         -------
-        epochs : Instance of Epoch
+        mne.Epochs
             The filtered epoch
-        -------
         """
 
         epochs, self._bad_channels, self._ica, self._ica_scores \
