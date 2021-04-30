@@ -844,6 +844,31 @@ class OfflineDataPreprocessor:
     Database functions
     """
 
+    def validate_make_binary_classification_use(self):
+        assert self._db_type is not None, 'Database is not defined.'
+        if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
+            if REST not in Physionet.TASK_TO_REC:
+                raise ValueError(f'Can not make binary classification. Check values of '
+                                 f'TASK_TO_REC in class {self._db_type.__name__} '
+                                 f'in config.py file. REST should not be commented out!')
+        elif REST not in self._db_type.TRIGGER_TASK_CONVERTER:
+            implemented_dbs = [GameDB, Game_ParadigmC, ParadigmC, PilotDB_ParadigmA, PilotDB_ParadigmB,
+                               TTK_DB, Physionet]
+            not_implemented_dbs = [BciCompIV1, BciCompIV2a, BciCompIV2b]
+            if self._db_type in implemented_dbs:
+                raise ValueError(f'Can not make binary classification. Check values of '
+                                 f'TRIGGER_TASK_CONVERTER in class {self._db_type.__name__} '
+                                 f'in config.py file. REST should not be commented out!')
+            elif self._db_type in not_implemented_dbs:
+                raise NotImplementedError(f'{self._db_type.__name__} is not implemented for '
+                                          f'make_binary_classification.\nYou can comment out some values '
+                                          f'from the TRIGGER_TASK_CONVERTER in class {self._db_type.__name__} '
+                                          f'in config.py file to make the classification binary.')
+            elif self._db_type == Game_ParadigmD:
+                pass  # always OK
+            else:
+                raise NotImplementedError(f'class {self._db_type.__name__} is not yet integrated...')
+
     def is_subject_in_drop_list(self, subject):
         return subject in self._drop_subject
 

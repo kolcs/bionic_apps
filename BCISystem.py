@@ -296,6 +296,8 @@ class BCISystem(object):
                                              eeg_file=train_file, filter_params=filter_params,
                                              do_artefact_rejection=do_artefact_rejection)
         self._proc.use_db(db_name)
+        if make_binary_classification:
+            self._proc.validate_make_binary_classification_use()
 
         def skipp_subject(subject):
             if subject is not None and self._proc.is_subject_in_drop_list(subject):
@@ -433,7 +435,10 @@ class BCISystem(object):
                                              fast_load=False, select_eeg_file=True, eeg_file=train_file,
                                              filter_params=filter_params, do_artefact_rejection=do_artefact_rejection)
 
-        self._proc.use_db(db_name).run(**feature_params)
+        self._proc.use_db(db_name)
+        if make_binary_classification:
+            self._proc.validate_make_binary_classification_use()
+        self._proc.run(**feature_params)
         print('Training...')
         t = time.time()
 
