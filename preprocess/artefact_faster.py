@@ -452,7 +452,7 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
             logger.info('Step 1: mark bad channels')
         epochs.info['bads'] += faster_bad_channels(epochs, thres=thresholds[0], verbose=verbose)
         bads = list.copy(epochs.info['bads'])
-        epochs.interpolate_bads(reset_bads=False, verbose=False, mode='fast')
+        # epochs.interpolate_bads(reset_bads=False, verbose=False, mode='fast')
     else:
         if verbose:
             logger.info('Step 1 - mark bad channels - is dismissed')
@@ -498,10 +498,6 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
                 epoch.info['bads'] += b
                 epoch.interpolate_bads(verbose=verbose)
                 epochs._data[i, :, :] = epoch._data[0, :, :]
-
-                # Why not this?
-                # epochs[i].info['bads'] += b
-                # epochs[i].interpolate_bads(verbose=verbose)
 
     # Now that the data is clean, apply average reference
     if apply_avg_reference:

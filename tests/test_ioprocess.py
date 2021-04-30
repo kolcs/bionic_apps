@@ -63,7 +63,7 @@ class TestSubjectKFold(unittest.TestCase):
     def setUpClass(cls):
         cls._path = Path(init_base_config('..'))
         cls.kfold_num = 5
-        cls.epoch_proc = OfflineDataPreprocessor(cls._path)
+        cls.epoch_proc = OfflineDataPreprocessor(str(cls._path))
 
     # def setUp(self):
     #     pass
@@ -197,7 +197,7 @@ class TestDataHandler(unittest.TestCase):
     def test_big_data(self):
         path = Path(init_base_config('..'))
         subject = 1
-        epoch_proc = OfflineDataPreprocessor(path)
+        epoch_proc = OfflineDataPreprocessor(str(path))
         epoch_proc.use_game_par_d()
         feature_extraction = dict(
             feature_type=FeatureType.SPATIAL_AVG_FFT_POW,
