@@ -146,7 +146,7 @@ class FeatureExtractor:
             Method for frequency feature generation. fft - pure FFT, psd - wlechs psd gen.
         channel_list : list of int, optional
             Dummy eeg channel selection. Do not use it.
-        info : mne.Info
+        info : mne.Info, dict
             Info file for interpolator. It is required in case of Spatial interpolation.
         """
         self.feature_type = feature_type
@@ -161,7 +161,7 @@ class FeatureExtractor:
 
         self.channel_list = channel_list
         self._crop = crop
-        self._info = info  # todo: change back info to interp when it is possible...
+        self._info = info
 
         self._check_params()
 

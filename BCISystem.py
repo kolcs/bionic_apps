@@ -15,8 +15,8 @@ import online
 from ai import init_classifier, ClassifierType
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
-from preprocess import OfflineDataPreprocessor, SubjectKFold, init_base_config, FeatureType, \
-    FeatureExtractor, Databases, DataHandler, is_platform
+from preprocess import OfflineDataPreprocessor, OnlineDataPreprocessor, SubjectKFold, \
+    init_base_config, FeatureType, FeatureExtractor, Databases, DataHandler, is_platform
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -214,7 +214,8 @@ class BCISystem(object):
                            subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
                            classifier_type=ClassifierType.SVM, classifier_kwargs=None,
-                           validation_split=0, do_artefact_rejection=False):
+                           validation_split=0, do_artefact_rejection=False,
+                           mimic_online_method=False):
         """Offline data processing.
 
         This method creates an offline BCI-System which make the data preprocessing
@@ -261,6 +262,12 @@ class BCISystem(object):
             How much of the train set should be used as validation data. value range: [0, 1]
         do_artefact_rejection : bool
             To do artefact-rejection preprocessing or no
+        mimic_online_method : bool
+            If True artefact filtering and channel selection algorithms will be tested
+            in online fashion. The parameters of the algorithm will be set on the
+            train data and used for the test data. On the other hand, it will generate
+            subj_n_fold_num times more processed data, because they can not be reused
+            for cross-validation.
         """
         if filter_params is None:
             filter_params = {}
@@ -277,10 +284,10 @@ class BCISystem(object):
             select_eeg_file = True
             subject_list = 0
 
-        cross_subject = False
         if method == XvalidateMethod.CROSS_SUBJECT:
             cross_subject = True
         elif method == XvalidateMethod.SUBJECT:
+            cross_subject = False
             if subject_list is None:
                 subject_list = [1]
         else:
@@ -290,11 +297,19 @@ class BCISystem(object):
             subject_list = [subject_list]
         print('{}, {} - Subjects: {}'.format(db_name.name, feature_params.get('feature_type').name, subject_list))
 
-        self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
-                                             use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
-                                             select_eeg_file=select_eeg_file,
-                                             eeg_file=train_file, filter_params=filter_params,
-                                             do_artefact_rejection=do_artefact_rejection)
+        if mimic_online_method:
+            subj_n_fold_num = 5 if subj_n_fold_num is None else subj_n_fold_num
+            self._proc = OnlineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
+                                                use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
+                                                filter_params=filter_params,
+                                                do_artefact_rejection=do_artefact_rejection,
+                                                n_fold=subj_n_fold_num, shuffle=shuffle_data)
+        else:
+            self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
+                                                 use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
+                                                 select_eeg_file=select_eeg_file,
+                                                 eeg_file=train_file, filter_params=filter_params,
+                                                 do_artefact_rejection=do_artefact_rejection)
         self._proc.use_db(db_name)
         if make_binary_classification:
             self._proc.validate_make_binary_classification_use()

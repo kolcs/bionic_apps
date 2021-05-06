@@ -123,7 +123,7 @@ def faster_bad_components(ica, epochs, thres=3, use_metrics=None, verbose=True):
         ica_scores[m] = [np.mean(scores[0]), np.std(scores[0])]
         for s in scores:
             b = find_outliers(s, thres)
-            if verbose:
+            if verbose and len(b) > 0:
                 logger.info('Bad by %s:\n\t%s' % (m, b))
             bads.append(b)
 
@@ -191,7 +191,7 @@ def online_faster_bad_components(ica, epochs, ica_scores, thres=3, use_metrics=N
                 if abs((score - mean) / dev) > thres:
                     b.append(i)
 
-            if verbose:
+            if verbose and len(b) > 0:
                 logger.info('Bad by %s:\n\t%s' % (m, b))
             bads.append(b)
 
@@ -267,7 +267,7 @@ def faster_bad_channels(epochs, picks=None, thres=3, use_metrics=None, verbose=T
     for m in use_metrics:
         s = metrics[m](data)
         b = [epochs.ch_names[picks[i]] for i in find_outliers(s, thres)]
-        if verbose:
+        if verbose and len(b) > 0:
             logger.info('Bad by %s:\n\t%s' % (m, b))
         bads.append(b)
         parameters[m] = s
@@ -340,7 +340,7 @@ def faster_bad_epochs(epochs, picks=None, thres=3, use_metrics=None, verbose=Tru
     for m in use_metrics:
         s = metrics[m](data)
         b = find_outliers(s, thres)
-        if verbose:
+        if verbose and len(b) > 0:
             logger.info('Bad by %s:\n\t%s' % (m, b))
         bads.append(b)
 
@@ -394,7 +394,7 @@ def faster_bad_channels_in_epochs(epochs, picks=None, thres=3, use_metrics=None,
         s_epochs = metrics[m](data)
         for i, s in enumerate(s_epochs):
             b = [epochs.ch_names[picks[j]] for j in find_outliers(s, thres)]
-            if verbose:
+            if verbose and len(b) > 0:
                 logger.info('Epoch %d, Bad by %s:\n\t%s' % (i, m, b))
             bads[i].append(b)
 
@@ -474,7 +474,7 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
     if thresholds[2] > 0:
         if verbose:
             logger.info('Step 3: mark bad ICA components')
-        ica = mne.preprocessing.ICA()
+        ica = mne.preprocessing.ICA(max_iter="auto")
         ica.fit(epochs)
 
         eog_inds, _ = ica.find_bads_eog(epochs, ch_name='Fp1', threshold=thresholds[2], verbose=verbose)
@@ -662,21 +662,22 @@ class ArtefactFilter:
 
         Parameters
         ----------
-        data : ndarray
+        data : ndarray, mne.Epochs
             A data to filter, (with the previously saved parameters during offline filtering)
-
-        Returns
-        -------
-        ndarray
-            The filtered data
         """
 
         if self._ica is None or self._info is None or self._bad_channels is None:
             raise Exception("offline filter should be applied before")
 
-        if len(data.shape) == 2:
-            data = np.expand_dims(data, 0)
-        epoch = mne.EpochsArray(data, self._info)
+        if type(data) is np.ndarray:  # real online
+            if len(data.shape) == 2:
+                data = np.expand_dims(data, 0)
+            epoch = mne.EpochsArray(data, self._info)
+            return_ndarray = True
+        else:  # mimic online
+            epoch = data
+            epoch.load_data()
+            return_ndarray = False
 
         filtered_epoch = online_faster(epoch, self._bad_channels, self._ica, self._ica_scores,
                                        apply_frequency_filter=self.apply_frequency_filter,
@@ -685,5 +686,6 @@ class ArtefactFilter:
                                        thresholds=[self.thresholds[0], self.thresholds[2]],
                                        apply_avg_reference=self.apply_avg_reference,
                                        verbose=self.verbose)
-
-        return filtered_epoch.get_data()
+        if return_ndarray:
+            return filtered_epoch.get_data()
+        return filtered_epoch

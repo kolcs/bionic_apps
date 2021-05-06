@@ -1,11 +1,12 @@
 import unittest
 from multiprocessing import Process
 from pathlib import Path
+from shutil import rmtree
 
 from BCISystem import BCISystem, Databases, FeatureType, XvalidateMethod
 from config import Physionet, Game_ParadigmD, DIR_FEATURE_DB
 from online.DataSender import run as send_online_data
-from preprocess import init_base_config, recursive_delete_folder
+from preprocess import init_base_config
 
 
 # @unittest.skip("Not interested")
@@ -17,7 +18,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         path = path.joinpath(DIR_FEATURE_DB)
         if path.exists():
             print('Removing old files. It may take longer...')
-            recursive_delete_folder(str(path))
+            rmtree(str(path))
         cls.subj = 1
 
     def setUp(self):
@@ -36,6 +37,27 @@ class TestOfflineBciSystem(unittest.TestCase):
             window_length=1, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject_list=self.subj,
+        ))
+
+    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
+                         'Data for Physionet does not exists. Can not test it.')
+    def test_physionet_subject_x_val_mimic_online(self):
+        filter_params = dict(  # required for FASTER artefact filter
+            order=5, l_freq=1, h_freq=45
+        )
+        feature_extraction = dict(
+            feature_type=FeatureType.AVG_FFT_POWER,
+            fft_low=14, fft_high=30
+        )
+        self.assertIsNone(self.bci.offline_processing(
+            Databases.PHYSIONET, feature_params=feature_extraction,
+            epoch_tmin=0, epoch_tmax=4,
+            window_length=1, window_step=.1,
+            method=XvalidateMethod.SUBJECT,
+            subject_list=[1, 2],
+            filter_params=filter_params,
+            do_artefact_rejection=True,
+            mimic_online_method=True
         ))
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
