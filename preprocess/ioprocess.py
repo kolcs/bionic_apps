@@ -1378,6 +1378,7 @@ class OnlineDataPreprocessor(DataProcessor):
             filter_params=filter_params,
             do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds
         )
+        self._mimic_online_method = True
 
     def get_labels(self, make_binary_classification=False):
         subj = list(self._proc_db_filenames)[0]
@@ -1445,12 +1446,12 @@ class OnlineDataPreprocessor(DataProcessor):
         self._n_fold = min(len(session_files), self._n_fold)
         kfold = KFold(n_splits=self._n_fold, shuffle=self._shuffle)
         for i, (train_index, test_index) in enumerate(kfold.split(session_files)):
+            self._mimic_online_method = False
             subject_train = self.generate_db_from_file_list(session_files[train_index])
             train_files = self._save_preprocessed_subject_data(subject_train, subj, f'train{i}')
             self._mimic_online_method = True
             subject_test = self.generate_db_from_file_list(session_files[test_index])
             test_files = self._save_preprocessed_subject_data(subject_test, subj, f'test{i}')
-            self._mimic_online_method = False
 
             kfold_data.append((train_files, test_files))
 
