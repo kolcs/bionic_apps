@@ -1001,7 +1001,8 @@ class DataProcessor(DataLoader):
 
         if self._do_artefact_rejection:
             if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
-                raise NotImplementedError('Artefact rejection is not yet implemented for physionet database')
+                raise NotImplementedError('Artefact rejection is implemented for Physionet database '
+                                          'with "USE_NEW_CONFIG = True". Change it in config.py')
             else:
                 if self._mimic_online_method:
                     epochs = self.artefact_filter.online_filter(epochs)
@@ -1235,24 +1236,34 @@ class OfflineDataPreprocessor(DataProcessor):
 
     def _create_x_db(self, subj):
         task_dict = self._convert_task()
-        if self._db_type is TTK_DB:
-            fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-        elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
-            fn_gen = generate_pilot_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-        elif self._db_type in [BciCompIV1, BciCompIV2a]:
-            fn_gen = generate_bci_comp_4_2a_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-        elif self._db_type is BciCompIV2b:
-            s_ind = subj - 1
-            s = s_ind // 3 + 1
-            rec = s_ind % 3 + 1
-            fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), s, rec)
-        elif self._db_type is Physionet and Physionet.USE_NEW_CONFIG:
-            fn_gen = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)),
-                                                  subj, [1, 2, 3])
-        else:
-            raise NotImplementedError('Database loading for {} is not implemented'.format(self._db_type))
+        if not hasattr(self._db_type, 'USE_NEW_CONFIG') or not self._db_type.USE_NEW_CONFIG:
+            cut_real_mov = REST in task_dict
+            if self._db_type is TTK_DB:
+                fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+            elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD,
+                                   ParadigmC]:
+                fn_gen = generate_pilot_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+            elif self._db_type in [BciCompIV1, BciCompIV2a]:
+                fn_gen = generate_bci_comp_4_2a_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
+            elif self._db_type is BciCompIV2b:
+                s_ind = subj - 1
+                s = s_ind // 3 + 1
+                rec = s_ind % 3 + 1
 
-        cut_real_mov = REST in task_dict
+                fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), s, rec)
+            else:
+                raise NotImplementedError('Database loading for {} is not implemented'.format(self._db_type))
+        else:  # self._db_type.USE_NEW_CONFIG == True
+            cut_real_mov = False
+            if self._db_type in [Physionet, TTK_DB]:
+                pattern = self._db_type.FILE_PATH
+                pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
+                pattern = pattern.replace('{rec}', '*')
+                fn_gen = list(sorted(self._data_path.rglob(pattern)))
+            else:
+                raise NotImplementedError('Database loading for {} with USE_NEW_CONFIG=True '
+                                          'is not implemented.'.format(self._db_type))
+
         epochs = get_epochs_from_files(fn_gen, task_dict,
                                        self._epoch_tmin, self._epoch_tmax,
                                        cut_real_movement_tasks=cut_real_mov,

@@ -186,7 +186,14 @@ class PilotDB_ParadigmB:
 
 class TTK_DB:
     DIR = "TTK/"
-    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+
+    USE_NEW_CONFIG = True
+    if USE_NEW_CONFIG:
+        FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
+        DROP_SUBJECTS = []
+    else:
+        FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+        DROP_SUBJECTS = [1, 9, 17]
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
@@ -199,8 +206,6 @@ class TTK_DB:
     }
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
-
-    DROP_SUBJECTS = [1, 9, 17]
 
 
 class Physionet:
