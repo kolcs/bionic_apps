@@ -29,6 +29,8 @@ class SourceDB(Enum):
     DATA_SOURCE = 'data_source'
     INFO = 'epoch_info'
     FEATURE_SHAPE = 'feature_shape'
+    EPOCH_RANGE = 'epoch_range'
+    MIMIC_ONLINE = 'mimic_online'
 
 
 # db selection options
@@ -687,11 +689,12 @@ class DataLoader:
             Whether to use drop subject list from config file or not?
         """
         self._base_dir = Path(base_dir)
-
         self.info = mne.Info()
 
         self._data_path = Path()
         self._db_type = None  # Physionet / TTK / ect...
+
+        self._subject_list = None
         self._drop_subject = set() if use_drop_subject_list else None
 
     def use_db(self, db_name):
@@ -732,6 +735,10 @@ class DataLoader:
             self._drop_subject = set(db_type.DROP_SUBJECTS)
         else:
             self._drop_subject = set()
+
+    def get_data_path(self):
+        assert self._db_type is not None, 'Database is not defined.'
+        return self._data_path
 
     def use_physionet(self):
         self._use_db(Physionet)
@@ -850,6 +857,27 @@ class DataLoader:
 
         return subject_num
 
+    def get_subject_list(self):  # todo: rethink...
+        """Returns the list of subjects and removes the unwanted ones."""
+        subject_num = self.get_subject_num()
+        if self._subject_list is not None:
+            for subj in self._subject_list:
+                assert 0 < subj <= subject_num, 'Subject{} is not in subject range: 1 - {}'.format(
+                    subj, subject_num)
+            subject_list = self._subject_list
+        else:
+            subject_list = list(range(1, subject_num + 1))
+
+        for subj in self._drop_subject:
+            if subj in subject_list:
+                subject_list.remove(subj)
+                print('Dropping subject {}'.format(subj))
+        return subject_list
+
+    def get_file_path_for_db_filename_gen(self):
+        assert self._db_type is not None, 'Database is not defined.'
+        return str(self._data_path.joinpath(self._db_type.FILE_PATH))
+
 
 class DataProcessor(DataLoader):
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
@@ -888,7 +916,6 @@ class DataProcessor(DataLoader):
         self._epoch_tmax = epoch_tmax  # seconds
         self._window_length = window_length  # seconds
         self._window_step = window_step  # seconds
-        self._subject_list = list()
         self._filter_params = filter_params
 
         self._fast_load = fast_load
@@ -925,23 +952,6 @@ class DataProcessor(DataLoader):
 
     def get_feature_shape(self):
         return self._feature_shape
-
-    def _get_subject_list(self):  # todo: rethink...
-        """Returns the list of subjects and removes the unwanted ones."""
-        subject_num = self.get_subject_num()
-        if self._subject_list is not None:
-            for subj in self._subject_list:
-                assert 0 < subj <= subject_num, 'Subject{} is not in subject range: 1 - {}'.format(
-                    subj, subject_num)
-            subject_list = self._subject_list
-        else:
-            subject_list = list(range(1, subject_num + 1))
-
-        for subj in self._drop_subject:
-            if subj in subject_list:
-                subject_list.remove(subj)
-                print('Dropping subject {}'.format(subj))
-        return subject_list
 
     def init_processed_db_path(self, feature=None):
         """Initialize the path of preprocessed database.
@@ -1051,7 +1061,11 @@ class DataProcessor(DataLoader):
         n_subjects = self.get_subject_num()
 
         if fastload_source is not None and self._fast_load and \
-                n_subjects == fastload_source[SourceDB.SUBJECTS] and len(fastload_source) == len(SourceDB):
+                len(fastload_source) == len(SourceDB) and \
+                n_subjects == fastload_source[SourceDB.SUBJECTS] and \
+                (self._epoch_tmin, self._epoch_tmax) == fastload_source[SourceDB.EPOCH_RANGE] and \
+                fastload_source[SourceDB.MIMIC_ONLINE] == self._mimic_online_method:
+
             subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
             subject_list = [subject for subject in subject_list if subject not in self._drop_subject]
 
@@ -1064,19 +1078,19 @@ class DataProcessor(DataLoader):
         return False
 
     def _save_fast_load_source_data(self):
-        # self._proc_db_filenames[subj] = subject_file_dict
-        # processed db data...
         source = {
             SourceDB.SUBJECTS: self.get_subject_num(),
             SourceDB.DATA_SOURCE: self._proc_db_filenames,
             SourceDB.INFO: self.info,
-            SourceDB.FEATURE_SHAPE: self._feature_shape
+            SourceDB.FEATURE_SHAPE: self._feature_shape,
+            SourceDB.EPOCH_RANGE: (self._epoch_tmin, self._epoch_tmax),
+            SourceDB.MIMIC_ONLINE: self._mimic_online_method
         }
         save_pickle_data(self._proc_db_source, source)
 
     def _parallel_generate_db(self, func):
         """Parallel DB generation for each subject"""
-        subject_list = self._get_subject_list()
+        subject_list = self.get_subject_list()
 
         if len(subject_list) > 1:
             data, info = zip(*Parallel(n_jobs=-2)(delayed(func)(subject) for subject in subject_list))
