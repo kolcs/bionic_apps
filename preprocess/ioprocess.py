@@ -15,6 +15,7 @@ import preprocess.artefact_faster as art
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC
 from gui_handler import select_file_in_explorer
+from preprocess.channel_selection import covariance_channel_selection
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
 EPOCH_DB = 'preprocessed_database'
@@ -886,7 +887,8 @@ class DataProcessor(DataLoader):
     def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=False,
                  *,
-                 filter_params=None, do_artefact_rejection=False, artefact_thresholds=None):
+                 filter_params=None, do_artefact_rejection=False, artefact_thresholds=None,
+                 make_channel_selection=False):
         """Abstract Preprocessor for eeg files.
 
         Creates a database, which has all the required information about the eeg files.
@@ -911,6 +913,8 @@ class DataProcessor(DataLoader):
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         do_artefact_rejection : bool
             To do or not artefact-rejection
+        make_channel_selection : bool
+            To do channel selection or not.
         """
         if filter_params is None:
             filter_params = {}
@@ -938,6 +942,8 @@ class DataProcessor(DataLoader):
             self.artefact_filter = art.ArtefactFilter(thresholds=artefact_thresholds, apply_frequency_filter=False)
         else:
             self.artefact_filter = None
+
+        self._make_channel_selection = make_channel_selection
 
         super(DataProcessor, self).__init__(base_dir, use_drop_subject_list)
 
@@ -1014,6 +1020,10 @@ class DataProcessor(DataLoader):
 
         self.info = epochs.info
         epochs.load_data()
+
+        if self._make_channel_selection:
+            selected_channels = covariance_channel_selection()
+            epochs.pick_channels(selected_channels)
 
         if self.feature_type is FeatureType.SPATIAL_TEMPORAL:  # todo: move it after epoch corp?
             if self._db_type is not Databases.PHYSIONET:
