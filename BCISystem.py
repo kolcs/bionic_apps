@@ -215,6 +215,7 @@ class BCISystem(object):
                            make_binary_classification=False, train_file=None,
                            classifier_type=ClassifierType.SVM, classifier_kwargs=None,
                            validation_split=0, do_artefact_rejection=False,
+                           make_channel_selection=False,
                            mimic_online_method=False):
         """Offline data processing.
 
@@ -262,6 +263,8 @@ class BCISystem(object):
             How much of the train set should be used as validation data. value range: [0, 1]
         do_artefact_rejection : bool
             To do artefact-rejection preprocessing or no
+        make_channel_selection : bool
+            To do channel selection or not.
         mimic_online_method : bool
             If True artefact filtering and channel selection algorithms will be tested
             in online fashion. The parameters of the algorithm will be set on the
@@ -309,7 +312,8 @@ class BCISystem(object):
                                                  use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                                  select_eeg_file=select_eeg_file,
                                                  eeg_file=train_file, filter_params=filter_params,
-                                                 do_artefact_rejection=do_artefact_rejection)
+                                                 do_artefact_rejection=do_artefact_rejection,
+                                                 make_channel_selection=make_channel_selection)
         self._proc.use_db(db_name)
         if make_binary_classification:
             self._proc.validate_make_binary_classification_use()

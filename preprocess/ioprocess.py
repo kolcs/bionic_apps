@@ -15,7 +15,7 @@ import preprocess.artefact_faster as art
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC
 from gui_handler import select_file_in_explorer
-from preprocess.channel_selection import covariance_channel_selection
+from preprocess.channel_selection import covariance_channel_sel
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
 EPOCH_DB = 'preprocessed_database'
@@ -1022,7 +1022,8 @@ class DataProcessor(DataLoader):
         epochs.load_data()
 
         if self._make_channel_selection:
-            selected_channels = covariance_channel_selection()
+            selected_channels = covariance_channel_sel(epochs)
+            print('Selected channels: {}'.format(selected_channels))
             epochs.pick_channels(selected_channels)
 
         if self.feature_type is FeatureType.SPATIAL_TEMPORAL:  # todo: move it after epoch corp?
@@ -1145,7 +1146,8 @@ class OfflineDataPreprocessor(DataProcessor):
                  use_drop_subject_list=True, fast_load=True,
                  *,
                  select_eeg_file=False, eeg_file=None, filter_params=None,
-                 do_artefact_rejection=False, artefact_thresholds=None):
+                 do_artefact_rejection=False, artefact_thresholds=None,
+                 make_channel_selection=False):
         """Preprocessor for eeg files.
 
         Creates a database, which has all the required information about the eeg files.
@@ -1174,6 +1176,8 @@ class OfflineDataPreprocessor(DataProcessor):
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         do_artefact_rejection : bool
             To do or not artefact-rejection
+        make_channel_selection : bool
+            To do channel selection or not.
         """
         self._eeg_file = eeg_file
         self._select_one_file = select_eeg_file
@@ -1182,7 +1186,8 @@ class OfflineDataPreprocessor(DataProcessor):
             base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
             use_drop_subject_list, fast_load,
             filter_params=filter_params,
-            do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds
+            do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds,
+            make_channel_selection=make_channel_selection
         )
 
     def get_labels(self, make_binary_classification=False):
@@ -1365,6 +1370,7 @@ class OnlineDataPreprocessor(DataProcessor):
                  use_drop_subject_list=True, fast_load=True,
                  *,
                  filter_params=None, do_artefact_rejection=True, artefact_thresholds=None,
+                 make_channel_selection=False,
                  n_fold=5, shuffle=True):
         """Online Data Preprocessor for eeg files.
 
@@ -1389,6 +1395,8 @@ class OnlineDataPreprocessor(DataProcessor):
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         do_artefact_rejection : bool
             To do or not artefact-rejection
+        make_channel_selection : bool
+            To do channel selection or not.
         n_fold : int
             Number of folds for N-fold-Xvalidation.
         shuffle : bool
@@ -1402,7 +1410,8 @@ class OnlineDataPreprocessor(DataProcessor):
             base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
             use_drop_subject_list, fast_load,
             filter_params=filter_params,
-            do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds
+            do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds,
+            make_channel_selection=make_channel_selection
         )
         self._mimic_online_method = True
 
