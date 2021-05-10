@@ -1260,6 +1260,8 @@ class OfflineDataPreprocessor(DataProcessor):
                 pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
                 pattern = pattern.replace('{rec}', '*')
                 fn_gen = list(sorted(self._data_path.rglob(pattern)))
+                assert len(fn_gen) > 0, f'No files were found. Try to set USE_NEW_CONFIG=False ' \
+                                        f'for {self._db_type} or download the leatest database.'
             else:
                 raise NotImplementedError('Database loading for {} with USE_NEW_CONFIG=True '
                                           'is not implemented.'.format(self._db_type))
