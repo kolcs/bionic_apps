@@ -1485,7 +1485,7 @@ class OnlineDataPreprocessor(DataProcessor):
                                       f'Please set USE_NEW_CONFIG=True in the config.py file '
                                       f'at class {self._db_type.__name__}.')
 
-        if self._db_type in [Physionet]:
+        if self._db_type in [Physionet, TTK_DB]:
             self._parallel_generate_db(self._generate_online_db)
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))
