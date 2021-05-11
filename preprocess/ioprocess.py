@@ -303,7 +303,7 @@ def get_epochs_from_raw(raw, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5, baselin
     events, _ = mne.events_from_annotations(raw, event_id)
     # baseline = tuple([None, epoch_tmin + 0.1])  # if self._epoch_tmin > 0 else (None, 0)
     epochs = mne.Epochs(raw, events, baseline=baseline, event_id=task_dict, tmin=epoch_tmin,
-                        tmax=epoch_tmax, preload=preload, on_missing='warning')
+                        tmax=epoch_tmax, preload=preload, on_missing='warn')
     return epochs
 
 
@@ -850,7 +850,10 @@ class DataLoader:
         if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
             subject_num = self._db_type.SUBJECT_NUM
         elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
-            file = 'rec01.vhdr'
+            if hasattr(self._db_type, 'USE_NEW_CONFIG') and self._db_type.USE_NEW_CONFIG:
+                file = '*R01_raw.fif'
+            else:
+                file = 'rec01.vhdr'
             subject_num = len(sorted(Path(self._data_path).rglob(file)))
         else:
             raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
@@ -1399,18 +1402,6 @@ class OnlineDataPreprocessor(DataProcessor):
         if make_binary_classification:
             label_list = list(set([_create_binary_label(label) for label in label_list]))
         return label_list
-
-    def get_subject_num(self):
-        """Returns the number of available subjects in Database"""
-        if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
-            subject_num = self._db_type.SUBJECT_NUM
-        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
-            file = '*R01_raw.fif'
-            subject_num = len(sorted(Path(self._data_path).rglob(file)))
-        else:
-            raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
-
-        return subject_num
 
     def _save_preprocessed_subject_data(self, subject_data, subj, xval_type):
         """Saving preprocessed feature data for a given subject.
