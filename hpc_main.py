@@ -20,12 +20,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
               window_length=1, window_step=.1,
               use_drop_subject_list=True, fast_load=False,
               classifier_type=ClassifierType.SVM, classifier_kwargs=None, filter_params=None,
-              validation_split=0, log_file=None):
-    if filter_params is None:
-        filter_params = {}
-    if classifier_kwargs is None:
-        classifier_kwargs = {}
-
+              validation_split=0, log_file=None, **kwargs):
     if log_file is None:
         log_file = 'log_{}_{}.csv'.format(feature_params['feature_type'].name, datetime.now().strftime("%Y%m%d-%H%M%S"))
 
@@ -62,7 +57,8 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
                                subj_n_fold_num=subj_n_fold_num,
                                classifier_type=classifier_type,
                                classifier_kwargs=classifier_kwargs,
-                               validation_split=validation_split)
+                               validation_split=validation_split,
+                               **kwargs)
 
 
 def hpc_run_cp(checkpoint=None, verbose=False, test_func=make_test, **test_kwargs):
