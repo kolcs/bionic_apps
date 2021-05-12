@@ -15,7 +15,7 @@ import preprocess.artefact_faster as art
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC
 from gui_handler import select_file_in_explorer
-from preprocess.channel_selection import covariance_channel_sel
+from preprocess.channel_selection import covariance_channel_selection
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
 EPOCH_DB = 'preprocessed_database'
@@ -57,6 +57,17 @@ def is_platform(os_platform):
 
 def open_raw_with_gui():
     return mne.io.read_raw(select_file_in_explorer(init_base_config()))
+
+
+def get_epochs_from_raw_with_gui(epoch_tmin=0, epoch_tmax=4, baseline=(None, .1)):
+    base_dir = init_base_config()
+    file = select_file_in_explorer(init_base_config())
+    db_name = get_db_name_by_filename(file)
+    loader = DataLoader(base_dir).use_db(db_name)
+    raw = mne.io.read_raw(file)
+    task_dict = loader.get_task_dict()
+    event_id = loader.get_event_id()
+    return get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id)
 
 
 def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs=1, run_format_str=None):
@@ -698,6 +709,9 @@ class DataLoader:
         self._subject_list = None
         self._drop_subject = set() if use_drop_subject_list else None
 
+    def _validate_db_type(self):
+        assert self._db_type is not None, 'Database is not defined.'
+
     def use_db(self, db_name):
         if db_name == Databases.PHYSIONET:
             self.use_physionet()
@@ -738,7 +752,7 @@ class DataLoader:
             self._drop_subject = set()
 
     def get_data_path(self):
-        assert self._db_type is not None, 'Database is not defined.'
+        self._validate_db_type()
         return self._data_path
 
     def use_physionet(self):
@@ -806,7 +820,7 @@ class DataLoader:
         return mne.EpochsArray(data, self.info)
 
     def validate_make_binary_classification_use(self):
-        assert self._db_type is not None, 'Database is not defined.'
+        self._validate_db_type()
         if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
             if REST not in Physionet.TASK_TO_REC:
                 raise ValueError(f'Can not make binary classification. Check values of '
@@ -831,23 +845,28 @@ class DataLoader:
                 raise NotImplementedError(f'class {self._db_type.__name__} is not yet integrated...')
 
     def is_subject_in_drop_list(self, subject):
+        self._validate_db_type()
         return subject in self._drop_subject
 
     def _convert_task(self, record_number=None):
+        self._validate_db_type()
         if record_number is None:
             return self._db_type.TRIGGER_TASK_CONVERTER
         return self._db_type.TRIGGER_CONV_REC_TO_TASK.get(record_number)
 
     def get_command_converter(self):
+        self._validate_db_type()
         attr = 'COMMAND_CONV'
         assert hasattr(self._db_type, attr), '{} has no {} attribute'.format(self._db_type, attr)
         return self._db_type.COMMAND_CONV
 
     def is_name(self, db_name):
+        self._validate_db_type()
         return db_name in str(self._db_type)
 
     def get_subject_num(self):
         """Returns the number of available subjects in Database"""
+        self._validate_db_type()
         if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
             subject_num = self._db_type.SUBJECT_NUM
         elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
@@ -879,8 +898,20 @@ class DataLoader:
         return subject_list
 
     def get_file_path_for_db_filename_gen(self):
-        assert self._db_type is not None, 'Database is not defined.'
+        self._validate_db_type()
         return str(self._data_path.joinpath(self._db_type.FILE_PATH))
+
+    def get_task_dict(self):
+        self._validate_db_type()
+        if self._db_type is Physionet and not Physionet.USE_NEW_CONFIG:
+            raise NotImplementedError('This method is not implemented for old Physionet config.')
+        return self._db_type.TRIGGER_TASK_CONVERTER
+
+    def get_event_id(self):
+        self._validate_db_type()
+        if self._db_type is Physionet and not Physionet.USE_NEW_CONFIG:
+            raise NotImplementedError('This method is not implemented for old Physionet config.')
+        return self._db_type.TRIGGER_EVENT_ID
 
 
 class DataProcessor(DataLoader):
@@ -1022,7 +1053,7 @@ class DataProcessor(DataLoader):
         epochs.load_data()
 
         if self._make_channel_selection:
-            selected_channels = covariance_channel_sel(epochs)
+            selected_channels = covariance_channel_selection(epochs)
             print('Selected channels: {}'.format(selected_channels))
             epochs.pick_channels(selected_channels)
 
