@@ -31,6 +31,8 @@ class SourceDB(Enum):
     INFO = 'epoch_info'
     FEATURE_SHAPE = 'feature_shape'
     EPOCH_RANGE = 'epoch_range'
+    ARTEFACT_FILTER = 'artefact'
+    CHANNEL_SELECTION = 'ch_sel'
     MIMIC_ONLINE = 'mimic_online'
 
 
@@ -1015,6 +1017,10 @@ class DataProcessor(DataLoader):
             self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB)
         self.proc_db_path = self.proc_db_path.joinpath(self._db_type.DIR, feature_dir, filter_dir,
                                                        str(self._window_length), str(self._window_step))
+        if self.artefact_filter is not None:
+            self.proc_db_path.joinpath(self.artefact_filter.__name__)
+        if self._make_channel_selection:
+            self.proc_db_path.joinpath('ch_sel')
 
     def _get_windowed_features(self, epochs, task=None):
         """Feature creation from windowed data.
@@ -1110,7 +1116,9 @@ class DataProcessor(DataLoader):
                 len(fastload_source) == len(SourceDB) and \
                 n_subjects == fastload_source[SourceDB.SUBJECTS] and \
                 (self._epoch_tmin, self._epoch_tmax) == fastload_source[SourceDB.EPOCH_RANGE] and \
-                fastload_source[SourceDB.MIMIC_ONLINE] == self._mimic_online_method:
+                self._mimic_online_method == fastload_source[SourceDB.MIMIC_ONLINE] and \
+                type(self.artefact_filter) is fastload_source[SourceDB.ARTEFACT_FILTER] and \
+                self._make_channel_selection == fastload_source[SourceDB.CHANNEL_SELECTION]:
 
             subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
             subject_list = [subject for subject in subject_list if subject not in self._drop_subject]
@@ -1130,7 +1138,9 @@ class DataProcessor(DataLoader):
             SourceDB.INFO: self.info,
             SourceDB.FEATURE_SHAPE: self._feature_shape,
             SourceDB.EPOCH_RANGE: (self._epoch_tmin, self._epoch_tmax),
-            SourceDB.MIMIC_ONLINE: self._mimic_online_method
+            SourceDB.MIMIC_ONLINE: self._mimic_online_method,
+            SourceDB.ARTEFACT_FILTER: type(self.artefact_filter),
+            SourceDB.CHANNEL_SELECTION: self._make_channel_selection
         }
         save_pickle_data(self._proc_db_source, source)
 
