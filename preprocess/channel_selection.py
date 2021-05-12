@@ -22,16 +22,11 @@ def covariance_channel_selection(epochs, Ns=10, Ntr=10):
         List of the names of the selected channels
 
     """
-
-    selected_channels = list()
     data = epochs.get_data()
-    all_channel_names = epochs.ch_names
-
-    channels_dict = {name: 0 for name in all_channel_names}
+    all_channel_names = np.asarray(epochs.ch_names)
+    channel_count = np.zeros_like(epochs.ch_names, dtype=np.int)
 
     for epoch in data:
-        # for j, channel in enumerate(epoch):
-        #     data[i][j] = stats.zscore(channel)
         z_score = stats.zscore(epoch, axis=-1)
 
         # channels -> N best correlate channel
@@ -39,16 +34,13 @@ def covariance_channel_selection(epochs, Ns=10, Ntr=10):
         R_mean = R.mean(axis=0)
 
         # sort_index: original position in array (ascending order)
-        sort_index = np.argsort(-1 * R_mean)
+        sort_index = np.argsort(-R_mean)
 
         # Selecting the first Ns channel from an epoch
-        for Ns in range(Ns):
-            channels_dict[all_channel_names[sort_index[Ns]]] = channels_dict[all_channel_names[sort_index[Ns]]] + 1
+        channel_count[sort_index[:Ns]] += 1
 
-    ordered_dict = {k: v for k, v in sorted(channels_dict.items(), key=lambda item: item[1], reverse=True)}
-    iterator = iter(ordered_dict.keys())
-    for i in range(Ntr):
-        selected_channels.append(next(iterator))
+    sort_index = np.argsort(-channel_count)
+    selected_channels = all_channel_names[sort_index[:Ntr]]
 
     return selected_channels
 
@@ -57,5 +49,4 @@ if __name__ == '__main__':
     from preprocess import get_epochs_from_raw_with_gui
 
     epochs = get_epochs_from_raw_with_gui()
-    selected_channels = covariance_channel_selection(epochs)
-    print(selected_channels)
+    print(covariance_channel_selection(epochs))
