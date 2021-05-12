@@ -487,6 +487,12 @@ def get_db_name_by_filename(filename):
         db_name = Databases.PHYSIONET
     elif ParadigmC.DIR in filename:
         db_name = Databases.ParadigmC
+    elif BciCompIV1.DIR in filename:
+        db_name = Databases.BCI_COMP_IV_1
+    elif BciCompIV2a.DIR in filename:
+        db_name = Databases.BCI_COMP_IV_2A
+    elif BciCompIV2b.DIR in filename:
+        db_name = Databases.BCI_COMP_IV_2B
     else:
         raise ValueError('No database defined with path {}'.format(filename))
     return db_name
