@@ -82,6 +82,10 @@ class ChannelSelector:
         assert len(self._selected_channels) > 0, 'Offline channel selection required.'
         return self._selected_channels
 
+    @property
+    def mode(self):
+        return self._mode.name
+
 
 if __name__ == '__main__':
     from preprocess import get_epochs_from_raw_with_gui
