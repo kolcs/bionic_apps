@@ -578,7 +578,7 @@ def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=Tr
 class ArtefactFilter:
 
     def __init__(self, apply_frequency_filter=True, filter_low=0.5, filter_high=45,
-                 thresholds=None, copy=False, apply_avg_reference=True, verbose=True):
+                 thresholds=None, apply_avg_reference=True, verbose=True):
         """FASTER algorithm for artefact filtering
 
         The object, responsible for storing parameters (such as ICA weights)
@@ -599,9 +599,6 @@ class ArtefactFilter:
             Can be given as an array of 4 elements, where the n-th element
             is the threshold of the n-th step of FASTER algorithm. If a
             threshold is set to 0, it means that actual step will be left out.
-        copy : bool
-            Determines if to work on the actual data, or to make a copy of it,
-            and return with it
         verbose :
             If true, display more information on the command line during filtering
         apply_avg_reference : bool
@@ -613,10 +610,10 @@ class ArtefactFilter:
         self._ica = None
         self._ica_scores = None
         self._params = None
-        self._bad_channels = None
-        self.apply_frequency_filter = apply_frequency_filter
-        self.filter_low = filter_low
-        self.filter_high = filter_high
+        self.bad_channels = None
+        self._apply_frequency_filter = apply_frequency_filter
+        self._filter_low = filter_low
+        self._filter_high = filter_high
         if thresholds is not None:
             if isinstance(thresholds, (int, float)):
                 self.thresholds = [thresholds] * 4
@@ -624,9 +621,9 @@ class ArtefactFilter:
                 self.thresholds = thresholds
         else:
             self.thresholds = [3] * 4
-        self.copy = copy
-        self.verbose = verbose
-        self.apply_avg_reference = apply_avg_reference
+
+        self._verbose = verbose
+        self._apply_avg_reference = apply_avg_reference
 
     def offline_filter(self, epochs):
         """Offline Faster algorithm
@@ -645,11 +642,11 @@ class ArtefactFilter:
             The filtered epoch
         """
 
-        epochs, self._bad_channels, self._ica, self._ica_scores \
-            = run_faster(epochs, apply_frequency_filter=self.apply_frequency_filter,
-                         filter_low=self.filter_low, filter_high=self.filter_high,
-                         verbose=self.verbose, thresholds=self.thresholds,
-                         apply_avg_reference=self.apply_avg_reference
+        epochs, self.bad_channels, self._ica, self._ica_scores \
+            = run_faster(epochs, apply_frequency_filter=self._apply_frequency_filter,
+                         filter_low=self._filter_low, filter_high=self._filter_high,
+                         verbose=self._verbose, thresholds=self.thresholds,
+                         apply_avg_reference=self._apply_avg_reference
                          )
         self._info = epochs.info
         return epochs
@@ -666,7 +663,7 @@ class ArtefactFilter:
             A data to filter, (with the previously saved parameters during offline filtering)
         """
 
-        if self._ica is None or self._info is None or self._bad_channels is None:
+        if self._ica is None or self._info is None or self.bad_channels is None:
             raise Exception("offline filter should be applied before")
 
         if type(data) is np.ndarray:  # real online
@@ -679,13 +676,13 @@ class ArtefactFilter:
             epoch.load_data()
             return_ndarray = False
 
-        filtered_epoch = online_faster(epoch, self._bad_channels, self._ica, self._ica_scores,
-                                       apply_frequency_filter=self.apply_frequency_filter,
-                                       filter_low=self.filter_low,
-                                       filter_high=self.filter_high,
+        filtered_epoch = online_faster(epoch, self.bad_channels, self._ica, self._ica_scores,
+                                       apply_frequency_filter=self._apply_frequency_filter,
+                                       filter_low=self._filter_low,
+                                       filter_high=self._filter_high,
                                        thresholds=[self.thresholds[0], self.thresholds[2]],
-                                       apply_avg_reference=self.apply_avg_reference,
-                                       verbose=self.verbose)
+                                       apply_avg_reference=self._apply_avg_reference,
+                                       verbose=self._verbose)
         if return_ndarray:
             return filtered_epoch.get_data()
         return filtered_epoch

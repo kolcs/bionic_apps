@@ -11,11 +11,11 @@ import numpy as np
 from joblib import Parallel, delayed
 from sklearn.model_selection import KFold
 
-import preprocess.artefact_faster as art
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC
 from gui_handler import select_file_in_explorer
-from preprocess.channel_selection import covariance_channel_selection
+from preprocess.artefact_faster import ArtefactFilter
+from preprocess.channel_selection import ChannelSelector
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
 
 EPOCH_DB = 'preprocessed_database'
@@ -927,7 +927,7 @@ class DataProcessor(DataLoader):
                  use_drop_subject_list=True, fast_load=False,
                  *,
                  filter_params=None, do_artefact_rejection=False, artefact_thresholds=None,
-                 make_channel_selection=False):
+                 make_channel_selection=False, channel_sel_kwargs=None):
         """Abstract Preprocessor for eeg files.
 
         Creates a database, which has all the required information about the eeg files.
@@ -957,6 +957,8 @@ class DataProcessor(DataLoader):
         """
         if filter_params is None:
             filter_params = {}
+        if channel_sel_kwargs is None:
+            channel_sel_kwargs = {}
 
         self._epoch_tmin = epoch_tmin
         self._epoch_tmax = epoch_tmax  # seconds
@@ -974,15 +976,12 @@ class DataProcessor(DataLoader):
         self._proc_db_filenames = dict()
         self._proc_db_source = str()
 
-        self._do_artefact_rejection = do_artefact_rejection
         self._mimic_online_method = False
 
-        if self._do_artefact_rejection:
-            self.artefact_filter = art.ArtefactFilter(thresholds=artefact_thresholds, apply_frequency_filter=False)
-        else:
-            self.artefact_filter = None
+        self.artefact_filter = ArtefactFilter(thresholds=artefact_thresholds,
+                                              apply_frequency_filter=False) if do_artefact_rejection else None
 
-        self._make_channel_selection = make_channel_selection
+        self._channel_selector = ChannelSelector(**channel_sel_kwargs) if make_channel_selection else None
 
         super(DataProcessor, self).__init__(base_dir, use_drop_subject_list)
 
@@ -1024,9 +1023,9 @@ class DataProcessor(DataLoader):
         self.proc_db_path = self.proc_db_path.joinpath(self._db_type.DIR, feature_dir, filter_dir,
                                                        str(self._window_length), str(self._window_step))
         if self.artefact_filter is not None:
-            self.proc_db_path.joinpath(self.artefact_filter.__name__)
-        if self._make_channel_selection:
-            self.proc_db_path.joinpath('ch_sel')
+            self.proc_db_path = self.proc_db_path.joinpath(self.artefact_filter.__class__.__name__)
+        if self._channel_selector is not None:
+            self.proc_db_path = self.proc_db_path.joinpath(self._channel_selector.mode)
 
     def _get_windowed_features(self, epochs, task=None):
         """Feature creation from windowed data.
@@ -1050,8 +1049,9 @@ class DataProcessor(DataLoader):
         """
         if task is not None:  # only for Physionet old config
             epochs = epochs[task]
+        epochs.load_data()
 
-        if self._do_artefact_rejection:
+        if self.artefact_filter is not None:
             if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
                 raise NotImplementedError('Artefact rejection is implemented for Physionet database '
                                           'with "USE_NEW_CONFIG = True". Change it in config.py')
@@ -1060,12 +1060,18 @@ class DataProcessor(DataLoader):
                     epochs = self.artefact_filter.online_filter(epochs)
                 else:
                     epochs = self.artefact_filter.offline_filter(epochs)
-
         self.info = epochs.info
-        epochs.load_data()
 
-        if self._make_channel_selection:
-            selected_channels = covariance_channel_selection(epochs)
+        if self._channel_selector is not None:
+            if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
+                raise NotImplementedError('Channel selection is implemented for Physionet database '
+                                          'with "USE_NEW_CONFIG = True". Change it in config.py')
+            else:
+                if self._mimic_online_method:
+                    selected_channels = self._channel_selector.online_select()
+                else:
+                    exclude_channels = () if self.artefact_filter is None else self.artefact_filter.bad_channels
+                    selected_channels = self._channel_selector.offline_select(epochs, exclude_channels)
             print('Selected channels: {}'.format(selected_channels))
             epochs.pick_channels(selected_channels)
 
@@ -1109,6 +1115,7 @@ class DataProcessor(DataLoader):
 
     def _init_fast_load_data(self):
         self._proc_db_source = str(self.proc_db_path.joinpath(self.feature_type.name + '.db'))
+        # todo: https://stackoverflow.com/questions/53205897/create-directory-with-path-longer-than-260-characters-in-python
         Path(self.proc_db_path).mkdir(parents=True, exist_ok=True)
         self._feature_shape = tuple()
 
@@ -1118,13 +1125,15 @@ class DataProcessor(DataLoader):
             fastload_source = None
         n_subjects = self.get_subject_num()
 
+        ch_sel_mode = self._channel_selector.mode if self._channel_selector is not None else None
+
         if fastload_source is not None and self._fast_load and \
                 len(fastload_source) == len(SourceDB) and \
                 n_subjects == fastload_source[SourceDB.SUBJECTS] and \
                 (self._epoch_tmin, self._epoch_tmax) == fastload_source[SourceDB.EPOCH_RANGE] and \
                 self._mimic_online_method == fastload_source[SourceDB.MIMIC_ONLINE] and \
                 type(self.artefact_filter) is fastload_source[SourceDB.ARTEFACT_FILTER] and \
-                self._make_channel_selection == fastload_source[SourceDB.CHANNEL_SELECTION]:
+                ch_sel_mode == fastload_source[SourceDB.CHANNEL_SELECTION]:
 
             subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
             subject_list = [subject for subject in subject_list if subject not in self._drop_subject]
@@ -1146,7 +1155,7 @@ class DataProcessor(DataLoader):
             SourceDB.EPOCH_RANGE: (self._epoch_tmin, self._epoch_tmax),
             SourceDB.MIMIC_ONLINE: self._mimic_online_method,
             SourceDB.ARTEFACT_FILTER: type(self.artefact_filter),
-            SourceDB.CHANNEL_SELECTION: self._make_channel_selection
+            SourceDB.CHANNEL_SELECTION: self._channel_selector.mode if self._channel_selector is not None else None
         }
         save_pickle_data(self._proc_db_source, source)
 

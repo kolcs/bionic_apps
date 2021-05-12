@@ -5,7 +5,7 @@ from mne import EpochsArray, Epochs
 from numpy import ndarray
 
 from config import TTK_DB
-from preprocess import init_base_config, generate_ttk_filename, get_epochs_from_files
+from preprocess import init_base_config, generate_physionet_filenames, get_epochs_from_files
 from preprocess.artefact_faster import ArtefactFilter
 
 
@@ -34,7 +34,7 @@ class TestFaster(unittest.TestCase):
                          'Data for TTK does not exists. Can not test it.')
     def test_ttk(self):
         path = Path(init_base_config('..')).joinpath(TTK_DB.DIR).joinpath(TTK_DB.FILE_PATH)
-        file = next(generate_ttk_filename(str(path), self._subject))
+        file = next(generate_physionet_filenames(str(path), self._subject, runs=1))
         epochs = get_epochs_from_files(file, TTK_DB.TRIGGER_TASK_CONVERTER, epoch_tmin=0, epoch_tmax=4,
                                        event_id=TTK_DB.TRIGGER_EVENT_ID, preload=True, prefilter_signal=True,
                                        order=5, l_freq=1, h_freq=45)

@@ -306,7 +306,8 @@ class BCISystem(object):
                                                 use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                                 filter_params=filter_params,
                                                 do_artefact_rejection=do_artefact_rejection,
-                                                n_fold=subj_n_fold_num, shuffle=shuffle_data)
+                                                n_fold=subj_n_fold_num, shuffle=shuffle_data,
+                                                make_channel_selection=make_channel_selection)
         else:
             self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
                                                  use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
@@ -540,11 +541,11 @@ if __name__ == '__main__':
 
     bci = BCISystem()
     bci.offline_processing(
-        db_name=Databases.TTK,
+        db_name=Databases.PHYSIONET,
         feature_params=feature_extraction,
         fast_load=False,
         epoch_tmin=0, epoch_tmax=4,
-        window_length=1, window_step=.1,
+        window_length=2, window_step=.1,
         method=XvalidateMethod.SUBJECT,
         subject_list=2,
         use_drop_subject_list=True,
@@ -552,5 +553,8 @@ if __name__ == '__main__':
         filter_params=filter_params,
         classifier_type=classifier_type,
         classifier_kwargs=classifier_kwargs,
-        do_artefact_rejection=True
+        validation_split=0,
+        mimic_online_method=False,
+        do_artefact_rejection=False,
+        make_channel_selection=False
     )

@@ -49,7 +49,7 @@ def covariance_channel_selection(epochs, Ns=10, Ntr=10):
     sort_index = np.argsort(-channel_count)
     selected_channels = all_channel_names[sort_index[:Ntr]]
 
-    return selected_channels
+    return list(selected_channels)
 
 
 class ChannelSelector:
@@ -70,8 +70,8 @@ class ChannelSelector:
         self._selected_channels = list()
         self._mode = mode
 
-    def offline_select(self, epochs):
-        epochs = epochs.copy().pick('eeg')
+    def offline_select(self, epochs, exclude_channels=()):
+        epochs = epochs.copy().pick('eeg', exclude=exclude_channels)
         if self._mode == ChannelSelMode.COVARIANCE:
             self._selected_channels = covariance_channel_selection(epochs, self._channel_num, self._channel_num)
         else:
