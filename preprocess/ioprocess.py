@@ -72,6 +72,12 @@ def get_epochs_from_raw_with_gui(epoch_tmin=0, epoch_tmax=4, baseline=(None, .1)
     return get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id)
 
 
+def check_path_limit(path):
+    assert len(path.name) < 255, f'Pathname exceeds 255 limit with {path.name} part.'
+    if path.parent != path:
+        check_path_limit(path.parent)
+
+
 def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs=1, run_format_str=None):
     """Filename generator for one subject
 
@@ -1013,15 +1019,16 @@ class DataProcessor(DataLoader):
                 self.feature_type = feature
             else:
                 raise NotImplementedError('Feature {} is not implemented'.format(feature))
-        feature_dir = self.feature_type.name + str(list(self.feature_kwargs.values())).replace(' ', '')
-        filter_dir = str(list(self._filter_params.values())).replace(' ', '').replace('[', '').replace(']', '')
+        feature_dir = self.feature_type.name + str(self.feature_kwargs).replace(': ', '=').replace("'", '')
+        filter_dir = str(self._filter_params).replace(': ', '=').replace("'", '').strip('{').strip('}')
 
         if not is_platform('win') and Path(DIR_FEATURE_DB).is_absolute():
             self.proc_db_path = Path(DIR_FEATURE_DB)
         else:
             self.proc_db_path = self._base_dir.joinpath(DIR_FEATURE_DB)
         self.proc_db_path = self.proc_db_path.joinpath(self._db_type.DIR, feature_dir, filter_dir,
-                                                       str(self._window_length), str(self._window_step))
+                                                       'win_len=' + str(self._window_length),
+                                                       'win_step=' + str(self._window_step))
         if self.artefact_filter is not None:
             self.proc_db_path = self.proc_db_path.joinpath(self.artefact_filter.__class__.__name__)
         if self._channel_selector is not None:
@@ -1114,8 +1121,9 @@ class DataProcessor(DataLoader):
         return task_dict
 
     def _init_fast_load_data(self):
-        self._proc_db_source = str(self.proc_db_path.joinpath(self.feature_type.name + '.db'))
-        # todo: https://stackoverflow.com/questions/53205897/create-directory-with-path-longer-than-260-characters-in-python
+        proc_db_source = self.proc_db_path.joinpath(self.feature_type.name + '.db')
+        check_path_limit(proc_db_source)
+        self._proc_db_source = str(proc_db_source)
         Path(self.proc_db_path).mkdir(parents=True, exist_ok=True)
         self._feature_shape = tuple()
 
