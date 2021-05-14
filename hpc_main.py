@@ -6,7 +6,7 @@ from shutil import rmtree
 import numpy as np
 
 from BCISystem import BCISystem, Databases, XvalidateMethod, FeatureType, ClassifierType
-from preprocess import save_to_json, load_from_json, OfflineDataPreprocessor, init_base_config, ioprocess
+from preprocess import save_to_json, load_from_json, OfflineDataPreprocessor, ioprocess
 
 CHECKPOINT = 'checkpoint.json'
 FEATURE_DIR = 'feature_dir'
@@ -26,7 +26,6 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
 
     # generate database if not available
     proc = OfflineDataPreprocessor(
-        init_base_config(),
         epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
         window_length=window_length, window_step=window_step,
         fast_load=fast_load, filter_params=filter_params,

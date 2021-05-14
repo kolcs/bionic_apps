@@ -16,7 +16,7 @@ from ai import init_classifier, ClassifierType
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, OnlineDataPreprocessor, SubjectKFold, \
-    init_base_config, FeatureType, FeatureExtractor, Databases, DataHandler, is_platform
+    FeatureType, FeatureExtractor, Databases, DataHandler, is_platform
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -90,8 +90,7 @@ class BCISystem(object):
         make_logs : bool
             To make log files or not.
         """
-        self._base_dir = init_base_config()
-        self._proc = OfflineDataPreprocessor('.')
+        self._proc = OfflineDataPreprocessor()
         self._log = False
         self._log_file_name = log_file
 
@@ -302,14 +301,14 @@ class BCISystem(object):
 
         if mimic_online_method:
             subj_n_fold_num = 5 if subj_n_fold_num is None else subj_n_fold_num
-            self._proc = OnlineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
+            self._proc = OnlineDataPreprocessor(epoch_tmin, epoch_tmax, window_length, window_step,
                                                 use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                                 filter_params=filter_params,
                                                 do_artefact_rejection=do_artefact_rejection,
                                                 n_fold=subj_n_fold_num, shuffle=shuffle_data,
                                                 make_channel_selection=make_channel_selection)
         else:
-            self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
+            self._proc = OfflineDataPreprocessor(epoch_tmin, epoch_tmax, window_length, window_step,
                                                  use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                                  select_eeg_file=select_eeg_file,
                                                  eeg_file=train_file, filter_params=filter_params,
@@ -450,7 +449,7 @@ class BCISystem(object):
         if db_name == Databases.GAME_PAR_D:
             make_binary_classification = True
 
-        self._proc = OfflineDataPreprocessor(self._base_dir, epoch_tmin, epoch_tmax,
+        self._proc = OfflineDataPreprocessor(epoch_tmin, epoch_tmax,
                                              window_length, pretrain_window_step,
                                              fast_load=False, select_eeg_file=True, eeg_file=train_file,
                                              filter_params=filter_params, do_artefact_rejection=do_artefact_rejection)

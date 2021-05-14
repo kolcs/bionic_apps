@@ -20,7 +20,7 @@ class TestOfflinePreprocessor(unittest.TestCase):
         if path.exists():
             print('Removing old files. It may take longer...')
             rmtree(str(path))
-        cls.epoch_proc = OfflineDataPreprocessor(str(cls._path))
+        cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
 
     # def setUp(self):
     #     pass
@@ -71,7 +71,7 @@ class TestOnlinePreprocessor(unittest.TestCase):
         if path.exists():
             print('Removing old files. It may take longer...')
             rmtree(str(path))
-        cls.epoch_proc = OnlineDataPreprocessor(str(cls._path)).use_physionet()
+        cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..').use_physionet()
 
     def _check_method(self, subj):
         feature_extraction = dict(
@@ -98,7 +98,7 @@ class TestOfflineSubjectKFold(unittest.TestCase):
     def setUpClass(cls):
         cls._path = Path(init_base_config('..'))
         cls.kfold_num = 5
-        cls.epoch_proc = OfflineDataPreprocessor(str(cls._path))
+        cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
 
     # def setUp(self):
     #     pass
@@ -230,7 +230,7 @@ class TestOnlineSubjectKFold(unittest.TestCase):
     def setUpClass(cls):
         path = Path(init_base_config('..'))
         cls.kfold_num = 5
-        cls.epoch_proc = OnlineDataPreprocessor(str(path))
+        cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..')
 
         path = path.joinpath(DIR_FEATURE_DB)
         if path.exists():
@@ -323,9 +323,8 @@ class TestOnlineSubjectKFold(unittest.TestCase):
 class TestDataHandler(unittest.TestCase):
 
     def test_big_data(self):
-        path = Path(init_base_config('..'))
         subject_list = [1, 2]
-        epoch_proc = OfflineDataPreprocessor(str(path))
+        epoch_proc = OfflineDataPreprocessor(base_config_path='..')
         epoch_proc.use_game_par_d()
         feature_extraction = dict(
             feature_type=FeatureType.SPATIAL_AVG_FFT_POW,

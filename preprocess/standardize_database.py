@@ -5,10 +5,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from mne.externals.pymatreader import read_mat
 
-from config import BciCompIV2a, BciCompIV2b, Physionet, IMAGINED_MOVEMENT, BOTH_LEGS
+from config import Physionet, IMAGINED_MOVEMENT, BOTH_LEGS
 from gui_handler import select_folder_in_explorer
-from preprocess import DataLoader, init_base_config, \
-    generate_ttk_filename, generate_physionet_filenames, generate_bci_comp_4_2a_filename
+from preprocess import DataLoader
 
 
 def get_filenames_from_dir(ext):
@@ -20,12 +19,9 @@ def get_filenames_from_dir(ext):
 
 
 def convert_bcicompIV2a():
-    base_dir = Path(init_base_config('..'))
-    db = BciCompIV2a
-    for i in range(db.SUBJECT_NUM):
-        subj = i + 1
-        filename = next(
-            generate_bci_comp_4_2a_filename(str(base_dir.joinpath(db.DIR, db.FILE_PATH)), subj))
+    loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2a()
+    for subj in loader.get_subject_list():
+        filename = next(loader.get_filenames_for_subject(subj))
         raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
 
         # correcting eeg channel names
@@ -38,14 +34,10 @@ def convert_bcicompIV2a():
 
 
 def convert_bcicompIV2b():
-    base_dir = Path(init_base_config('..'))
-    db = BciCompIV2b
-    for subj in range(db.SUBJECT_NUM):
+    loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2a()
+    for subj in loader.get_subject_list():
         # file indexing: one subject has many records in different time-period
-        s = subj // 3 + 1
-        rec = subj % 3 + 1
-        filename = next(
-            generate_ttk_filename(str(base_dir.joinpath(db.DIR, db.FILE_PATH)), s, rec))
+        filename = next(loader.get_filenames_for_subject(subj))
         raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
         raw.rename_channels(lambda x: x.strip('EEG:'))
         filename = filename.strip('.gdf') + '_raw.fif'
@@ -108,7 +100,8 @@ def convert_giga():
 
 
 def convert_physionet():
-    base_dir = Path(init_base_config('..')).joinpath(Physionet.DIR)
+    loader = DataLoader('..', use_drop_subject_list=False).use_physionet()
+    assert not loader._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
     for s in range(Physionet.SUBJECT_NUM):
         subj = s + 1
         rec_nums = Physionet.TYPE_TO_REC[IMAGINED_MOVEMENT]
@@ -116,7 +109,7 @@ def convert_physionet():
         new_rec_num = 1
         for rec in rec_nums:
             filename = next(
-                generate_physionet_filenames(str(base_dir.joinpath(Physionet.FILE_PATH)), subj, rec)
+                loader._generate_physionet_filenames(subj, rec)
             )
             trigger_id = Physionet.TRIGGER_CONV_REC_TO_TASK[rec]
             raw = mne.io.read_raw(filename, preload=True)
@@ -137,7 +130,8 @@ def convert_physionet():
             if len(raw_list) == 2:
                 raw = mne.io.concatenate_raws(raw_list)
                 raw_list = list()
-                file = base_dir.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, new_rec_num))
+                file = loader.get_data_path().joinpath('S{:03d}'.format(subj),
+                                                       'S{:03d}R{:02d}_raw.fif'.format(subj, new_rec_num))
                 file.parent.mkdir(parents=True, exist_ok=True)
                 new_rec_num += 1
                 raw.save(str(file), overwrite=True)
@@ -172,12 +166,11 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, plot=F
 
 
 def convert_ttk():
-    base_dir = Path(init_base_config('..'))
-    proc = DataLoader(str(base_dir)).use_ttk_db()
-    assert not proc._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
+    loader = DataLoader('..', use_drop_subject_list=True).use_ttk_db()
+    assert not loader._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
 
-    for subj in proc.get_subject_list():
-        filename = next(generate_ttk_filename(proc.get_file_path_for_db_filename_gen(), subj))
+    for subj in loader.get_subject_list():
+        filename = next(loader.get_filenames_for_subject(subj))
         raw = mne.io.read_raw(filename, preload=True)
 
         start_mask = (raw.annotations.description == 'Response/R  1') | (raw.annotations.description == 'Stimulus/S 16')
@@ -204,22 +197,21 @@ def convert_ttk():
             start_mask[start_ind[-3]] = False  # wrong session, with no end...
             end_mask[end_ind[0]] = False
 
-        _save_sessions(subj, raw, start_mask, end_mask, proc.get_data_path(), trigger_num)
+        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
 
 
 def convert_bad_ttk():
-    base_dir = Path(init_base_config('..'))
-    proc = DataLoader(str(base_dir)).use_ttk_db()
-    assert not proc._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
+    loader = DataLoader('..', use_drop_subject_list=False).use_ttk_db()
+    assert not loader._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
 
     for subj in [1, 9, 17]:
         if subj == 1:
-            filenames = generate_ttk_filename(proc.get_file_path_for_db_filename_gen(), subj, [1, 2, 3])
+            filenames = loader._generate_ttk_filename(subj, [1, 2, 3])
         elif subj == 9:
             # rec02.vhdr file is corrupted...
-            filenames = generate_ttk_filename(proc.get_file_path_for_db_filename_gen(), subj, [1])
+            filenames = loader._generate_ttk_filename(subj, [1])
         else:
-            filenames = generate_ttk_filename(proc.get_file_path_for_db_filename_gen(), subj, [1, 2])
+            filenames = loader._generate_ttk_filename(subj, [1, 2])
 
         raw = mne.io.concatenate_raws([mne.io.read_raw(file) for file in filenames])
 
@@ -245,7 +237,7 @@ def convert_bad_ttk():
             end_mask[end_ind[5]] = False  # wrong session
             trigger_num = 12
 
-        _save_sessions(subj, raw, start_mask, end_mask, proc.get_data_path(), trigger_num)
+        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
 
 
 def convert_all_ttk():
@@ -254,4 +246,5 @@ def convert_all_ttk():
 
 
 if __name__ == '__main__':
+    convert_physionet()
     convert_all_ttk()

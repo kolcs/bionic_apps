@@ -62,10 +62,9 @@ def open_raw_with_gui():
 
 
 def get_epochs_from_raw_with_gui(epoch_tmin=0, epoch_tmax=4, baseline=(None, .1)):
-    base_dir = init_base_config()
     file = select_file_in_explorer(init_base_config())
     db_name = get_db_name_by_filename(file)
-    loader = DataLoader(base_dir).use_db(db_name)
+    loader = DataLoader().use_db(db_name)
     raw = mne.io.read_raw(file)
     task_dict = loader.get_task_dict()
     event_id = loader.get_event_id()
@@ -76,114 +75,6 @@ def check_path_limit(path):
     assert len(path.name) < 255, f'Pathname exceeds 255 limit with {path.name} part.'
     if path.parent != path:
         check_path_limit(path.parent)
-
-
-def _generate_filenames_for_subject(file_path, subject, subject_format_str, runs=1, run_format_str=None):
-    """Filename generator for one subject
-
-    Generating filenames from a given string with {subj} and {rec} which will be replaced.
-
-    Parameters
-    ----------
-    file_path : str
-        special string with {subj} and {rec} substrings
-    subject : int
-        subject number
-    subject_format_str : str
-        The string which will be formatted.
-    runs : int or list of int
-        list of sessions
-    run_format_str : str
-        The string which will be formatted.
-
-    Yields
-    -------
-    str
-        filename for a subject with given runs
-
-    """
-    if type(runs) is not list:
-        runs = [runs]
-
-    for i in runs:
-        f = file_path
-        f = f.replace('{subj}', subject_format_str.format(subject))
-        if run_format_str is not None:
-            f = f.replace('{rec}', run_format_str.format(i))
-        yield f
-
-
-def generate_physionet_filenames(file_path, subject, runs):
-    """Filename generator for pyhsionet db
-
-    Generating filenames from a given string with {subj} and {rec} which are will be replaced.
-
-    Parameters
-    ----------
-    file_path : str
-        special string with {subj} and {rec} substrings
-    subject : int
-        subject number
-    runs : int or list of int
-        list of sessions
-
-    Returns
-    -------
-    rec : generator
-        filenames for a subject with given runs
-
-    """
-    return _generate_filenames_for_subject(file_path, subject, '{:03d}', runs, '{:02d}')
-
-
-def generate_pilot_filename(file_path, subject, runs=1):
-    """Filename generator for pilot db
-
-        Generating filenames from a given string with {subj} and {rec} which are will be replaced.
-
-        Parameters
-        ----------
-        file_path : str
-            special string with {subj} and {rec} substrings
-        subject : int
-            subject number
-        runs : int or list of int
-            list of sessions
-
-        Returns
-        -------
-        rec : generator
-            filenames for a subject with given runs
-
-        """
-    return _generate_filenames_for_subject(file_path, subject, '{}', runs, '{:02d}')
-
-
-def generate_ttk_filename(file_path, subject, runs=1):
-    """Filename generator for pilot db
-
-        Generating filenames from a given string with {subj} and {rec} which are will be replaced.
-
-        Parameters
-        ----------
-        file_path : str
-            special string with {subj} and {rec} substrings
-        subject : int
-            subject number
-        runs : int or list of int
-            list of sessions
-
-        Returns
-        -------
-        rec : generator
-            filenames for a subject with given runs
-
-        """
-    return _generate_filenames_for_subject(file_path, subject, '{:02d}', runs, '{:02d}')
-
-
-def generate_bci_comp_4_2a_filename(file_path, subject):
-    return _generate_filenames_for_subject(file_path, subject, '{:02d}')
 
 
 def load_pickle_data(filename):
@@ -702,19 +593,19 @@ class SubjectKFold(object):
 
 class DataLoader:
 
-    def __init__(self, base_dir, use_drop_subject_list=True):
+    def __init__(self, base_config_path='.', use_drop_subject_list=True):
         """Data loader
 
         Helper class for loading different databases from HardDrive.
 
         Parameters
         ----------
-        base_dir : str
-            Path for master database folder.
+        base_config_path : str
+            Path for bci_system.cfg
         use_drop_subject_list : bool
             Whether to use drop subject list from config file or not?
         """
-        self._base_dir = Path(base_dir)
+        self._base_dir = Path(init_base_config(base_config_path))
         self.info = mne.Info()
 
         self._data_path = Path()
@@ -874,10 +765,6 @@ class DataLoader:
         assert hasattr(self._db_type, attr), '{} has no {} attribute'.format(self._db_type, attr)
         return self._db_type.COMMAND_CONV
 
-    def is_name(self, db_name):
-        self._validate_db_type()
-        return db_name in str(self._db_type)
-
     def get_subject_num(self):
         """Returns the number of available subjects in Database"""
         self._validate_db_type()
@@ -911,9 +798,71 @@ class DataLoader:
                 print('Dropping subject {}'.format(subj))
         return subject_list
 
-    def get_file_path_for_db_filename_gen(self):
-        self._validate_db_type()
-        return str(self._data_path.joinpath(self._db_type.FILE_PATH))
+    def _generate_filenames_for_subject(self, subject, subject_format_str, runs=1, run_format_str=None):
+        if type(runs) is not list:
+            runs = [runs]
+
+        for i in runs:
+            f = str(self._data_path.joinpath(self._db_type.FILE_PATH))
+            f = f.replace('{subj}', subject_format_str.format(subject))
+            if run_format_str is not None:
+                f = f.replace('{rec}', run_format_str.format(i))
+            yield f
+
+    def _generate_physionet_filenames(self, subject, runs):
+        return self._generate_filenames_for_subject(subject, '{:03d}', runs, '{:02d}')
+
+    def _generate_pilot_filename(self, subject, runs=1):
+        return self._generate_filenames_for_subject(subject, '{}', runs, '{:02d}')
+
+    def _generate_ttk_filename(self, subject, runs=1):
+        return self._generate_filenames_for_subject(subject, '{:02d}', runs, '{:02d}')
+
+    def _generate_bci_comp_4_2a_filename(self, subject):
+        return self._generate_filenames_for_subject(subject, '{:02d}')
+
+    def get_filenames_for_subject(self, subj):
+        """Generating filenames for a defined subject in a database.
+
+        Parameters
+        ----------
+        subj : int
+            Subject number in database.
+
+        Returns
+        -------
+        fn_gen : list of str, generator of str
+            List or generator containing all of the files corresponding to the subject number.
+        """
+        subj_num = self.get_subject_num()
+        assert subj <= subj_num, f'Subject{subj} is out of subject range. Last subject in db is {subj_num}'
+        if hasattr(self._db_type, 'USE_NEW_CONFIG') and self._db_type.USE_NEW_CONFIG:
+            if self._db_type in [Physionet, TTK_DB]:
+                pattern = self._db_type.FILE_PATH
+                pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
+                pattern = pattern.replace('{rec}', '*')
+                fn_gen = list(sorted(self._data_path.rglob(pattern)))
+                assert len(fn_gen) > 0, f'No files were found. Try to set USE_NEW_CONFIG=False ' \
+                                        f'for {self._db_type} or download the latest database.'
+            else:
+                raise NotImplementedError('Filename generation for {} with USE_NEW_CONFIG=True '
+                                          'is not implemented.'.format(self._db_type))
+        else:
+            if self._db_type is TTK_DB:
+                fn_gen = self._generate_ttk_filename(subj)
+            elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD,
+                                   ParadigmC]:
+                fn_gen = self._generate_pilot_filename(subj)
+            elif self._db_type in [BciCompIV1, BciCompIV2a]:
+                fn_gen = self._generate_ttk_filename(subj)
+            elif self._db_type is BciCompIV2b:
+                s_ind = subj - 1
+                s = s_ind // 3 + 1
+                rec = s_ind % 3 + 1
+                fn_gen = self._generate_ttk_filename(s, rec)
+            else:
+                raise NotImplementedError('Filename generation for {} is not implemented'.format(self._db_type))
+        return fn_gen
 
     def get_task_dict(self):
         self._validate_db_type()
@@ -929,9 +878,10 @@ class DataLoader:
 
 
 class DataProcessor(DataLoader):
-    def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
+    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=False,
                  *,
+                 base_config_path='.',
                  filter_params=None, do_artefact_rejection=False, artefact_thresholds=None,
                  make_channel_selection=False, channel_sel_kwargs=None):
         """Abstract Preprocessor for eeg files.
@@ -940,8 +890,6 @@ class DataProcessor(DataLoader):
 
         Parameters
         ----------
-        base_dir : str
-            Path for master database folder.
         epoch_tmin : float
             Defining epoch start from trigger signal in seconds.
         epoch_tmax : float
@@ -954,6 +902,8 @@ class DataProcessor(DataLoader):
             Whether to use drop subject list from config file or not?
         fast_load : bool
             Handle with extreme care! It loads the result of a previous preprocess task.
+        base_config_path : str
+            Path for bci_system.cfg
         filter_params : dict, optional
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         do_artefact_rejection : bool
@@ -989,7 +939,7 @@ class DataProcessor(DataLoader):
 
         self._channel_selector = ChannelSelector(**channel_sel_kwargs) if make_channel_selection else None
 
-        super(DataProcessor, self).__init__(base_dir, use_drop_subject_list)
+        super(DataProcessor, self).__init__(base_config_path, use_drop_subject_list)
 
     def _create_db(self):
         raise NotImplementedError
@@ -1206,9 +1156,10 @@ class DataProcessor(DataLoader):
 
 class OfflineDataPreprocessor(DataProcessor):
 
-    def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
+    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True,
                  *,
+                 base_config_path='.',
                  select_eeg_file=False, eeg_file=None, filter_params=None,
                  do_artefact_rejection=False, artefact_thresholds=None,
                  make_channel_selection=False):
@@ -1218,8 +1169,6 @@ class OfflineDataPreprocessor(DataProcessor):
 
         Parameters
         ----------
-        base_dir : str
-            Path for master database folder.
         epoch_tmin : float
             Defining epoch start from trigger signal in seconds.
         epoch_tmax : float
@@ -1232,6 +1181,8 @@ class OfflineDataPreprocessor(DataProcessor):
             Whether to use drop subject list from config file or not?
         fast_load : bool
             Handle with extreme care! It loads the result of a previous preprocess task.
+        base_config_path : str
+            Path for bci_system.cfg
         select_eeg_file : bool
             To select or not an eeg file.
         eeg_file : str, optional
@@ -1247,8 +1198,9 @@ class OfflineDataPreprocessor(DataProcessor):
         self._select_one_file = select_eeg_file
 
         super(OfflineDataPreprocessor, self).__init__(
-            base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
+            epoch_tmin, epoch_tmax, window_length, window_step,
             use_drop_subject_list, fast_load,
+            base_config_path=base_config_path,
             filter_params=filter_params,
             do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds,
             make_channel_selection=make_channel_selection
@@ -1305,8 +1257,7 @@ class OfflineDataPreprocessor(DataProcessor):
         for task in keys:
             recs = self._db_type.TASK_TO_REC.get(task)
             task_dict = self._convert_task(recs[0])
-            filenames = generate_physionet_filenames(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj,
-                                                     recs)
+            filenames = self._generate_physionet_filenames(subj, recs)
             epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
                                            prefilter_signal=len(self._filter_params) > 0,
                                            **self._filter_params)
@@ -1318,35 +1269,11 @@ class OfflineDataPreprocessor(DataProcessor):
 
     def _create_x_db(self, subj):
         task_dict = self._convert_task()
-        if not hasattr(self._db_type, 'USE_NEW_CONFIG') or not self._db_type.USE_NEW_CONFIG:
-            cut_real_mov = REST in task_dict
-            if self._db_type is TTK_DB:
-                fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-            elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD,
-                                   ParadigmC]:
-                fn_gen = generate_pilot_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-            elif self._db_type in [BciCompIV1, BciCompIV2a]:
-                fn_gen = generate_bci_comp_4_2a_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), subj)
-            elif self._db_type is BciCompIV2b:
-                s_ind = subj - 1
-                s = s_ind // 3 + 1
-                rec = s_ind % 3 + 1
-
-                fn_gen = generate_ttk_filename(str(self._data_path.joinpath(self._db_type.FILE_PATH)), s, rec)
-            else:
-                raise NotImplementedError('Database loading for {} is not implemented'.format(self._db_type))
-        else:  # self._db_type.USE_NEW_CONFIG == True
+        fn_gen = self.get_filenames_for_subject(subj)
+        if hasattr(self._db_type, 'USE_NEW_CONFIG') and self._db_type.USE_NEW_CONFIG:
             cut_real_mov = False
-            if self._db_type in [Physionet, TTK_DB]:
-                pattern = self._db_type.FILE_PATH
-                pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
-                pattern = pattern.replace('{rec}', '*')
-                fn_gen = list(sorted(self._data_path.rglob(pattern)))
-                assert len(fn_gen) > 0, f'No files were found. Try to set USE_NEW_CONFIG=False ' \
-                                        f'for {self._db_type} or download the leatest database.'
-            else:
-                raise NotImplementedError('Database loading for {} with USE_NEW_CONFIG=True '
-                                          'is not implemented.'.format(self._db_type))
+        else:
+            cut_real_mov = REST in task_dict
 
         epochs = get_epochs_from_files(fn_gen, task_dict,
                                        self._epoch_tmin, self._epoch_tmax,
@@ -1430,9 +1357,10 @@ class OfflineDataPreprocessor(DataProcessor):
 
 class OnlineDataPreprocessor(DataProcessor):
 
-    def __init__(self, base_dir, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
+    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True,
                  *,
+                 base_config_path='.',
                  filter_params=None, do_artefact_rejection=True, artefact_thresholds=None,
                  make_channel_selection=False,
                  n_fold=5, shuffle=True):
@@ -1443,8 +1371,6 @@ class OnlineDataPreprocessor(DataProcessor):
 
         Parameters
         ----------
-        base_dir : str
-            Path for master database folder.
         epoch_tmin : float
             Defining epoch start from trigger signal in seconds.
         epoch_tmax : float
@@ -1455,6 +1381,8 @@ class OnlineDataPreprocessor(DataProcessor):
             Step of sliding window in seconds.
         use_drop_subject_list : bool
             Whether to use drop subject list from config file or not?
+        base_config_path : str
+            Path for bci_system.cfg
         filter_params : dict, optional
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         do_artefact_rejection : bool
@@ -1471,8 +1399,9 @@ class OnlineDataPreprocessor(DataProcessor):
         self._shuffle = shuffle
 
         super(OnlineDataPreprocessor, self).__init__(
-            base_dir, epoch_tmin, epoch_tmax, window_length, window_step,
+            epoch_tmin, epoch_tmax, window_length, window_step,
             use_drop_subject_list, fast_load,
+            base_config_path=base_config_path,
             filter_params=filter_params,
             do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds,
             make_channel_selection=make_channel_selection
@@ -1524,10 +1453,7 @@ class OnlineDataPreprocessor(DataProcessor):
         return self._get_windowed_features(epochs)
 
     def _generate_online_db(self, subj):
-        pattern = self._db_type.FILE_PATH
-        pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
-        pattern = pattern.replace('{rec}', '*')
-        session_files = np.array(sorted(self._data_path.rglob(pattern)))
+        session_files = np.asarray(self.get_filenames_for_subject(subj))
 
         kfold_data = list()
         self._n_fold = min(len(session_files), self._n_fold)

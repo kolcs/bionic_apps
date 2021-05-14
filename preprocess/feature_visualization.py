@@ -1,6 +1,6 @@
 import numpy as np
 
-from preprocess import OfflineDataPreprocessor, init_base_config, FeatureType, Databases
+from preprocess import OfflineDataPreprocessor, FeatureType, Databases
 
 
 def extract_features(feature, db_name,
@@ -14,7 +14,6 @@ def extract_features(feature, db_name,
         filter_params = {}
 
     proc = OfflineDataPreprocessor(
-        init_base_config(),
         epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
         window_length=window_length, window_step=window_step,
         fast_load=fast_load, filter_params=filter_params,
@@ -22,7 +21,7 @@ def extract_features(feature, db_name,
     )
     proc.use_db(db_name)
     if subject_list is None:
-        subject_list = list(np.arange(proc.get_subject_num()) + 1)
+        subject_list = proc.get_subject_list()
     proc.run(subject_list, **feature)
     return proc
 
