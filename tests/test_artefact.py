@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from time import time
 
 from mne import EpochsArray, Epochs
 from numpy import ndarray
@@ -17,7 +18,7 @@ class TestFaster(unittest.TestCase):
 
     def _check_method(self, epochs):
         n_epochs = len(epochs)
-        split_ind = n_epochs - n_epochs // 4
+        split_ind = n_epochs - 1
         offline_epochs = epochs[:split_ind].copy()
         online_epochs = epochs[split_ind:].copy()
 
@@ -26,8 +27,12 @@ class TestFaster(unittest.TestCase):
         print('\n*******************************************************'
               '\nOnline FASTER'
               '\n*******************************************************')
+        tic = time()
         filt_epochs = self.faster.online_filter(online_epochs.get_data())
+        toc = time()
         self.assertIsInstance(filt_epochs, ndarray)
+        self.assertLess(toc - tic, .1, 'Online FASTER is not fast enough...')
+        print(f'Total time spent in online: {toc - tic}')
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(TTK_DB.DIR).exists(),
                          'Data for TTK does not exists. Can not test it.')
