@@ -371,3 +371,21 @@ class BciCompIV1:
     TRIGGER_EVENT_ID = 'auto'
 
     DROP_SUBJECTS = []
+
+class EmotivParC:
+    DIR = "emotiv/paradigmC/"
+    FILE_PATH = 'sub-P{subj}_run-{rec}_eeg.xdf'
+
+    TRIGGER_TASK_CONVERTER = {  # imagined
+        # REST: 1,
+        # EYE_OPEN: 2,
+        # EYE_CLOSED: 3,
+        RIGHT_HAND: 5,
+        LEFT_HAND: 7,
+        CALM: 9,
+        BOTH_LEGS: 11
+    }
+
+    TRIGGER_EVENT_ID = {'S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+
+    DROP_SUBJECTS = [1, 2, 3]
