@@ -9,7 +9,7 @@ def show_message(message, title='BCI'):
 
 
 def select_file_in_explorer(init_dir='./', message='Select an EEG file!', file_type="EEG files",
-                            ext=".vhdr;*.edf;*.gdf;*.fif", no_file_error=True):
+                            ext=".vhdr;*.edf;*.gdf;*.fif;*.xdf", no_file_error=True):
     root = Tk()
     root.withdraw()
     messagebox.showinfo(title='BCI', message=message)

@@ -372,6 +372,7 @@ class BciCompIV1:
 
     DROP_SUBJECTS = []
 
+
 class EmotivParC:
     DIR = "emotiv/paradigmC/"
     FILE_PATH = 'sub-P{subj}_run-{rec}_eeg.xdf'

@@ -13,7 +13,6 @@ from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC, EmotivParC
-from emotiv.mne_import_xdf import read_raw_xdf
 from gui_handler import select_file_in_explorer
 from preprocess.artefact_faster import ArtefactFilter
 from preprocess.channel_selection import ChannelSelector
@@ -269,6 +268,7 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     raw_list = list()
     for file in filenames:
         if Path(file).suffix == '.xdf':
+            from emotiv.mne_import_xdf import read_raw_xdf
             raw_list.append(read_raw_xdf(file))
         else:
             raw_list.append(mne.io.read_raw(file, preload=False))

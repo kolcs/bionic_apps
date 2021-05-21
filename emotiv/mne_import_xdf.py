@@ -2,7 +2,6 @@ import gzip
 import logging
 import struct
 import xml.etree.ElementTree as ET
-from glob import glob
 from pathlib import Path
 
 import mne
@@ -261,47 +260,37 @@ def _read_varlen_int(f):
 
 
 if __name__ == "__main__":
+    from preprocess import select_file_in_explorer, init_base_config
 
-    # fnames = glob("C:/Users/User/Documents/Rita/1etem/5.szemeszter/CurrentStudy/sub-P001/ses-S001/eeg/sub-P001_ses-S001_task-Default_run-001_eeg.xdf")
-    # fnames = glob("C:/Users/User/Documents/Rita/1etem/5.szemeszter/CurrentStudy/Keyboard only/sub-P001/ses-S001/eeg/sub-P001_ses-S001_task-Default_run-001_eeg.xdf")
-    # fnames = glob("C:/Users/User/Documents/Rita/1etem/5.szemeszter/CurrentStudy/EEG_w_Keyboard/sub-P001/ses-S001/eeg/sub-P001_ses-S001_task-Default_run-001_eeg.xdf")
-    # fnames = glob("C:/Users/User/Documents/Rita/1etem/5.szemeszter/BCI FOT/xdf_sample.xdf")
+    fname = select_file_in_explorer(init_base_config('..'))
 
-    fnames = glob(
-        "C:/Users/User/Documents/Rita/1etem/Database/emotiv/paradigmC/sub-P001_run-001_eeg.xdf")
-    for fname in fnames:
-        print("=" * len(fname) + "\n" + fname + "\n" + "=" * len(fname))
-        raw = read_raw_xdf(fname)
-        if raw is not None:
-            print("raw is not None")
-            print(raw, end="\n\n")
-            print(raw.annotations, end="\n\n")
-            print(raw.ch_names)
-            # data = raw.get_data()
-            # time = raw.times
-            raw.filter(l_freq=30.0, h_freq=None)
-            # raw.crop(tmin=150)
-            # raw.plot_psd(area_mode='range', tmax=10.0, show=False, average=True)
-            raw.plot(n_channels=14, show_first_samp=True, block=True)  # pip install matplotlib==3.2.0, higher versions don't work
+    print("=" * len(fname) + "\n" + fname + "\n" + "=" * len(fname))
+    raw = read_raw_xdf(fname)
+    if raw is not None:
+        print("raw is not None")
+        print(raw, end="\n\n")
+        print(raw.annotations, end="\n\n")
+        print(raw.ch_names)
+        raw.plot(block=True)
 
-        chunks = parse_xdf(fname)
+    chunks = parse_xdf(fname)
 
-        df = pd.DataFrame.from_dict(chunks)
-        df = df[["nbytes", "tag", "stream_id"]]
-        df["stream_id"] = df["stream_id"].astype("Int64")
-        df["tag"] = pd.Categorical(df["tag"], ordered=True)
-        df["tag"].cat.rename_categories(["FileHeader", "StreamHeader", "Samples",
-                                         "ClockOffset", "Boundary",
-                                         "StreamFooter"], inplace=True)
+    df = pd.DataFrame.from_dict(chunks)
+    df = df[["nbytes", "tag", "stream_id"]]
+    df["stream_id"] = df["stream_id"].astype("Int64")
+    df["tag"] = pd.Categorical(df["tag"], ordered=True)
+    df["tag"].cat.rename_categories(["FileHeader", "StreamHeader", "Samples",
+                                     "ClockOffset", "Boundary",
+                                     "StreamFooter"], inplace=True)
 
-        print("Chunk table\n-----------")
-        print(df, end="\n\n")  # detailed chunk table
+    print("Chunk table\n-----------")
+    print(df, end="\n\n")  # detailed chunk table
 
-        print("Chunk type frequencies\n----------------------")
-        print(df["tag"].value_counts().sort_index(), end="\n\n")
+    print("Chunk type frequencies\n----------------------")
+    print(df["tag"].value_counts().sort_index(), end="\n\n")
 
-        print("Chunks per stream\n-----------------")
-        print(df["stream_id"].value_counts().sort_index(), end="\n\n")
+    print("Chunks per stream\n-----------------")
+    print(df["stream_id"].value_counts().sort_index(), end="\n\n")
 
-        print("Unique stream IDs\n-----------------")
-        print(sorted(df["stream_id"].dropna().unique()), end="\n\n")
+    print("Unique stream IDs\n-----------------")
+    print(sorted(df["stream_id"].dropna().unique()), end="\n\n")

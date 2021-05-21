@@ -18,20 +18,22 @@
 """
 
 import os
+import queue
 import sys
 
-print(str(sys.path))
-master_parh = r'C:\Users\User\Documents\Rita\1etem\5.szemeszter\CyKit-master'
-sys.path.insert(0, master_parh + r'\py3\cyUSB')
-sys.path.insert(0, master_parh + r'\py3')
-
 import cyPyWinUSB as hid
-import queue
 from cyCrypto.Cipher import AES
-from cyCrypto import Random
+from pylsl import StreamInfo, StreamOutlet, local_clock
+
+print(str(sys.path))
+
+CYKIT_MASTER_PATH = r'C:\path\to\CyKit-master'  # todo: set it!
+sys.path.insert(0, CYKIT_MASTER_PATH + r'\py3\cyUSB')
+sys.path.insert(0, CYKIT_MASTER_PATH + r'\py3')
 
 tasks = queue.Queue()
 EPOC_PLUS = 'Epoc_plus'
+
 
 class EEG(object):
 
@@ -53,7 +55,7 @@ class EEG(object):
         sn = self.serial_number
 
         # EPOC+ in 16-bit Mode.
-        k = ['\0'] * 16
+        # k = ['\0'] * 16
         k = [sn[-1], sn[-2], sn[-2], sn[-3], sn[-3], sn[-3], sn[-2], sn[-4], sn[-1], sn[-4], sn[-2], sn[-2], sn[-4],
              sn[-4], sn[-2], sn[-1]]
 
@@ -72,7 +74,7 @@ class EEG(object):
 
     def convertEPOC_PLUS(self, value_1, value_2):
         edk_value = "%.8f" % (
-                    ((int(value_1) * .128205128205129) + 4201.02564096001) + ((int(value_2) - 128) * 32.82051289))
+                ((int(value_1) * .128205128205129) + 4201.02564096001) + ((int(value_2) - 128) * 32.82051289))
         return edk_value
 
     def get_data(self):
@@ -95,46 +97,42 @@ class EEG(object):
             print(str(exception2))
 
 
-import time
-import numpy as np
-from random import random as rand
+if __name__ == '__main__':
 
-from pylsl import StreamInfo, StreamOutlet, local_clock
+    electrodes = ['AF3', 'F7', 'F3', 'FC5', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'FC6', 'F4', 'F8', 'AF4']
 
-electrodes = ['AF3', 'F7', 'F3', 'FC5', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'FC6', 'F4', 'F8', 'AF4']
+    # https://labstreaminglayer.readthedocs.io/projects/liblsl/ref/streaminfo.html
+    info = StreamInfo('Epoc_plus', 'EEG', 14, 128, 'float32', 'EpocPlusEEG_Stream')
+    # (Default) Outputs 14 data channels in float format. 128 SPS / 256 SPS (2048 Hz internal)
+    # Run CyKIT.py, choose MODEL#6 for Epoc+ (default is MODEL#1)
 
-#https://labstreaminglayer.readthedocs.io/projects/liblsl/ref/streaminfo.html
-info = StreamInfo('Epoc_plus', 'EEG', 14, 128, 'float32', 'EpocPlusEEG_Stream_Rita')
-#(Default) Outputs 14 data channels in float format. 128 SPS / 256 SPS (2048 Hz internal)
-#Run CyKIT.py, choose MODEL#6 for Epoc+ (default is MODEL#1)
+    # append some meta-data
+    info.desc().append_child_value("manufacturer", "Emotiv")
+    channels = info.desc().append_child("channels")
 
-# append some meta-data
-info.desc().append_child_value("manufacturer", "Emotiv")
-channels = info.desc().append_child("channels")
+    for c in electrodes:
+        channels.append_child("channel") \
+            .append_child_value("label", c) \
+            .append_child_value("unit", "microvolts") \
+            .append_child_value("type", "EEG")
 
-for c in electrodes:
-    channels.append_child("channel") \
-        .append_child_value("label", c) \
-        .append_child_value("unit", "microvolts") \
-        .append_child_value("type", "EEG")
+    # next make an outlet; we set the transmission chunk size to 32 samples and
+    # the outgoing buffer size to 360 seconds (max.)
+    outlet = StreamOutlet(info, 32, 360)
 
-# next make an outlet; we set the transmission chunk size to 32 samples and
-# the outgoing buffer size to 360 seconds (max.)
-outlet = StreamOutlet(info, 32, 360)
+    cyHeadset = EEG()
 
-cyHeadset = EEG()
+    print("now sending data...")
+    while 1:
+        while tasks.empty():
+            pass
 
-print("now sending data...")
-while 1:
-    while tasks.empty():
-        pass
+        mysample = []
+        sample = cyHeadset.get_data().split(", ")
+        for s in sample:
+            mysample.append(float(s))
+        # print(mysample)
+        # get a time stamp in seconds
+        stamp = local_clock()
 
-    mysample = []
-    sample = cyHeadset.get_data().split(", ")
-    for s in sample:
-        mysample.append(float(s))
-    #print(mysample)
-    # get a time stamp in seconds
-    stamp = local_clock()
-
-    outlet.push_sample(mysample, stamp)
+        outlet.push_sample(mysample, stamp)
