@@ -12,7 +12,8 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
-    DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC
+    DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC, EmotivParC
+from emotiv.mne_import_xdf import read_raw_xdf
 from gui_handler import select_file_in_explorer
 from preprocess.artefact_faster import ArtefactFilter
 from preprocess.channel_selection import ChannelSelector
@@ -49,6 +50,7 @@ class Databases(Enum):
     BCI_COMP_IV_2A = 'BCICompIV2a'
     BCI_COMP_IV_2B = 'BCICompIV2b'
     ParadigmC = 'par_c'
+    EMOTIV_PAR_C = 'emotiv_par_c'
 
 
 def is_platform(os_platform):
@@ -263,7 +265,15 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     """
     if type(filenames) is str:
         filenames = [filenames]
-    raw = mne.io.concatenate_raws([mne.io.read_raw(file, preload=False) for file in filenames])
+
+    raw_list = list()
+    for file in filenames:
+        if Path(file).suffix == '.xdf':
+            raw_list.append(read_raw_xdf(file))
+        else:
+            raw_list.append(mne.io.read_raw(file, preload=False))
+
+    raw = mne.io.concatenate_raws(raw_list)
 
     standardize_channel_names(raw)
     try:  # check available channel positions
@@ -390,6 +400,8 @@ def get_db_name_by_filename(filename):
         db_name = Databases.BCI_COMP_IV_2A
     elif BciCompIV2b.DIR in filename:
         db_name = Databases.BCI_COMP_IV_2B
+    elif TTK_DB.DIR in filename:
+        db_name = Databases.TTK
     else:
         raise ValueError('No database defined with path {}'.format(filename))
     return db_name
@@ -640,6 +652,8 @@ class DataLoader:
             self.use_bci_comp_4_2b()
         elif db_name == Databases.ParadigmC:
             self.use_par_c()
+        elif db_name == Databases.EMOTIV_PAR_C:
+            self.use_emotiv()
 
         else:
             raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
@@ -702,6 +716,10 @@ class DataLoader:
 
     def use_par_c(self):
         self._use_db(ParadigmC)
+        return self
+
+    def use_emotiv(self):
+        self._use_db(EmotivParC)
         return self
 
     @property
@@ -770,9 +788,12 @@ class DataLoader:
         self._validate_db_type()
         if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
             subject_num = self._db_type.SUBJECT_NUM
-        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
+        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
+                               ParadigmC, EmotivParC]:
             if hasattr(self._db_type, 'USE_NEW_CONFIG') and self._db_type.USE_NEW_CONFIG:
                 file = '*R01_raw.fif'
+            elif self._db_type is EmotivParC:
+                file = '*run-001_eeg.xdf'
             else:
                 file = 'rec01.vhdr'
             subject_num = len(sorted(Path(self._data_path).rglob(file)))
@@ -821,6 +842,9 @@ class DataLoader:
     def _generate_bci_comp_4_2a_filename(self, subject):
         return self._generate_filenames_for_subject(subject, '{:02d}')
 
+    def _generate_epocplus_filenames(self, subject, runs=1):
+        return self._generate_filenames_for_subject(subject, '{:03d}', runs, '{:03d}')
+
     def get_filenames_for_subject(self, subj):
         """Generating filenames for a defined subject in a database.
 
@@ -860,6 +884,8 @@ class DataLoader:
                 s = s_ind // 3 + 1
                 rec = s_ind % 3 + 1
                 fn_gen = self._generate_ttk_filename(s, rec)
+            elif self._db_type is EmotivParC:
+                fn_gen = self._generate_epocplus_filenames(subj)
             else:
                 raise NotImplementedError('Filename generation for {} is not implemented'.format(self._db_type))
         return fn_gen
