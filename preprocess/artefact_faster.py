@@ -479,7 +479,7 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
 
         eog_inds, _ = ica.find_bads_eog(epochs, ch_name='Fp1', threshold=thresholds[2], verbose=verbose)
         bad_components, ica_scores = faster_bad_components(ica, epochs, verbose=verbose, thres=thresholds[2])
-        bad_components = np.append(bad_components, ica.exclude)
+        bad_components = np.unique(np.append(bad_components, eog_inds))
         epochs = ica.apply(epochs, exclude=bad_components)
 
     else:
@@ -561,9 +561,9 @@ def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=Tr
         data.interpolate_bads(reset_bads=True, verbose=verbose, mode='fast')
 
     if thresholds[1] > 0:
-        ica.find_bads_eog(data, ch_name='Fp1', threshold=thresholds[1], verbose=verbose)
+        eog_inds, _ = ica.find_bads_eog(data, ch_name='Fp1', threshold=thresholds[1], verbose=verbose)
         bad_components = online_faster_bad_components(ica, data, ica_scores, verbose=verbose)
-        bad_components = np.append(bad_components, ica.exclude)
+        bad_components = np.unique(np.append(bad_components, eog_inds))
         ica.apply(data, exclude=bad_components)
 
     # Data is clean, apply average reference
