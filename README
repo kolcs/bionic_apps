@@ -1,9 +1,8 @@
 Steps to correctly install BCISystem:
 1) create a python environment (eg. conda env) with python=3.8 (help: conda cheat sheet)
 2) activate the new env
-3) pip install matplotlib tensorflow sklearn pandas mne pylsl
-
-Windows: problems with numpy 1.19.4. Fix comes around 2021 jan. Until then install 1.19.3
+3) cd to Cybathlon project folder
+4) pip install .
 
 Now you can use the BCISystem... =)
 
