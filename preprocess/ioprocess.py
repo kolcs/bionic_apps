@@ -1040,7 +1040,7 @@ class DataProcessor(DataLoader):
                                           'with "USE_NEW_CONFIG = True". Change it in config.py')
             else:
                 if self._mimic_online_method:
-                    epochs = self.artefact_filter.online_filter(epochs)
+                    epochs = self.artefact_filter.mimic_online_filter(epochs)
                 else:
                     epochs = self.artefact_filter.offline_filter(epochs)
         self.info = epochs.info

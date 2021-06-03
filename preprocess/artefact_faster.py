@@ -666,15 +666,9 @@ class ArtefactFilter:
         if self._ica is None or self._info is None or self.bad_channels is None:
             raise Exception("offline filter should be applied before")
 
-        if type(data) is np.ndarray:  # real online
-            if len(data.shape) == 2:
-                data = np.expand_dims(data, 0)
-            epoch = mne.EpochsArray(data, self._info)
-            return_ndarray = True
-        else:  # mimic online
-            epoch = data
-            epoch.load_data()
-            return_ndarray = False
+        if len(data.shape) == 2:
+            data = np.expand_dims(data, 0)
+        epoch = mne.EpochsArray(data, self._info)
 
         filtered_epoch = online_faster(epoch, self.bad_channels, self._ica, self._ica_scores,
                                        apply_frequency_filter=self._apply_frequency_filter,
@@ -683,6 +677,12 @@ class ArtefactFilter:
                                        thresholds=[self.thresholds[0], self.thresholds[2]],
                                        apply_avg_reference=self._apply_avg_reference,
                                        verbose=self._verbose)
-        if return_ndarray:
-            return filtered_epoch.get_data()
-        return filtered_epoch
+        return filtered_epoch.get_data()
+
+    def mimic_online_filter(self, epochs):
+        epochs = epochs.copy()
+        epochs.load_data()
+        for i in range(len(epochs)):
+            data = epochs[i].get_data()
+            epochs._data[i, :, :] = self.online_filter(data)[0, :, :]
+        return epochs
