@@ -32,7 +32,7 @@ hpc_kwargs = dict(
 
 
 class SVMConfig(Enum):
-    RBF = 'rbf tuning'
+    RBF = 'rbf_tuning'
     POLYNOMIAL = 'poly'
     LINEAR = 'lin'
 
