@@ -52,6 +52,12 @@ class Databases(Enum):
     EMOTIV_PAR_C = 'emotiv_par_c'
 
 
+class SubjectHandle(Enum):
+    INDEPENDENT_DAYS = 1
+    BCI_COMP = 2
+    MIX_EXPERIMENTS = 3
+
+
 def is_platform(os_platform):
     if 'win' in os_platform:
         os_platform = 'win'
