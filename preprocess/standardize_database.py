@@ -18,7 +18,7 @@ def get_filenames_from_dir(ext):
     return filenames
 
 
-def convert_bcicompIV2a():
+def convert_bcicompIV2a_old():
     loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2a()
     for subj in loader.get_subject_list():
         filename = next(loader.get_filenames_for_subject(subj))
@@ -30,6 +30,71 @@ def convert_bcicompIV2a():
                                                       'Cp3', 'Cp1', 'CPz', 'Cp2', 'Cp4', 'P1', 'P2', 'POz'])}
         raw.rename_channels(new_map)
         filename = filename.strip('.gdf') + '_raw.fif'
+        raw.save(filename, overwrite=True)
+
+
+def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3, plot=False):
+    start_ind = np.arange(len(start_mask))[start_mask]
+    end_ind = np.arange(len(end_mask))[end_mask]
+    assert len(start_ind) == session_num, f'Incorrect start Triggers at subject {subj}'
+    assert len(end_ind) == session_num, f'Incorrect end Triggers at subject {subj}'
+
+    # remove first 3 True from start mask -- eye, train1, train2 sessions
+    start_mask[start_ind[:drop_first]] = False
+    end_mask[end_ind[:drop_first]] = False
+
+    tmins = raw.annotations.onset[start_mask]
+    tmaxs = raw.annotations.onset[end_mask]
+    for i, tmin in enumerate(tmins):
+        tmax = tmaxs[i]
+        sess = raw.copy()
+        sess.crop(tmin, tmax + 1)
+        file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, i + 1))
+        file.parent.mkdir(parents=True, exist_ok=True)
+        sess.save(str(file), overwrite=True)
+
+        if plot:
+            sess.plot(block=False)
+
+    if plot:
+        raw.plot(block=False)
+        plt.show()
+
+
+def convert_bcicompIV2a():
+    loader = DataLoader().use_bci_comp_4_2a()
+    path = loader.get_data_path()
+    files = list(path.rglob('*{}'.format('.gdf')))
+    for filename in files:
+        raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
+
+        # correcting eeg channel names
+        raw.rename_channels(lambda x: x.strip('EEG-'))
+        new_map = {str(i): ch for i, ch in enumerate(['Fc3', 'Fc1', 'FCz', 'Fc2', 'Fc4', 'C5', 'C1', 'C2', 'C6',
+                                                      'Cp3', 'Cp1', 'CPz', 'Cp2', 'Cp4', 'P1', 'P2', 'POz'])}
+        raw.rename_channels(new_map)
+
+        if filename.stem[-1] == 'E':  # adding correct trigger numbers ot evalset
+            matfile = str(filename.with_suffix('.mat'))
+            mat = read_mat(matfile)
+            new_tiggers = mat['classlabel']
+            tgdict = {i + 1: str(tg) for i, tg in enumerate([769, 770, 771, 772])}
+            new_tiggers = list(map(lambda x: tgdict[x], new_tiggers))
+            raw.annotations.description[raw.annotations.description == '783'] = new_tiggers
+        elif filename.stem[-1] == 'T':
+            pass
+        else:
+            raise NotImplementedError
+
+        # Session end trigger is missing, creating end mask from start_mask
+        start_mask = raw.annotations.description == '32766'
+        start_ind = np.arange(len(start_mask))[start_mask]
+        end_mask = np.array([False] * len(start_mask))
+        ind = start_ind[1:] - 1
+        end_mask[ind] = True
+        end_mask[-1] = True
+
+        filename = str(filename).strip('.gdf') + '_raw.fif'
         raw.save(filename, overwrite=True)
 
 
@@ -137,7 +202,7 @@ def convert_physionet():
                 raw.save(str(file), overwrite=True)
 
 
-def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, plot=False):
+def _save_sessions_old(subj, raw, start_mask, end_mask, path, session_num=13, plot=False):
     start_ind = np.arange(len(start_mask))[start_mask]
     end_ind = np.arange(len(end_mask))[end_mask]
     assert len(start_ind) == session_num, f'Incorrect start Triggers at subject {subj}'
@@ -197,7 +262,7 @@ def convert_ttk():
             start_mask[start_ind[-3]] = False  # wrong session, with no end...
             end_mask[end_ind[0]] = False
 
-        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
+        _save_sessions_old(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
 
 
 def convert_bad_ttk():
@@ -237,7 +302,7 @@ def convert_bad_ttk():
             end_mask[end_ind[5]] = False  # wrong session
             trigger_num = 12
 
-        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
+        _save_sessions_old(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
 
 
 def convert_all_ttk():
@@ -246,5 +311,4 @@ def convert_all_ttk():
 
 
 if __name__ == '__main__':
-    convert_physionet()
-    convert_all_ttk()
+    convert_bcicompIV2a()
