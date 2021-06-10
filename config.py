@@ -187,8 +187,8 @@ class PilotDB_ParadigmB:
 class TTK_DB:
     DIR = "TTK/"
 
-    USE_NEW_CONFIG = True
-    if USE_NEW_CONFIG:
+    CONFIG_VER = 1
+    if CONFIG_VER == 1:
         FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
         DROP_SUBJECTS = []
     else:
@@ -213,8 +213,8 @@ class Physionet:
     DIR = "physionet.org/"
     SUBJECT_NUM = 109
 
-    USE_NEW_CONFIG = True
-    if USE_NEW_CONFIG:
+    CONFIG_VER = 1
+    if CONFIG_VER == 1:
         FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
 
         TRIGGER_TASK_CONVERTER = {  # imagined
@@ -320,8 +320,10 @@ class Physionet:
 
 class BciCompIV2a:
     DIR = "BCI_comp/4/2a"
-    FILE_PATH = 'A{subj}T.gdf'  # .gdf
+    FILE_PATH = 'S{subj}/S{subj}-E{exp}-R{rec}_raw.fif'
     SUBJECT_NUM = 9
+
+    CONFIG_VER = 1.1
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         LEFT_HAND: 4,

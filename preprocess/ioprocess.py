@@ -611,7 +611,7 @@ class SubjectKFold(object):
 
 class DataLoader:
 
-    def __init__(self, base_config_path='.', use_drop_subject_list=True):
+    def __init__(self, base_config_path='.', use_drop_subject_list=True, subject_handle=SubjectHandle.INDEPENDENT_DAYS):
         """Data loader
 
         Helper class for loading different databases from HardDrive.
@@ -631,6 +631,7 @@ class DataLoader:
 
         self._subject_list = None
         self._drop_subject = set() if use_drop_subject_list else None
+        self._subject_handle = subject_handle
 
     def _validate_db_type(self):
         assert self._db_type is not None, 'Database is not defined.'
@@ -750,7 +751,7 @@ class DataLoader:
 
     def validate_make_binary_classification_use(self):
         self._validate_db_type()
-        if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
+        if self._db_type == Physionet and not Physionet.CONFIG_VER == 1:
             if REST not in Physionet.TASK_TO_REC:
                 raise ValueError(f'Can not make binary classification. Check values of '
                                  f'TASK_TO_REC in class {self._db_type.__name__} '
@@ -796,7 +797,7 @@ class DataLoader:
             subject_num = self._db_type.SUBJECT_NUM
         elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
                                ParadigmC, EmotivParC]:
-            if hasattr(self._db_type, 'USE_NEW_CONFIG') and self._db_type.USE_NEW_CONFIG:
+            if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER == 1:
                 file = '*R01_raw.fif'
             elif self._db_type is EmotivParC:
                 file = '*run-001_eeg.xdf'
@@ -851,6 +852,9 @@ class DataLoader:
     def _generate_epocplus_filenames(self, subject, runs=1):
         return self._generate_filenames_for_subject(subject, '{:03d}', runs, '{:03d}')
 
+    def get_subject_filenames_as_independent_experimetns(self, subj):
+        pass
+
     def get_filenames_for_subject(self, subj):
         """Generating filenames for a defined subject in a database.
 
@@ -866,17 +870,32 @@ class DataLoader:
         """
         subj_num = self.get_subject_num()
         assert subj <= subj_num, f'Subject{subj} is out of subject range. Last subject in db is {subj_num}'
-        if hasattr(self._db_type, 'USE_NEW_CONFIG') and self._db_type.USE_NEW_CONFIG:
-            if self._db_type in [Physionet, TTK_DB]:
-                pattern = self._db_type.FILE_PATH
-                pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
-                pattern = pattern.replace('{rec}', '*')
-                fn_gen = list(sorted(self._data_path.rglob(pattern)))
-                assert len(fn_gen) > 0, f'No files were found. Try to set USE_NEW_CONFIG=False ' \
-                                        f'for {self._db_type} or download the latest database.'
+        if hasattr(self._db_type, 'CONFIG_VER'):
+            if self._db_type.CONFIG_VER == 1:
+                if self._db_type in [Physionet, TTK_DB]:
+                    pattern = self._db_type.FILE_PATH
+                    pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
+                    pattern = pattern.replace('{rec}', '*')
+                    fn_gen = list(sorted(self._data_path.rglob(pattern)))
+                    assert len(fn_gen) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
+                                            f'for {self._db_type} or download the latest database.'
+                else:
+                    raise NotImplementedError('Filename generation for {} with CONFIG_VER=1 '
+                                              'is not implemented.'.format(self._db_type))
+            # elif self._db_type.CONFIG_VER == 1.1:
+            #     if self._db_type in [BciCompIV2a]:
+            #         pattern = self._db_type.FILE_PATH
+            #         pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
+            #         pattern = pattern.replace('{rec}', '*')
+            #         fn_gen = list(sorted(self._data_path.rglob(pattern)))
+            #         assert len(fn_gen) > 0, f'No files were found. Try to set CONFIG_VER= 0 or 1 ' \
+            #                                 f'for {self._db_type} or download the latest database.'
+            #     else:
+            #         raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
+            #                                   'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
             else:
-                raise NotImplementedError('Filename generation for {} with USE_NEW_CONFIG=True '
-                                          'is not implemented.'.format(self._db_type))
+                raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
+                                          'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
         else:
             if self._db_type is TTK_DB:
                 fn_gen = self._generate_ttk_filename(subj)
@@ -898,13 +917,13 @@ class DataLoader:
 
     def get_task_dict(self):
         self._validate_db_type()
-        if self._db_type is Physionet and not Physionet.USE_NEW_CONFIG:
+        if self._db_type is Physionet and not Physionet.CONFIG_VER == 1:
             raise NotImplementedError('This method is not implemented for old Physionet config.')
         return self._db_type.TRIGGER_TASK_CONVERTER
 
     def get_event_id(self):
         self._validate_db_type()
-        if self._db_type is Physionet and not Physionet.USE_NEW_CONFIG:
+        if self._db_type is Physionet and not Physionet.CONFIG_VER == 1:
             raise NotImplementedError('This method is not implemented for old Physionet config.')
         return self._db_type.TRIGGER_EVENT_ID
 
@@ -1041,9 +1060,9 @@ class DataProcessor(DataLoader):
         epochs.load_data()
 
         if self.artefact_filter is not None:
-            if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
+            if self._db_type == Physionet and not Physionet.CONFIG_VER == 1:
                 raise NotImplementedError('Artefact rejection is implemented for Physionet database '
-                                          'with "USE_NEW_CONFIG = True". Change it in config.py')
+                                          'with "CONFIG_VER = 1". Change it in config.py')
             else:
                 if self._mimic_online_method:
                     epochs = self.artefact_filter.mimic_online_filter(epochs)
@@ -1052,9 +1071,9 @@ class DataProcessor(DataLoader):
         self.info = epochs.info
 
         if self._channel_selector is not None:
-            if self._db_type == Physionet and not Physionet.USE_NEW_CONFIG:
+            if self._db_type == Physionet and not Physionet.CONFIG_VER == 1:
                 raise NotImplementedError('Channel selection is implemented for Physionet database '
-                                          'with "USE_NEW_CONFIG = True". Change it in config.py')
+                                          'with "CONFIG_VER = 1". Change it in config.py')
             else:
                 if self._mimic_online_method:
                     selected_channels = self._channel_selector.online_select()
@@ -1306,7 +1325,7 @@ class OfflineDataPreprocessor(DataProcessor):
     def _create_x_db(self, subj):
         task_dict = self._convert_task()
         fn_gen = self.get_filenames_for_subject(subj)
-        if hasattr(self._db_type, 'USE_NEW_CONFIG') and self._db_type.USE_NEW_CONFIG:
+        if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER == 1:
             cut_real_mov = False
         else:
             cut_real_mov = REST in task_dict
@@ -1345,7 +1364,7 @@ class OfflineDataPreprocessor(DataProcessor):
             return  # fast load ok. Do not create database.
         print('{} file is not found. Creating database.'.format(self._proc_db_source))
 
-        if self._db_type is Physionet and not Physionet.USE_NEW_CONFIG:
+        if self._db_type is Physionet and not Physionet.CONFIG_VER == 1:
             if self._select_one_file or self._eeg_file is not None:
                 raise NotImplementedError('EEG file selection for Physionet is not implemented!')
             self._parallel_generate_db(self._create_physionet_db)
@@ -1511,14 +1530,14 @@ class OnlineDataPreprocessor(DataProcessor):
             return  # fast load ok. Do not create database.
         print('{} file is not found. Creating database.'.format(self._proc_db_source))
 
-        if not hasattr(self._db_type, 'USE_NEW_CONFIG'):
+        if not hasattr(self._db_type, 'CONFIG_VER'):
             raise NotImplementedError(f'Online mimic process is only implemented for new config. '
                                       f'Please reformat class {self._db_type.__name__} '
                                       f'in the config.py file.')
 
-        if not self._db_type.USE_NEW_CONFIG:
+        if not self._db_type.CONFIG_VER == 1:
             raise NotImplementedError(f'Online mimic process is only implemented for new config. '
-                                      f'Please set USE_NEW_CONFIG=True in the config.py file '
+                                      f'Please set CONFIG_VER=1 in the config.py file '
                                       f'at class {self._db_type.__name__}.')
 
         if self._db_type in [Physionet, TTK_DB]:

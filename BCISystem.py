@@ -540,7 +540,7 @@ if __name__ == '__main__':
 
     bci = BCISystem()
     bci.offline_processing(
-        db_name=Databases.PHYSIONET,
+        db_name=Databases.BCI_COMP_IV_2A,
         feature_params=feature_extraction,
         fast_load=False,
         epoch_tmin=0, epoch_tmax=4,
