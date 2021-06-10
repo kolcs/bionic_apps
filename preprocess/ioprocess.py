@@ -1107,6 +1107,10 @@ class DataProcessor(DataLoader):
             fastload_source = load_pickle_data(self._proc_db_source)
         except FileNotFoundError:
             fastload_source = None
+        except EOFError:
+            fastload_source = None
+            print('############ Something went Wrong... ############')
+
         n_subjects = self.get_subject_num()
 
         ch_sel_mode = self._channel_selector.mode if self._channel_selector is not None else None
