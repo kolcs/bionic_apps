@@ -33,7 +33,8 @@ def convert_bcicompIV2a_old():
         raw.save(filename, overwrite=True)
 
 
-def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3, plot=False):
+def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3, exp_ind=1, after_end=1.,
+                   plot=False):
     start_ind = np.arange(len(start_mask))[start_mask]
     end_ind = np.arange(len(end_mask))[end_mask]
     assert len(start_ind) == session_num, f'Incorrect start Triggers at subject {subj}'
@@ -48,8 +49,12 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
     for i, tmin in enumerate(tmins):
         tmax = tmaxs[i]
         sess = raw.copy()
-        sess.crop(tmin, tmax + 1)
-        file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, i + 1))
+        if i < len(tmins) - 1:
+            sess.crop(tmin, tmax + 1)
+        else:
+            sess.crop(tmin, tmax + after_end)
+
+        file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}-E{:02d}-R{:02d}_raw.fif'.format(subj, exp_ind, i + 1))
         file.parent.mkdir(parents=True, exist_ok=True)
         sess.save(str(file), overwrite=True)
 
@@ -64,7 +69,7 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
 def convert_bcicompIV2a():
     loader = DataLoader().use_bci_comp_4_2a()
     path = loader.get_data_path()
-    files = list(path.rglob('*{}'.format('.gdf')))
+    files = list(sorted(path.rglob('*{}'.format('.gdf'))))
     for filename in files:
         raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
 
@@ -81,21 +86,26 @@ def convert_bcicompIV2a():
             tgdict = {i + 1: str(tg) for i, tg in enumerate([769, 770, 771, 772])}
             new_tiggers = list(map(lambda x: tgdict[x], new_tiggers))
             raw.annotations.description[raw.annotations.description == '783'] = new_tiggers
+            exp_ind = 2
         elif filename.stem[-1] == 'T':
+            exp_ind = 1
             pass
         else:
             raise NotImplementedError
 
         # Session end trigger is missing, creating end mask from start_mask
         start_mask = raw.annotations.description == '32766'
-        start_ind = np.arange(len(start_mask))[start_mask]
-        end_mask = np.array([False] * len(start_mask))
-        ind = start_ind[1:] - 1
-        end_mask[ind] = True
+        end_mask = start_mask.copy()
+        end_mask[0] = False
         end_mask[-1] = True
-
-        filename = str(filename).strip('.gdf') + '_raw.fif'
-        raw.save(filename, overwrite=True)
+        subj = int(filename.stem[2])
+        if subj == 4 and exp_ind == 1:
+            drop_first = 1
+        else:
+            drop_first = 3
+        session_num = 6 + drop_first
+        _save_sessions(subj, raw, start_mask, end_mask, path, session_num=session_num, drop_first=drop_first,
+                       exp_ind=exp_ind, after_end=5.7)
 
 
 def convert_bcicompIV2b():
@@ -166,7 +176,7 @@ def convert_giga():
 
 def convert_physionet():
     loader = DataLoader('..', use_drop_subject_list=False).use_physionet()
-    assert not loader._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
+    assert not loader._db_type.CONFIG_VER, 'File conversion only avaliable for old config setup.'
     for s in range(Physionet.SUBJECT_NUM):
         subj = s + 1
         rec_nums = Physionet.TYPE_TO_REC[IMAGINED_MOVEMENT]
@@ -232,7 +242,7 @@ def _save_sessions_old(subj, raw, start_mask, end_mask, path, session_num=13, pl
 
 def convert_ttk():
     loader = DataLoader('..', use_drop_subject_list=True).use_ttk_db()
-    assert not loader._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
+    assert not loader._db_type.CONFIG_VER, 'File conversion only avaliable for old config setup.'
 
     for subj in loader.get_subject_list():
         filename = next(loader.get_filenames_for_subject(subj))
@@ -267,7 +277,7 @@ def convert_ttk():
 
 def convert_bad_ttk():
     loader = DataLoader('..', use_drop_subject_list=False).use_ttk_db()
-    assert not loader._db_type.USE_NEW_CONFIG, 'File conversion only avaliable for old config setup.'
+    assert not loader._db_type.CONFIG_VER, 'File conversion only avaliable for old config setup.'
 
     for subj in [1, 9, 17]:
         if subj == 1:
