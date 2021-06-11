@@ -540,13 +540,13 @@ if __name__ == '__main__':
 
     bci = BCISystem()
     bci.offline_processing(
-        db_name=Databases.BCI_COMP_IV_2A,
+        db_name=Databases.TTK,
         feature_params=feature_extraction,
         fast_load=False,
         epoch_tmin=0, epoch_tmax=4,
         window_length=2, window_step=.1,
         method=XvalidateMethod.SUBJECT,
-        subject_list=2,
+        subject_list=[2, 3],
         use_drop_subject_list=True,
         subj_n_fold_num=5,
         filter_params=filter_params,

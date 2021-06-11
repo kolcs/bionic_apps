@@ -1,6 +1,7 @@
 from copy import deepcopy
 from enum import Enum
 from json import dump as json_dump, load as json_load
+from multiprocessing import Manager
 from pathlib import Path
 from pickle import dump as pkl_dump, load as pkl_load
 from sys import platform
@@ -1177,11 +1178,13 @@ class DataProcessor(DataLoader):
         subject_list = self.get_subject_list()
 
         if len(subject_list) > 1:
-            data, info = zip(*Parallel(n_jobs=-2)(delayed(func)(subject) for subject in subject_list))
-            self.info = info[0][0]
-            self._feature_shape = info[0][1]
+            manager = Manager()
+            shared_variables = manager.list([self.info, self._feature_shape])
+            data = Parallel(n_jobs=-2)(delayed(func)(subject, shared_variables) for subject in subject_list)
+            self.info, self._feature_shape = shared_variables
+            manager.shutdown()
         else:
-            data, _ = zip(*[func(subject) for subject in subject_list])
+            data = [func(subject) for subject in subject_list]
         self._proc_db_filenames.update(data)
         self._save_fast_load_source_data()
 
@@ -1290,7 +1293,7 @@ class OfflineDataPreprocessor(DataProcessor):
                 epoch_ind += 1
                 ep_file_dict[ind] = db_file
             subject_file_dict[task] = ep_file_dict
-        return (subj, subject_file_dict), (self.info, self._feature_shape)
+        return subj, subject_file_dict
 
     def get_processed_db_source(self, subject=None, equalize_labels=True, only_files=False):
         if not only_files:  # SubjectKFold method
@@ -1305,7 +1308,7 @@ class OfflineDataPreprocessor(DataProcessor):
                 db_files = self._proc_db_filenames[subject]
             return _generate_file_db(db_files, equalize_labels)
 
-    def _create_physionet_db(self, subj):
+    def _create_physionet_db(self, subj, shared_var=None):
         subject_data = dict()
         keys = self._db_type.TASK_TO_REC.keys()
 
@@ -1320,9 +1323,14 @@ class OfflineDataPreprocessor(DataProcessor):
             win_epochs = self._get_windowed_features(epochs, task)
 
             subject_data.update(win_epochs)
+
+        if shared_var is not None:
+            shared_var[0] = self.info
+            shared_var[1] = self._feature_shape
+
         return self._save_preprocessed_subject_data(subject_data, subj)
 
-    def _create_x_db(self, subj):
+    def _create_x_db(self, subj, shared_var=None):
         task_dict = self._convert_task()
         fn_gen = self.get_filenames_for_subject(subj)
         if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER == 1:
@@ -1337,6 +1345,11 @@ class OfflineDataPreprocessor(DataProcessor):
                                        event_id=self._db_type.TRIGGER_EVENT_ID,
                                        **self._filter_params)
         subject_data = self._get_windowed_features(epochs)
+
+        if shared_var is not None:
+            shared_var[0] = self.info
+            shared_var[1] = self._feature_shape
+
         return self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_db_from_file(self):
@@ -1507,7 +1520,7 @@ class OnlineDataPreprocessor(DataProcessor):
                                        **self._filter_params)
         return self._get_windowed_features(epochs)
 
-    def _generate_online_db(self, subj):
+    def _generate_online_db(self, subj, shared_var=None):
         session_files = np.asarray(self.get_filenames_for_subject(subj))
 
         kfold_data = list()
@@ -1523,7 +1536,11 @@ class OnlineDataPreprocessor(DataProcessor):
 
             kfold_data.append((train_files, test_files))
 
-        return (subj, kfold_data), (self.info, self._feature_shape)
+        if shared_var is not None:
+            shared_var[0] = self.info
+            shared_var[1] = self._feature_shape
+
+        return subj, kfold_data
 
     def _create_db(self):
         if self._init_fast_load_data():
