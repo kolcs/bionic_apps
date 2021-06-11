@@ -320,8 +320,9 @@ class Physionet:
 
 class BciCompIV2a:
     DIR = "BCI_comp/4/2a"
-    FILE_PATH = 'S{subj}/S{subj}-E{exp}-R{rec}_raw.fif'
-    SUBJECT_NUM = 9
+    FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
+    SUBJECT_NUM = 2 * 9
+    SUBJECT_EXP = {s + 1: (s * 2 + 1, (s + 1) * 2) for s in range(9)}
 
     CONFIG_VER = 1.1
 

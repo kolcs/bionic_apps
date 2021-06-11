@@ -35,6 +35,7 @@ class SourceDB(Enum):
     ARTEFACT_FILTER = 'artefact'
     CHANNEL_SELECTION = 'ch_sel'
     MIMIC_ONLINE = 'mimic_online'
+    SUBJECT_HANDLE = 'subj_handle'
 
 
 # db selection options
@@ -794,19 +795,44 @@ class DataLoader:
     def get_subject_num(self):
         """Returns the number of available subjects in Database"""
         self._validate_db_type()
-        if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
-            subject_num = self._db_type.SUBJECT_NUM
-        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
-                               ParadigmC, EmotivParC]:
-            if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER == 1:
-                file = '*R01_raw.fif'
-            elif self._db_type is EmotivParC:
-                file = '*run-001_eeg.xdf'
+        if self._subject_handle is SubjectHandle.INDEPENDENT_DAYS:
+            if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
+                subject_num = self._db_type.SUBJECT_NUM
+            elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
+                                   ParadigmC, EmotivParC]:
+                if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER == 1:
+                    file = '*R01_raw.fif'
+                elif self._db_type is EmotivParC:
+                    file = '*run-001_eeg.xdf'
+                else:
+                    file = 'rec01.vhdr'
+                subject_num = len(sorted(Path(self._data_path).rglob(file)))
             else:
-                file = 'rec01.vhdr'
-            subject_num = len(sorted(Path(self._data_path).rglob(file)))
+                raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
+
+        elif self._subject_handle is SubjectHandle.MIX_EXPERIMENTS:
+            if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
+                if self._db_type in [BciCompIV2a]:
+                    subject_num = len(self._db_type.SUBJECT_EXP)
+                else:  # todo: Problems with growing DBs: TTK, Par_C, ect...
+                    raise NotImplementedError(f'{SubjectHandle.MIX_EXPERIMENTS} is not implemented '
+                                              f'for {self._db_type}')
+            else:
+                raise NotImplementedError(f'{SubjectHandle.MIX_EXPERIMENTS} option only implemented for'
+                                          f'CONFIG_VER > 1 .')
+
+        elif self._subject_handle is SubjectHandle.BCI_COMP:
+            if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
+                if self._db_type in [BciCompIV2a]:
+                    subject_num = len(self._db_type.SUBJECT_EXP)
+                else:
+                    raise NotImplementedError(f'{SubjectHandle.BCI_COMP} is not implemented '
+                                              f'for {self._db_type}')
+            else:
+                raise NotImplementedError(f'{SubjectHandle.BCI_COMP} option only implemented for'
+                                          f'CONFIG_VER > 1 .')
         else:
-            raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
+            raise NotImplementedError(f'{self._subject_handle} is not implemented.')
 
         return subject_num
 
@@ -853,8 +879,24 @@ class DataLoader:
     def _generate_epocplus_filenames(self, subject, runs=1):
         return self._generate_filenames_for_subject(subject, '{:03d}', runs, '{:03d}')
 
-    def get_subject_filenames_as_independent_experimetns(self, subj):
-        pass
+    def _legacy_filename_gen(self, subj):
+        if self._db_type is TTK_DB:
+            fn_gen = self._generate_ttk_filename(subj)
+        elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD,
+                               ParadigmC]:
+            fn_gen = self._generate_pilot_filename(subj)
+        elif self._db_type in [BciCompIV1, BciCompIV2a]:
+            fn_gen = self._generate_ttk_filename(subj)
+        elif self._db_type is BciCompIV2b:
+            s_ind = subj - 1
+            s = s_ind // 3 + 1
+            rec = s_ind % 3 + 1
+            fn_gen = self._generate_ttk_filename(s, rec)
+        elif self._db_type is EmotivParC:
+            fn_gen = self._generate_epocplus_filenames(subj)
+        else:
+            raise NotImplementedError('Filename generation for {} is not implemented'.format(self._db_type))
+        return fn_gen
 
     def get_filenames_for_subject(self, subj):
         """Generating filenames for a defined subject in a database.
@@ -870,50 +912,41 @@ class DataLoader:
             List or generator containing all of the files corresponding to the subject number.
         """
         subj_num = self.get_subject_num()
-        assert subj <= subj_num, f'Subject{subj} is out of subject range. Last subject in db is {subj_num}'
-        if hasattr(self._db_type, 'CONFIG_VER'):
-            if self._db_type.CONFIG_VER == 1:
-                if self._db_type in [Physionet, TTK_DB]:
-                    pattern = self._db_type.FILE_PATH
-                    pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
-                    pattern = pattern.replace('{rec}', '*')
-                    fn_gen = list(sorted(self._data_path.rglob(pattern)))
-                    assert len(fn_gen) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
-                                            f'for {self._db_type} or download the latest database.'
+        assert subj <= subj_num, f'Subject{subj} is out of subject range. Last subject in db is {subj_num}.' \
+                                 f'\nYou may would like to download the latest database.'
+
+        if self._subject_handle is SubjectHandle.INDEPENDENT_DAYS:
+            if hasattr(self._db_type, 'CONFIG_VER'):
+                if self._db_type.CONFIG_VER >= 1:
+                    if self._db_type in [Physionet, TTK_DB, BciCompIV2a]:
+                        pattern = self._db_type.FILE_PATH
+                        pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
+                        pattern = pattern.replace('{rec}', '*')
+                        fn_gen = list(sorted(self._data_path.rglob(pattern)))
+                        assert len(fn_gen) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
+                                                f'for {self._db_type} or download the latest database.'
+                    else:
+                        raise NotImplementedError('Filename generation for {} with CONFIG_VER=1 '
+                                                  'is not implemented.'.format(self._db_type))
                 else:
-                    raise NotImplementedError('Filename generation for {} with CONFIG_VER=1 '
-                                              'is not implemented.'.format(self._db_type))
-            # elif self._db_type.CONFIG_VER == 1.1:
-            #     if self._db_type in [BciCompIV2a]:
-            #         pattern = self._db_type.FILE_PATH
-            #         pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
-            #         pattern = pattern.replace('{rec}', '*')
-            #         fn_gen = list(sorted(self._data_path.rglob(pattern)))
-            #         assert len(fn_gen) > 0, f'No files were found. Try to set CONFIG_VER= 0 or 1 ' \
-            #                                 f'for {self._db_type} or download the latest database.'
-            #     else:
-            #         raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
-            #                                   'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
+                    raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
+                                              'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
             else:
-                raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
-                                          'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
+                fn_gen = self._legacy_filename_gen(subj)
+
+        elif self._subject_handle is SubjectHandle.MIX_EXPERIMENTS:
+            if hasattr(self._db_type, 'SUBJECT_EXP'):
+                fn_gen = list()
+                pattern = self._db_type.FILE_PATH
+                for s in self._db_type.SUBJECT_EXP[subj]:
+                    pattern = pattern.replace('{subj}', '{:03d}'.format(s))
+                    pattern = pattern.replace('{rec}', '*')
+                    fn_gen.extend(sorted(self._data_path.rglob(pattern)))
+            else:
+                raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
+                                     f'Can not use {SubjectHandle.MIX_EXPERIMENTS} setting.')
         else:
-            if self._db_type is TTK_DB:
-                fn_gen = self._generate_ttk_filename(subj)
-            elif self._db_type in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD,
-                                   ParadigmC]:
-                fn_gen = self._generate_pilot_filename(subj)
-            elif self._db_type in [BciCompIV1, BciCompIV2a]:
-                fn_gen = self._generate_ttk_filename(subj)
-            elif self._db_type is BciCompIV2b:
-                s_ind = subj - 1
-                s = s_ind // 3 + 1
-                rec = s_ind % 3 + 1
-                fn_gen = self._generate_ttk_filename(s, rec)
-            elif self._db_type is EmotivParC:
-                fn_gen = self._generate_epocplus_filenames(subj)
-            else:
-                raise NotImplementedError('Filename generation for {} is not implemented'.format(self._db_type))
+            raise NotImplementedError(f'{self._subject_handle} is not implemented.')
         return fn_gen
 
     def get_task_dict(self):
@@ -1147,7 +1180,8 @@ class DataProcessor(DataLoader):
                 (self._epoch_tmin, self._epoch_tmax) == fastload_source[SourceDB.EPOCH_RANGE] and \
                 self._mimic_online_method == fastload_source[SourceDB.MIMIC_ONLINE] and \
                 type(self.artefact_filter) is fastload_source[SourceDB.ARTEFACT_FILTER] and \
-                ch_sel_mode == fastload_source[SourceDB.CHANNEL_SELECTION]:
+                ch_sel_mode == fastload_source[SourceDB.CHANNEL_SELECTION] and \
+                self._subject_handle == fastload_source[SourceDB.SUBJECT_HANDLE]:
 
             subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
             subject_list = [subject for subject in subject_list if subject not in self._drop_subject]
@@ -1169,7 +1203,8 @@ class DataProcessor(DataLoader):
             SourceDB.EPOCH_RANGE: (self._epoch_tmin, self._epoch_tmax),
             SourceDB.MIMIC_ONLINE: self._mimic_online_method,
             SourceDB.ARTEFACT_FILTER: type(self.artefact_filter),
-            SourceDB.CHANNEL_SELECTION: self._channel_selector.mode if self._channel_selector is not None else None
+            SourceDB.CHANNEL_SELECTION: self._channel_selector.mode if self._channel_selector is not None else None,
+            SourceDB.SUBJECT_HANDLE: self._subject_handle,
         }
         save_pickle_data(self._proc_db_source, source)
 
@@ -1333,7 +1368,7 @@ class OfflineDataPreprocessor(DataProcessor):
     def _create_x_db(self, subj, shared_var=None):
         task_dict = self._convert_task()
         fn_gen = self.get_filenames_for_subject(subj)
-        if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER == 1:
+        if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
             cut_real_mov = False
         else:
             cut_real_mov = REST in task_dict
@@ -1377,7 +1412,7 @@ class OfflineDataPreprocessor(DataProcessor):
             return  # fast load ok. Do not create database.
         print('{} file is not found. Creating database.'.format(self._proc_db_source))
 
-        if self._db_type is Physionet and not Physionet.CONFIG_VER == 1:
+        if self._db_type is Physionet and Physionet.CONFIG_VER < 1:
             if self._select_one_file or self._eeg_file is not None:
                 raise NotImplementedError('EEG file selection for Physionet is not implemented!')
             self._parallel_generate_db(self._create_physionet_db)
