@@ -57,6 +57,14 @@ def make_subject_test(*args, **kwargs):
         cp_info[STAGE] += 1
 
 
+def _reset_cp_info():
+    global cp_info
+    cp_info[F_LOW] = 0
+    cp_info[F_HIGH] = 0
+    cp_info[HIP_C] = 0
+    cp_info[HIP_GAMMA] = 0
+
+
 def _checkpoint_skipp(fft_low, fft_high, c, gamma=0):
     global cp_info
     if fft_low < cp_info[F_LOW] or fft_high < cp_info[F_HIGH] or \
@@ -67,6 +75,7 @@ def _checkpoint_skipp(fft_low, fft_high, c, gamma=0):
     cp_info[HIP_C] = c
     cp_info[HIP_GAMMA] = gamma
     save_to_json(CHECKPOINT, cp_info)
+    _reset_cp_info()
     return False
 
 
@@ -205,10 +214,7 @@ def hpc_run_cp(test_func, checkpoint=None, verbose=False, **test_kwargs):
         # rmtree(path, ignore_errors=True)
         cp_info[FEATURE_DIR] = path
         cp_info[STAGE] = 0
-        cp_info[HIP_C] = 0
-        cp_info[HIP_GAMMA] = 0
-        cp_info[F_LOW] = 0
-        cp_info[F_HIGH] = 0
+        _reset_cp_info()
     ioprocess.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
 
     # running the test with checkpoints...
