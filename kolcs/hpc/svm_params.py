@@ -7,11 +7,19 @@ from pathlib import Path
 import numpy as np
 
 from BCISystem import BCISystem, Databases, XvalidateMethod, FeatureType, ClassifierType
-from hpc_main import hpc_run_nocp
+from hpc_main import rmtree, load_from_json, FEATURE_DIR, ioprocess, remove, save_to_json
 from preprocess import DataLoader
 
+CHECKPOINT = 'checkpoint.json'
+cp_info = dict()
 LOG_TYPE = ''
 LOG_DIR = 'svm_params'
+
+STAGE = 'stage'
+HIP_C = 'C'
+HIP_GAMMA = 'gamma'
+F_LOW = 'f_low'
+F_HIGH = 'f_high'
 
 hpc_kwargs = dict(
     method=XvalidateMethod.SUBJECT,
@@ -32,15 +40,35 @@ hpc_kwargs = dict(
 
 
 class SVMConfig(Enum):
-    RBF = 'rbf_tuning'
-    POLYNOMIAL = 'poly'
-    LINEAR = 'lin'
+    LINEAR = 1
+    POLYNOMIAL = 2
+    RBF = 3
 
 
 def make_subject_test(*args, **kwargs):
-    lin_test(*args, **kwargs)
-    poly_test(*args, **kwargs)
-    rbf_test(*args, **kwargs)
+    global cp_info
+    if cp_info[STAGE] < SVMConfig.LINEAR.value:
+        lin_test(*args, **kwargs)
+        cp_info[STAGE] += 1
+    if cp_info[STAGE] < SVMConfig.POLYNOMIAL.value:
+        poly_test(*args, **kwargs)
+        cp_info[STAGE] += 1
+    if cp_info[STAGE] < SVMConfig.RBF.value:
+        rbf_test(*args, **kwargs)
+        cp_info[STAGE] += 1
+
+
+def _checkpoint_skipp(fft_low, fft_high, c, gamma=0):
+    global cp_info
+    if fft_low < cp_info[F_LOW] or fft_high < cp_info[F_HIGH] or \
+            c < cp_info[HIP_C] or gamma < cp_info[HIP_C]:
+        return True
+    cp_info[F_LOW] = fft_low
+    cp_info[F_HIGH] = fft_high
+    cp_info[HIP_C] = c
+    cp_info[HIP_GAMMA] = gamma
+    save_to_json(CHECKPOINT, cp_info)
+    return False
 
 
 def rbf_test(db_name, subj, verbose=True,
@@ -63,6 +91,8 @@ def rbf_test(db_name, subj, verbose=True,
                     classifier_kwargs = dict(
                         C=c, gamma=gamma, cache_size=400
                     )
+                    if _checkpoint_skipp(fft_low, fft_high, c, gamma):
+                        continue
 
                     bci.offline_processing(db_name=db_name,
                                            feature_params=feature_extraction,
@@ -100,6 +130,8 @@ def poly_test(db_name, subj, verbose=True,
                     classifier_kwargs = dict(
                         C=c, kernel='poly', gamma=gamma, cache_size=400
                     )
+                    if _checkpoint_skipp(fft_low, fft_high, c, gamma):
+                        continue
 
                     bci.offline_processing(db_name=db_name,
                                            feature_params=feature_extraction,
@@ -136,6 +168,8 @@ def lin_test(db_name, subj, verbose=True,
                 classifier_kwargs = dict(
                     C=c, kernel='linear', cache_size=400
                 )
+                if _checkpoint_skipp(fft_low, fft_high, c):
+                    continue
 
                 bci.offline_processing(db_name=db_name,
                                        feature_params=feature_extraction,
@@ -153,6 +187,34 @@ def lin_test(db_name, subj, verbose=True,
                                        **kwargs)
 
 
+def hpc_run_cp(test_func, checkpoint=None, verbose=False, **test_kwargs):
+    global cp_info, CHECKPOINT
+    if type(checkpoint) is str:
+        CHECKPOINT = checkpoint
+
+    user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
+    fast_load = True
+    try:
+        cp_info = load_from_json(CHECKPOINT)
+    except FileNotFoundError:
+        path = '/scratch{}/bci_{}'.format(np.random.randint(1, 5), user)
+        # rmtree(path, ignore_errors=True)
+        cp_info[FEATURE_DIR] = path
+        cp_info[STAGE] = 0
+        cp_info[HIP_C] = 0
+        cp_info[HIP_GAMMA] = 0
+        cp_info[F_LOW] = 0
+        cp_info[F_HIGH] = 0
+        fast_load = False
+    ioprocess.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
+
+    # running the test with checkpoints...
+    test_func(fast_load=fast_load,
+              verbose=verbose, **test_kwargs)
+
+    remove(CHECKPOINT)
+
+
 def make_one_test():
     _, db_name, subject = sys.argv
 
@@ -166,7 +228,11 @@ def make_one_test():
     )
     make_test = make_subject_test
     hpc_kwargs.update(additional_kwargs)
-    hpc_run_nocp(make_test, **hpc_kwargs)
+    # hpc_run_nocp(make_test, **hpc_kwargs)
+
+    cp_fold = folder.joinpath('checkpoints', 'cp_subject{:03d}.json'.format(subject))
+    cp_fold.parent.mkdir(parents=True, exist_ok=True)
+    hpc_run_cp(checkpoint=str(cp_fold), test_func=make_test, **hpc_kwargs)
 
 
 # stuff to script:
