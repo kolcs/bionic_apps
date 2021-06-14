@@ -29,7 +29,6 @@ hpc_kwargs = dict(
         order=5, l_freq=1, h_freq=45
     ),
     classifier_type=ClassifierType.SVM,
-
     subj_n_fold_num=5,
     use_drop_subject_list=True,
     validation_split=0,
@@ -86,6 +85,7 @@ def rbf_test(db_name, subj, verbose=True,
                 feature_type=FeatureType.AVG_FFT_POWER,
                 fft_low=fft_low, fft_high=fft_high,
             )
+            fast_load = False
             for c in 2 ** np.linspace(-7, 17, num=12):
                 for gamma in 2 ** np.linspace(-17, 7, num=12):
                     classifier_kwargs = dict(
@@ -101,13 +101,14 @@ def rbf_test(db_name, subj, verbose=True,
                                            filter_params=filter_params,
                                            method=method,
                                            subject_list=subj,
-                                           fast_load=True,
+                                           fast_load=fast_load,
                                            use_drop_subject_list=use_drop_subject_list,
                                            subj_n_fold_num=subj_n_fold_num,
                                            classifier_type=classifier_type,
                                            classifier_kwargs=classifier_kwargs,
                                            validation_split=validation_split,
                                            **kwargs)
+                    fast_load = True
 
 
 def poly_test(db_name, subj, verbose=True,
@@ -125,6 +126,7 @@ def poly_test(db_name, subj, verbose=True,
                 feature_type=FeatureType.AVG_FFT_POWER,
                 fft_low=fft_low, fft_high=fft_high,
             )
+            fast_load = False
             for c in 2 ** np.linspace(-7, 17, num=12):
                 for gamma in 2 ** np.linspace(-17, 7, num=12):
                     classifier_kwargs = dict(
@@ -140,13 +142,14 @@ def poly_test(db_name, subj, verbose=True,
                                            filter_params=filter_params,
                                            method=method,
                                            subject_list=subj,
-                                           fast_load=True,
+                                           fast_load=fast_load,
                                            use_drop_subject_list=use_drop_subject_list,
                                            subj_n_fold_num=subj_n_fold_num,
                                            classifier_type=classifier_type,
                                            classifier_kwargs=classifier_kwargs,
                                            validation_split=validation_split,
                                            **kwargs)
+                    fast_load = True
 
 
 def lin_test(db_name, subj, verbose=True,
@@ -164,6 +167,7 @@ def lin_test(db_name, subj, verbose=True,
                 feature_type=FeatureType.AVG_FFT_POWER,
                 fft_low=fft_low, fft_high=fft_high,
             )
+            fast_load = False
             for c in 2 ** np.linspace(-7, 17, num=12):
                 classifier_kwargs = dict(
                     C=c, kernel='linear', cache_size=400
@@ -178,13 +182,14 @@ def lin_test(db_name, subj, verbose=True,
                                        filter_params=filter_params,
                                        method=method,
                                        subject_list=subj,
-                                       fast_load=True,
+                                       fast_load=fast_load,
                                        use_drop_subject_list=use_drop_subject_list,
                                        subj_n_fold_num=subj_n_fold_num,
                                        classifier_type=classifier_type,
                                        classifier_kwargs=classifier_kwargs,
                                        validation_split=validation_split,
                                        **kwargs)
+                fast_load = True
 
 
 def hpc_run_cp(test_func, checkpoint=None, verbose=False, **test_kwargs):
@@ -193,7 +198,6 @@ def hpc_run_cp(test_func, checkpoint=None, verbose=False, **test_kwargs):
         CHECKPOINT = checkpoint
 
     user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
-    fast_load = True
     try:
         cp_info = load_from_json(CHECKPOINT)
     except FileNotFoundError:
@@ -205,32 +209,31 @@ def hpc_run_cp(test_func, checkpoint=None, verbose=False, **test_kwargs):
         cp_info[HIP_GAMMA] = 0
         cp_info[F_LOW] = 0
         cp_info[F_HIGH] = 0
-        fast_load = False
     ioprocess.DIR_FEATURE_DB = cp_info[FEATURE_DIR]
 
     # running the test with checkpoints...
-    test_func(fast_load=fast_load,
-              verbose=verbose, **test_kwargs)
+    test_func(verbose=verbose, **test_kwargs)
 
     remove(CHECKPOINT)
 
 
 def make_one_test():
     _, db_name, subject = sys.argv
+    subj = int(subject)
 
     folder = Path(LOG_DIR).joinpath(db_name, LOG_TYPE)
     folder.mkdir(parents=True, exist_ok=True)
 
     additional_kwargs = dict(
         db_name=Databases(db_name),
-        subj=int(subject),
+        subj=subj,
         folder=folder
     )
     make_test = make_subject_test
     hpc_kwargs.update(additional_kwargs)
     # hpc_run_nocp(make_test, **hpc_kwargs)
 
-    cp_fold = folder.joinpath('checkpoints', 'cp_subject{:03d}.json'.format(subject))
+    cp_fold = folder.joinpath('checkpoints', 'cp_subject{:03d}.json'.format(subj))
     cp_fold.parent.mkdir(parents=True, exist_ok=True)
     hpc_run_cp(checkpoint=str(cp_fold), test_func=make_test, **hpc_kwargs)
 
