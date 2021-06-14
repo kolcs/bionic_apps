@@ -249,7 +249,7 @@ def make_one_test():
 
 
 def start_svm_test():  # call this from script of from python
-    job_list = 'Submitted batch jobs'
+    job_list = 'Submitted batch jobs:\n'
     Path(LOG_DIR).joinpath('out').mkdir(parents=True, exist_ok=True)  # sdt out and error files
     for db_name in [Databases.PHYSIONET, Databases.TTK]:
         loader = DataLoader().use_db(db_name)
@@ -260,8 +260,10 @@ def start_svm_test():  # call this from script of from python
             cmd += 'single_cpu_lowpri.sh'
             cmd += f' {__file__} {db_name.value} {subj}'
             ans = subprocess.check_output(cmd, shell=True)
-            job_list += ' ' + ans.decode('utf-8').strip('\n').strip('\r').strip('Submitted batch job')
+            job_list += ans.decode('utf-8').strip('\n').strip('\r').strip('Submitted batch job') + ' '
     print(job_list)
+    job_file = Path(LOG_DIR).joinpath('hpc_jobs.txt')
+    job_file.write_text(job_list)
 
 
 if __name__ == '__main__':
