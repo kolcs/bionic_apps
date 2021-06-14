@@ -60,7 +60,7 @@ def make_subject_test(*args, **kwargs):
 def _checkpoint_skipp(fft_low, fft_high, c, gamma=0):
     global cp_info
     if fft_low < cp_info[F_LOW] or fft_high < cp_info[F_HIGH] or \
-            c < cp_info[HIP_C] or gamma < cp_info[HIP_C]:
+            c < cp_info[HIP_C] or gamma < cp_info[HIP_GAMMA]:
         return True
     cp_info[F_LOW] = fft_low
     cp_info[F_HIGH] = fft_high
@@ -77,7 +77,7 @@ def rbf_test(db_name, subj, verbose=True,
              use_drop_subject_list=True,
              classifier_type=ClassifierType.SVM, filter_params=None,
              validation_split=0, folder=Path(), **kwargs):
-    log_file = str(folder.joinpath('rbf_subj{}_{}.csv'.format(subj, datetime.now().strftime("%Y%m%d-%H%M%S"))))
+    log_file = str(folder.joinpath('rbf_subj{:03d}_{}.csv'.format(subj, datetime.now().strftime("%Y%m%d-%H%M%S"))))
     bci = BCISystem(make_logs=True, verbose=verbose, log_file=log_file)
     for fft_low in range(2, 39, 2):
         for fft_high in range(fft_low + 2, min(fft_low + 20, 41), 2):
@@ -118,7 +118,7 @@ def poly_test(db_name, subj, verbose=True,
               use_drop_subject_list=True,
               classifier_type=ClassifierType.SVM, filter_params=None,
               validation_split=0, folder=Path(), **kwargs):
-    log_file = str(folder.joinpath('poly_subj{}_{}.csv'.format(subj, datetime.now().strftime("%Y%m%d-%H%M%S"))))
+    log_file = str(folder.joinpath('poly_subj{:03d}_{}.csv'.format(subj, datetime.now().strftime("%Y%m%d-%H%M%S"))))
     bci = BCISystem(make_logs=True, verbose=verbose, log_file=log_file)
     for fft_low in range(2, 39, 2):
         for fft_high in range(fft_low + 2, min(fft_low + 20, 41), 2):
@@ -159,7 +159,7 @@ def lin_test(db_name, subj, verbose=True,
              use_drop_subject_list=True,
              classifier_type=ClassifierType.SVM, filter_params=None,
              validation_split=0, folder=Path(), **kwargs):
-    log_file = str(folder.joinpath('lin_subj{}_{}.csv'.format(subj, datetime.now().strftime("%Y%m%d-%H%M%S"))))
+    log_file = str(folder.joinpath('lin_subj{:03d}_{}.csv'.format(subj, datetime.now().strftime("%Y%m%d-%H%M%S"))))
     bci = BCISystem(make_logs=True, verbose=verbose, log_file=log_file)
     for fft_low in range(2, 39, 2):
         for fft_high in range(fft_low + 2, min(fft_low + 20, 41), 2):
@@ -250,7 +250,8 @@ def start_svm_test():  # call this from script of from python
         for subj in loader.get_subject_list():
             subj = int(subj)
             cmd = f'sbatch {LOG_DIR}/'
-            cmd += 'single_cpu.sh'
+            # cmd += 'single_cpu.sh'
+            cmd += 'single_cpu_lowpri.sh'
             cmd += f' {__file__} {db_name.value} {subj}'
             ans = subprocess.check_output(cmd, shell=True)
             job_list += ' ' + ans.decode('utf-8').strip('\n').strip('\r').strip('Submitted batch job')
