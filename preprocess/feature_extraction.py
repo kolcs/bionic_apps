@@ -264,8 +264,7 @@ class FeatureExtractor:
             Feature extracted data.
 
         """
-        self.fft_ranges = [(f, f + self.fft_width) for f in
-                           np.arange(self.fft_low, self.fft_high, self.fft_step)]  # todo: self.fft_high +.1
+        self.fft_ranges = [(f, f + self.fft_width) for f in np.arange(self.fft_low, self.fft_high, self.fft_step)]
         return self.calculate_multi_avg_fft_power(data)
 
     def calculate_spatial_avg_fft_power(self, data, crop=True):
