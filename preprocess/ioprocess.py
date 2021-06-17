@@ -800,10 +800,10 @@ class DataLoader:
                 subject_num = self._db_type.SUBJECT_NUM
             elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
                                    ParadigmC, EmotivParC]:
-                if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER == 1:
-                    file = '*R01_raw.fif'
-                elif self._db_type is EmotivParC:
+                if self._db_type is EmotivParC:
                     file = '*run-001_eeg.xdf'
+                elif hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
+                    file = '*R01_raw.fif'
                 else:
                     file = 'rec01.vhdr'
                 subject_num = len(sorted(Path(self._data_path).rglob(file)))
@@ -830,7 +830,7 @@ class DataLoader:
                                               f'for {self._db_type}')
             else:
                 raise NotImplementedError(f'{SubjectHandle.BCI_COMP} option only implemented for'
-                                          f'CONFIG_VER > 1 .')
+                                          f'CONFIG_VER > 1.')
         else:
             raise NotImplementedError(f'{self._subject_handle} is not implemented.')
 
@@ -898,7 +898,13 @@ class DataLoader:
             raise NotImplementedError('Filename generation for {} is not implemented'.format(self._db_type))
         return fn_gen
 
-    def get_filenames_for_subject(self, subj):
+    def _get_subj_pattern(self, subj):
+        pattern = self._db_type.FILE_PATH
+        pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
+        pattern = pattern.replace('{rec}', '*')
+        return pattern
+
+    def get_filenames_for_subject(self, subj, train=True):
         """Generating filenames for a defined subject in a database.
 
         Parameters
@@ -910,6 +916,8 @@ class DataLoader:
         -------
         fn_gen : list of str, generator of str
             List or generator containing all of the files corresponding to the subject number.
+        train : bool
+            Only used in case of SubjectHandle.BCI_COMP. Select train or test set.
         """
         subj_num = self.get_subject_num()
         assert subj <= subj_num, f'Subject{subj} is out of subject range. Last subject in db is {subj_num}.' \
@@ -919,10 +927,7 @@ class DataLoader:
             if hasattr(self._db_type, 'CONFIG_VER'):
                 if self._db_type.CONFIG_VER >= 1:
                     if self._db_type in [Physionet, TTK_DB, BciCompIV2a]:
-                        pattern = self._db_type.FILE_PATH
-                        pattern = pattern.replace('{subj}', '{:03d}'.format(subj))
-                        pattern = pattern.replace('{rec}', '*')
-                        fn_gen = list(sorted(self._data_path.rglob(pattern)))
+                        fn_gen = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
                         assert len(fn_gen) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
                                                 f'for {self._db_type} or download the latest database.'
                     else:
@@ -937,14 +942,24 @@ class DataLoader:
         elif self._subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'SUBJECT_EXP'):
                 fn_gen = list()
-                pattern = self._db_type.FILE_PATH
                 for s in self._db_type.SUBJECT_EXP[subj]:
-                    pattern = pattern.replace('{subj}', '{:03d}'.format(s))
-                    pattern = pattern.replace('{rec}', '*')
-                    fn_gen.extend(sorted(self._data_path.rglob(pattern)))
+                    fn_gen.extend(sorted(self._data_path.rglob(self._get_subj_pattern(s))))
             else:
                 raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
                                      f'Can not use {SubjectHandle.MIX_EXPERIMENTS} setting.')
+
+        elif self._subject_handle is SubjectHandle.BCI_COMP:
+            if self._db_type in [BciCompIV2a]:
+                if hasattr(self._db_type, 'SUBJECT_EXP'):
+                    s = self._db_type.SUBJECT_EXP[subj][0 if train else 1]
+                    fn_gen = sorted(self._data_path.rglob(self._get_subj_pattern(s)))
+                else:
+                    raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
+                                         f'Can not use {SubjectHandle.BCI_COMP} setting.')
+            else:
+                raise NotImplementedError(f'{self._db_type} is not implemented with '
+                                          f'{SubjectHandle.MIX_EXPERIMENTS} setting.')
+
         else:
             raise NotImplementedError(f'{self._subject_handle} is not implemented.')
         return fn_gen
@@ -1155,6 +1170,19 @@ class DataProcessor(DataLoader):
 
         return task_dict
 
+    def _generate_db_from_file_list(self, filenames):
+        task_dict = self._convert_task()
+        if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
+            cut_real_mov = False
+        else:
+            cut_real_mov = REST in task_dict
+        epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
+                                       cut_real_movement_tasks=cut_real_mov,
+                                       prefilter_signal=len(self._filter_params) > 0,
+                                       event_id=self._db_type.TRIGGER_EVENT_ID,
+                                       **self._filter_params)
+        return self._get_windowed_features(epochs)
+
     def _init_fast_load_data(self):
         proc_db_source = self.proc_db_path.joinpath(self.feature_type.name + '.db')
         check_path_limit(proc_db_source)
@@ -1207,6 +1235,32 @@ class DataProcessor(DataLoader):
             SourceDB.SUBJECT_HANDLE: self._subject_handle,
         }
         save_pickle_data(self._proc_db_source, source)
+
+    def _save_preprocessed_subject_data(self, subject_data, subj, xval_type=None):
+        """Saving preprocessed feature data for a given subject.
+
+        Parameters
+        ----------
+        subject_data : dict
+            Featured and preprocessed data.
+        subj : int
+            Subject number
+        """
+        print('Database generated for subject{}'.format(subj))
+        subject_file_dict = dict()
+        epoch_ind = 0
+        for task, ep_dict in subject_data.items():
+            ep_file_dict = dict()
+            for ind, ep_list in ep_dict.items():
+                db_file = 'subj{}-epoch{}.data'.format(subj, epoch_ind)
+                if xval_type is not None:
+                    db_file = f'{xval_type}-' + db_file
+                db_file = str(self.proc_db_path.joinpath(db_file))
+                save_pickle_data(db_file, ep_list)
+                epoch_ind += 1
+                ep_file_dict[ind] = db_file
+            subject_file_dict[task] = ep_file_dict
+        return subj, subject_file_dict
 
     def _parallel_generate_db(self, func):
         """Parallel DB generation for each subject"""
@@ -1306,30 +1360,6 @@ class OfflineDataPreprocessor(DataProcessor):
             label_list = list(set([_create_binary_label(label) for label in label_list]))
         return label_list
 
-    def _save_preprocessed_subject_data(self, subject_data, subj):
-        """Saving preprocessed feature data for a given subject.
-
-        Parameters
-        ----------
-        subject_data : dict
-            Featured and preprocessed data.
-        subj : int
-            Subject number
-        """
-        print('Database generated for subject{}'.format(subj))
-        subject_file_dict = dict()
-        epoch_ind = 0
-        for task, ep_dict in subject_data.items():
-            ep_file_dict = dict()
-            for ind, ep_list in ep_dict.items():
-                db_file = 'subj{}-epoch{}.data'.format(subj, epoch_ind)
-                db_file = str(self.proc_db_path.joinpath(db_file))
-                save_pickle_data(db_file, ep_list)
-                epoch_ind += 1
-                ep_file_dict[ind] = db_file
-            subject_file_dict[task] = ep_file_dict
-        return subj, subject_file_dict
-
     def get_processed_db_source(self, subject=None, equalize_labels=True, only_files=False):
         if not only_files:  # SubjectKFold method
             if subject is None:
@@ -1366,20 +1396,8 @@ class OfflineDataPreprocessor(DataProcessor):
         return self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_x_db(self, subj, shared_var=None):
-        task_dict = self._convert_task()
         fn_gen = self.get_filenames_for_subject(subj)
-        if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
-            cut_real_mov = False
-        else:
-            cut_real_mov = REST in task_dict
-
-        epochs = get_epochs_from_files(fn_gen, task_dict,
-                                       self._epoch_tmin, self._epoch_tmax,
-                                       cut_real_movement_tasks=cut_real_mov,
-                                       prefilter_signal=len(self._filter_params) > 0,
-                                       event_id=self._db_type.TRIGGER_EVENT_ID,
-                                       **self._filter_params)
-        subject_data = self._get_windowed_features(epochs)
+        subject_data = self._generate_db_from_file_list(fn_gen)
 
         if shared_var is not None:
             shared_var[0] = self.info
@@ -1392,18 +1410,24 @@ class OfflineDataPreprocessor(DataProcessor):
         if self._eeg_file is None:
             self._eeg_file = select_file_in_explorer(str(self._base_dir))
 
-        task_dict = self._convert_task()
-        cut_real_mov = REST in task_dict
-        epochs = get_epochs_from_files(self._eeg_file, task_dict,
-                                       self._epoch_tmin, self._epoch_tmax,
-                                       cut_real_movement_tasks=cut_real_mov,
-                                       prefilter_signal=len(self._filter_params) > 0,
-                                       event_id=self._db_type.TRIGGER_EVENT_ID,
-                                       **self._filter_params)
-        subject_data = self._get_windowed_features(epochs)
-        data, _ = zip(*[self._save_preprocessed_subject_data(subject_data, 0)])
+        subject_data = self._generate_db_from_file_list(self._eeg_file)
+        data = [self._save_preprocessed_subject_data(subject_data, 0)]
         self._proc_db_filenames = dict(data)
         self._save_fast_load_source_data()
+
+    def _create_bci_comp(self, subj, shared_var=None):  # todo
+        train_file_names = self.get_filenames_for_subject(subj)
+        train_db = self._generate_db_from_file_list(train_file_names)
+        train_files = self._save_preprocessed_subject_data(train_db, subj, 'bci_comp_train')
+        test_file_names = self.get_filenames_for_subject(subj, train=False)
+        test_db = self._generate_db_from_file_list(test_file_names)
+        test_files = self._save_preprocessed_subject_data(test_db, subj, 'bci_comp_test')
+
+        if shared_var is not None:
+            shared_var[0] = self.info
+            shared_var[1] = self._feature_shape
+
+        return subj, (train_files, test_files)
 
     def _create_db(self):
         """Base db creator function."""
@@ -1418,7 +1442,10 @@ class OfflineDataPreprocessor(DataProcessor):
             self._parallel_generate_db(self._create_physionet_db)
 
         elif not self._select_one_file and self._eeg_file is None:
-            self._parallel_generate_db(self._create_x_db)
+            if self._subject_handle is SubjectHandle.BCI_COMP:
+                self._parallel_generate_db(self._create_bci_comp)
+            else:
+                self._parallel_generate_db(self._create_x_db)
 
         elif self._db_type in [GameDB, Game_ParadigmC, Game_ParadigmD, ParadigmC]:
             self._create_db_from_file()
@@ -1518,42 +1545,10 @@ class OnlineDataPreprocessor(DataProcessor):
             label_list = list(set([_create_binary_label(label) for label in label_list]))
         return label_list
 
-    def _save_preprocessed_subject_data(self, subject_data, subj, xval_type):
-        """Saving preprocessed feature data for a given subject.
-
-        Parameters
-        ----------
-        subject_data : dict
-            Featured and preprocessed data.
-        subj : int
-            Subject number
-        """
-        print('Database generated for subject{}'.format(subj))
-        subject_file_dict = dict()
-        epoch_ind = 0
-        for task, ep_dict in subject_data.items():
-            ep_file_dict = dict()
-            for ind, ep_list in ep_dict.items():
-                db_file = f'{xval_type}-subj{subj}-epoch{epoch_ind}.data'
-                db_file = str(self.proc_db_path.joinpath(db_file))
-                save_pickle_data(db_file, ep_list)
-                epoch_ind += 1
-                ep_file_dict[ind] = db_file
-            subject_file_dict[task] = ep_file_dict
-        return subject_file_dict
-
     def get_processed_db_source(self, subject=None):
         if subject is None:
             return self._proc_db_filenames
         return self._proc_db_filenames[subject]
-
-    def generate_db_from_file_list(self, filenames):
-        task_dict = self._convert_task()
-        epochs = get_epochs_from_files(filenames, task_dict, self._epoch_tmin, self._epoch_tmax,
-                                       prefilter_signal=len(self._filter_params) > 0,
-                                       event_id=self._db_type.TRIGGER_EVENT_ID,
-                                       **self._filter_params)
-        return self._get_windowed_features(epochs)
 
     def _generate_online_db(self, subj, shared_var=None):
         session_files = np.asarray(self.get_filenames_for_subject(subj))
@@ -1563,10 +1558,10 @@ class OnlineDataPreprocessor(DataProcessor):
         kfold = KFold(n_splits=self._n_fold, shuffle=self._shuffle)
         for i, (train_index, test_index) in enumerate(kfold.split(session_files)):
             self._mimic_online_method = False
-            subject_train = self.generate_db_from_file_list(session_files[train_index])
+            subject_train = self._generate_db_from_file_list(session_files[train_index])
             train_files = self._save_preprocessed_subject_data(subject_train, subj, f'train{i}')
             self._mimic_online_method = True
-            subject_test = self.generate_db_from_file_list(session_files[test_index])
+            subject_test = self._generate_db_from_file_list(session_files[test_index])
             test_files = self._save_preprocessed_subject_data(subject_test, subj, f'test{i}')
 
             kfold_data.append((train_files, test_files))
