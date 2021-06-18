@@ -601,6 +601,8 @@ class SubjectKFold(object):
                 return self._split_cross_subjects(subject)
             else:
                 assert subject is not None, 'Subject must be defined for subject split!'
+                if self._source_db is SubjectHandle.BCI_COMP:
+                    return self._split_online_subject_db(subject)
                 return self._split_subject(subject)
 
         else:  # mimic_online_method
@@ -624,6 +626,11 @@ class DataLoader:
             Path for bci_system.cfg
         use_drop_subject_list : bool
             Whether to use drop subject list from config file or not?
+        subject_handle : SubjectHandle
+            Type of subject data loading.
+            - INDEPENDENT_DAYS: Handle each experiment as an individual subject.
+            - MIX_EXPERIMENTS: Train on all experiments of a given subject.
+            - BCI_COMP: BCI competition setup, train and test sets are given.
         """
         self._base_dir = Path(init_base_config(base_config_path))
         self.info = mne.Info()
@@ -633,7 +640,7 @@ class DataLoader:
 
         self._subject_list = None
         self._drop_subject = set() if use_drop_subject_list else None
-        self._subject_handle = subject_handle
+        self.subject_handle = subject_handle
 
     def _validate_db_type(self):
         assert self._db_type is not None, 'Database is not defined.'
@@ -795,7 +802,7 @@ class DataLoader:
     def get_subject_num(self):
         """Returns the number of available subjects in Database"""
         self._validate_db_type()
-        if self._subject_handle is SubjectHandle.INDEPENDENT_DAYS:
+        if self.subject_handle is SubjectHandle.INDEPENDENT_DAYS:
             if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
                 subject_num = self._db_type.SUBJECT_NUM
             elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
@@ -810,7 +817,7 @@ class DataLoader:
             else:
                 raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
 
-        elif self._subject_handle is SubjectHandle.MIX_EXPERIMENTS:
+        elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
                 if self._db_type in [BciCompIV2a]:
                     subject_num = len(self._db_type.SUBJECT_EXP)
@@ -821,7 +828,7 @@ class DataLoader:
                 raise NotImplementedError(f'{SubjectHandle.MIX_EXPERIMENTS} option only implemented for'
                                           f'CONFIG_VER > 1 .')
 
-        elif self._subject_handle is SubjectHandle.BCI_COMP:
+        elif self.subject_handle is SubjectHandle.BCI_COMP:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
                 if self._db_type in [BciCompIV2a]:
                     subject_num = len(self._db_type.SUBJECT_EXP)
@@ -832,7 +839,7 @@ class DataLoader:
                 raise NotImplementedError(f'{SubjectHandle.BCI_COMP} option only implemented for'
                                           f'CONFIG_VER > 1.')
         else:
-            raise NotImplementedError(f'{self._subject_handle} is not implemented.')
+            raise NotImplementedError(f'{self.subject_handle} is not implemented.')
 
         return subject_num
 
@@ -923,7 +930,7 @@ class DataLoader:
         assert subj <= subj_num, f'Subject{subj} is out of subject range. Last subject in db is {subj_num}.' \
                                  f'\nYou may would like to download the latest database.'
 
-        if self._subject_handle is SubjectHandle.INDEPENDENT_DAYS:
+        if self.subject_handle is SubjectHandle.INDEPENDENT_DAYS:
             if hasattr(self._db_type, 'CONFIG_VER'):
                 if self._db_type.CONFIG_VER >= 1:
                     if self._db_type in [Physionet, TTK_DB, BciCompIV2a]:
@@ -939,7 +946,7 @@ class DataLoader:
             else:
                 fn_gen = self._legacy_filename_gen(subj)
 
-        elif self._subject_handle is SubjectHandle.MIX_EXPERIMENTS:
+        elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'SUBJECT_EXP'):
                 fn_gen = list()
                 for s in self._db_type.SUBJECT_EXP[subj]:
@@ -948,7 +955,7 @@ class DataLoader:
                 raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
                                      f'Can not use {SubjectHandle.MIX_EXPERIMENTS} setting.')
 
-        elif self._subject_handle is SubjectHandle.BCI_COMP:
+        elif self.subject_handle is SubjectHandle.BCI_COMP:
             if self._db_type in [BciCompIV2a]:
                 if hasattr(self._db_type, 'SUBJECT_EXP'):
                     s = self._db_type.SUBJECT_EXP[subj][0 if train else 1]
@@ -961,7 +968,7 @@ class DataLoader:
                                           f'{SubjectHandle.MIX_EXPERIMENTS} setting.')
 
         else:
-            raise NotImplementedError(f'{self._subject_handle} is not implemented.')
+            raise NotImplementedError(f'{self.subject_handle} is not implemented.')
         return fn_gen
 
     def get_task_dict(self):
@@ -981,7 +988,7 @@ class DataProcessor(DataLoader):
     def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=False,
                  *,
-                 base_config_path='.',
+                 base_config_path='.', subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                  filter_params=None, do_artefact_rejection=False, artefact_thresholds=None,
                  make_channel_selection=False, channel_sel_kwargs=None):
         """Abstract Preprocessor for eeg files.
@@ -1004,6 +1011,11 @@ class DataProcessor(DataLoader):
             Handle with extreme care! It loads the result of a previous preprocess task.
         base_config_path : str
             Path for bci_system.cfg
+        subject_handle : SubjectHandle
+            Type of subject data loading.
+            - INDEPENDENT_DAYS: Handle each experiment as an individual subject.
+            - MIX_EXPERIMENTS: Train on all experiments of a given subject.
+            - BCI_COMP: BCI competition setup, train and test sets are given.
         filter_params : dict, optional
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         do_artefact_rejection : bool
@@ -1039,7 +1051,7 @@ class DataProcessor(DataLoader):
 
         self._channel_selector = ChannelSelector(**channel_sel_kwargs) if make_channel_selection else None
 
-        super(DataProcessor, self).__init__(base_config_path, use_drop_subject_list)
+        super(DataProcessor, self).__init__(base_config_path, use_drop_subject_list, subject_handle)
 
     def _create_db(self):
         raise NotImplementedError
@@ -1111,7 +1123,7 @@ class DataProcessor(DataLoader):
         if self.artefact_filter is not None:
             if self._db_type == Physionet and not Physionet.CONFIG_VER == 1:
                 raise NotImplementedError('Artefact rejection is implemented for Physionet database '
-                                          'with "CONFIG_VER = 1". Change it in config.py')
+                                          'with "CONFIG_VER >= 1". Change it in config.py')
             else:
                 if self._mimic_online_method:
                     epochs = self.artefact_filter.mimic_online_filter(epochs)
@@ -1122,7 +1134,7 @@ class DataProcessor(DataLoader):
         if self._channel_selector is not None:
             if self._db_type == Physionet and not Physionet.CONFIG_VER == 1:
                 raise NotImplementedError('Channel selection is implemented for Physionet database '
-                                          'with "CONFIG_VER = 1". Change it in config.py')
+                                          'with "CONFIG_VER >= 1". Change it in config.py')
             else:
                 if self._mimic_online_method:
                     selected_channels = self._channel_selector.online_select()
@@ -1209,7 +1221,7 @@ class DataProcessor(DataLoader):
                 self._mimic_online_method == fastload_source[SourceDB.MIMIC_ONLINE] and \
                 type(self.artefact_filter) is fastload_source[SourceDB.ARTEFACT_FILTER] and \
                 ch_sel_mode == fastload_source[SourceDB.CHANNEL_SELECTION] and \
-                self._subject_handle == fastload_source[SourceDB.SUBJECT_HANDLE]:
+                self.subject_handle == fastload_source[SourceDB.SUBJECT_HANDLE]:
 
             subject_list = self._subject_list if self._subject_list is not None else np.arange(n_subjects) + 1
             subject_list = [subject for subject in subject_list if subject not in self._drop_subject]
@@ -1232,7 +1244,7 @@ class DataProcessor(DataLoader):
             SourceDB.MIMIC_ONLINE: self._mimic_online_method,
             SourceDB.ARTEFACT_FILTER: type(self.artefact_filter),
             SourceDB.CHANNEL_SELECTION: self._channel_selector.mode if self._channel_selector is not None else None,
-            SourceDB.SUBJECT_HANDLE: self._subject_handle,
+            SourceDB.SUBJECT_HANDLE: self.subject_handle,
         }
         save_pickle_data(self._proc_db_source, source)
 
@@ -1262,6 +1274,13 @@ class DataProcessor(DataLoader):
             subject_file_dict[task] = ep_file_dict
         return subj, subject_file_dict
 
+    def __shared_var_handle(self, func, subj, cp_subj, shared_var):
+        res = func(subj)
+        if subj == cp_subj:  # save common data only once...
+            shared_var[0] = self.info
+            shared_var[1] = self._feature_shape
+        return res
+
     def _parallel_generate_db(self, func):
         """Parallel DB generation for each subject"""
         subject_list = self.get_subject_list()
@@ -1269,7 +1288,8 @@ class DataProcessor(DataLoader):
         if len(subject_list) > 1:
             manager = Manager()
             shared_variables = manager.list([self.info, self._feature_shape])
-            data = Parallel(n_jobs=-2)(delayed(func)(subject, shared_variables) for subject in subject_list)
+            data = Parallel(n_jobs=-2)(delayed(self.__shared_var_handle)
+                                       (func, subject, subject_list[0], shared_variables) for subject in subject_list)
             self.info, self._feature_shape = shared_variables
             manager.shutdown()
         else:
@@ -1306,7 +1326,7 @@ class OfflineDataPreprocessor(DataProcessor):
     def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True,
                  *,
-                 base_config_path='.',
+                 base_config_path='.', subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                  select_eeg_file=False, eeg_file=None, filter_params=None,
                  do_artefact_rejection=False, artefact_thresholds=None,
                  make_channel_selection=False):
@@ -1330,6 +1350,11 @@ class OfflineDataPreprocessor(DataProcessor):
             Handle with extreme care! It loads the result of a previous preprocess task.
         base_config_path : str
             Path for bci_system.cfg
+        subject_handle : SubjectHandle
+            Type of subject data loading.
+            - INDEPENDENT_DAYS: Handle each experiment as an individual subject.
+            - MIX_EXPERIMENTS: Train on all experiments of a given subject.
+            - BCI_COMP: BCI competition setup, train and test sets are given.
         select_eeg_file : bool
             To select or not an eeg file.
         eeg_file : str, optional
@@ -1348,6 +1373,7 @@ class OfflineDataPreprocessor(DataProcessor):
             epoch_tmin, epoch_tmax, window_length, window_step,
             use_drop_subject_list, fast_load,
             base_config_path=base_config_path,
+            subject_handle=subject_handle,
             filter_params=filter_params,
             do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds,
             make_channel_selection=make_channel_selection
@@ -1373,7 +1399,7 @@ class OfflineDataPreprocessor(DataProcessor):
                 db_files = self._proc_db_filenames[subject]
             return _generate_file_db(db_files, equalize_labels)
 
-    def _create_physionet_db(self, subj, shared_var=None):
+    def _create_physionet_db(self, subj):
         subject_data = dict()
         keys = self._db_type.TASK_TO_REC.keys()
 
@@ -1389,20 +1415,11 @@ class OfflineDataPreprocessor(DataProcessor):
 
             subject_data.update(win_epochs)
 
-        if shared_var is not None:
-            shared_var[0] = self.info
-            shared_var[1] = self._feature_shape
-
         return self._save_preprocessed_subject_data(subject_data, subj)
 
-    def _create_x_db(self, subj, shared_var=None):
+    def _create_x_db(self, subj):
         fn_gen = self.get_filenames_for_subject(subj)
         subject_data = self._generate_db_from_file_list(fn_gen)
-
-        if shared_var is not None:
-            shared_var[0] = self.info
-            shared_var[1] = self._feature_shape
-
         return self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_db_from_file(self):
@@ -1415,7 +1432,7 @@ class OfflineDataPreprocessor(DataProcessor):
         self._proc_db_filenames = dict(data)
         self._save_fast_load_source_data()
 
-    def _create_bci_comp(self, subj, shared_var=None):  # todo
+    def _create_bci_comp(self, subj):
         train_file_names = self.get_filenames_for_subject(subj)
         train_db = self._generate_db_from_file_list(train_file_names)
         train_files = self._save_preprocessed_subject_data(train_db, subj, 'bci_comp_train')
@@ -1423,11 +1440,7 @@ class OfflineDataPreprocessor(DataProcessor):
         test_db = self._generate_db_from_file_list(test_file_names)
         test_files = self._save_preprocessed_subject_data(test_db, subj, 'bci_comp_test')
 
-        if shared_var is not None:
-            shared_var[0] = self.info
-            shared_var[1] = self._feature_shape
-
-        return subj, (train_files, test_files)
+        return subj, [(train_files, test_files)]
 
     def _create_db(self):
         """Base db creator function."""
@@ -1442,7 +1455,7 @@ class OfflineDataPreprocessor(DataProcessor):
             self._parallel_generate_db(self._create_physionet_db)
 
         elif not self._select_one_file and self._eeg_file is None:
-            if self._subject_handle is SubjectHandle.BCI_COMP:
+            if self.subject_handle is SubjectHandle.BCI_COMP:
                 self._parallel_generate_db(self._create_bci_comp)
             else:
                 self._parallel_generate_db(self._create_x_db)
@@ -1490,7 +1503,7 @@ class OnlineDataPreprocessor(DataProcessor):
     def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True,
                  *,
-                 base_config_path='.',
+                 base_config_path='.', subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                  filter_params=None, do_artefact_rejection=True, artefact_thresholds=None,
                  make_channel_selection=False,
                  n_fold=5, shuffle=True):
@@ -1513,6 +1526,11 @@ class OnlineDataPreprocessor(DataProcessor):
             Whether to use drop subject list from config file or not?
         base_config_path : str
             Path for bci_system.cfg
+        subject_handle : SubjectHandle
+            Type of subject data loading.
+            - INDEPENDENT_DAYS: Handle each experiment as an individual subject.
+            - MIX_EXPERIMENTS: Train on all experiments of a given subject.
+            - BCI_COMP: BCI competition setup, train and test sets are given.
         filter_params : dict, optional
             Parameters for Butterworth highpass digital filtering. ''order'' and ''l_freq''
         do_artefact_rejection : bool
@@ -1532,6 +1550,7 @@ class OnlineDataPreprocessor(DataProcessor):
             epoch_tmin, epoch_tmax, window_length, window_step,
             use_drop_subject_list, fast_load,
             base_config_path=base_config_path,
+            subject_handle=subject_handle,
             filter_params=filter_params,
             do_artefact_rejection=do_artefact_rejection, artefact_thresholds=artefact_thresholds,
             make_channel_selection=make_channel_selection
@@ -1550,7 +1569,7 @@ class OnlineDataPreprocessor(DataProcessor):
             return self._proc_db_filenames
         return self._proc_db_filenames[subject]
 
-    def _generate_online_db(self, subj, shared_var=None):
+    def _generate_online_db(self, subj):
         session_files = np.asarray(self.get_filenames_for_subject(subj))
 
         kfold_data = list()
@@ -1566,10 +1585,6 @@ class OnlineDataPreprocessor(DataProcessor):
 
             kfold_data.append((train_files, test_files))
 
-        if shared_var is not None:
-            shared_var[0] = self.info
-            shared_var[1] = self._feature_shape
-
         return subj, kfold_data
 
     def _create_db(self):
@@ -1582,10 +1597,14 @@ class OnlineDataPreprocessor(DataProcessor):
                                       f'Please reformat class {self._db_type.__name__} '
                                       f'in the config.py file.')
 
-        if not self._db_type.CONFIG_VER == 1:
+        if self._db_type.CONFIG_VER < 1:
             raise NotImplementedError(f'Online mimic process is only implemented for new config. '
-                                      f'Please set CONFIG_VER=1 in the config.py file '
+                                      f'Please set CONFIG_VER >= 1 in the config.py file '
                                       f'at class {self._db_type.__name__}.')
+
+        if self.subject_handle is SubjectHandle.BCI_COMP:
+            raise ValueError(f'{self.__class__.__name__} is not implemented for '
+                             f'{SubjectHandle.BCI_COMP} usage.')
 
         if self._db_type in [Physionet, TTK_DB]:
             self._parallel_generate_db(self._generate_online_db)
