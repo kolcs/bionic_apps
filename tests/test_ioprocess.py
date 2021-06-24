@@ -1,13 +1,59 @@
 import unittest
-from pathlib import Path
+from pathlib import Path, WindowsPath, PosixPath
 from shutil import rmtree
 
 from numpy import ndarray
 from sklearn.preprocessing import LabelEncoder
 
 from config import Physionet, Game_ParadigmC, Game_ParadigmD, DIR_FEATURE_DB
-from preprocess import init_base_config, OfflineDataPreprocessor, OnlineDataPreprocessor, \
+from preprocess import init_base_config, get_db_name_by_filename, SubjectHandle, DataLoader, \
+    OfflineDataPreprocessor, OnlineDataPreprocessor, \
     FeatureType, SubjectKFold, load_pickle_data, DataHandler
+
+
+class TestDataLoader(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        base_dir = Path(init_base_config('..'))
+        cls.avail_dbs = set()
+        for file in base_dir.rglob('*'):
+            try:
+                cls.avail_dbs.add(get_db_name_by_filename(file.as_posix()))
+            except ValueError:
+                pass
+
+    def _test_get_subject_list(self):
+        subj_list = self.loader.get_subject_list()
+        self.assertIsInstance(subj_list, list)
+        for subj in subj_list:
+            self.assertIsInstance(subj, int)
+
+    def _test_get_filenames(self):
+        for subj in self.loader.get_subject_list():
+            file_names = self.loader.get_filenames_for_subject(subj)
+            self.assertIsInstance(file_names, list)
+            self.assertIn(type(file_names[0]), [str, WindowsPath, PosixPath])
+
+    def _run_test(self):
+        for db_name in self.avail_dbs:
+            with self.subTest(f'Database: {db_name.name}'):
+                self.loader.use_db(db_name)
+                self.assertIsInstance(self.loader.get_subject_num(), int)
+                self._test_get_subject_list()
+                self._test_get_filenames()
+
+    def test_independent_days(self):
+        self.loader = DataLoader('..', subject_handle=SubjectHandle.INDEPENDENT_DAYS)
+        self._run_test()
+
+    def test_mix_experiments(self):
+        self.loader = DataLoader('..', subject_handle=SubjectHandle.MIX_EXPERIMENTS)
+        self._run_test()
+
+    def test_bci_comp(self):
+        self.loader = DataLoader('..', subject_handle=SubjectHandle.BCI_COMP)
+        self._run_test()
 
 
 class TestOfflinePreprocessor(unittest.TestCase):

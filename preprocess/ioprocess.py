@@ -806,7 +806,7 @@ class DataLoader:
             if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
                 subject_num = self._db_type.SUBJECT_NUM
             elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
-                                   ParadigmC, EmotivParC]:
+                                   ParadigmC, EmotivParC, GameDB]:
                 if self._db_type is EmotivParC:
                     file = '*run-001_eeg.xdf'
                 elif hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
@@ -833,10 +833,10 @@ class DataLoader:
                 if self._db_type in [BciCompIV2a]:
                     subject_num = len(self._db_type.SUBJECT_EXP)
                 else:
-                    raise NotImplementedError(f'{SubjectHandle.BCI_COMP} is not implemented '
-                                              f'for {self._db_type}')
+                    raise ValueError(f'{SubjectHandle.BCI_COMP} is only implemented '
+                                     f'for {self._db_type}')
             else:
-                raise NotImplementedError(f'{SubjectHandle.BCI_COMP} option only implemented for'
+                raise NotImplementedError(f'{SubjectHandle.BCI_COMP} option only implemented for '
                                           f'CONFIG_VER > 1.')
         else:
             raise NotImplementedError(f'{self.subject_handle} is not implemented.')
@@ -903,7 +903,7 @@ class DataLoader:
             fn_gen = self._generate_epocplus_filenames(subj)
         else:
             raise NotImplementedError('Filename generation for {} is not implemented'.format(self._db_type))
-        return fn_gen
+        return list(fn_gen)
 
     def _get_subj_pattern(self, subj):
         pattern = self._db_type.FILE_PATH
@@ -934,9 +934,9 @@ class DataLoader:
             if hasattr(self._db_type, 'CONFIG_VER'):
                 if self._db_type.CONFIG_VER >= 1:
                     if self._db_type in [Physionet, TTK_DB, BciCompIV2a]:
-                        fn_gen = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
-                        assert len(fn_gen) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
-                                                f'for {self._db_type} or download the latest database.'
+                        file_names = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
+                        assert len(file_names) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
+                                                    f'for {self._db_type} or download the latest database.'
                     else:
                         raise NotImplementedError('Filename generation for {} with CONFIG_VER=1 '
                                                   'is not implemented.'.format(self._db_type))
@@ -944,13 +944,13 @@ class DataLoader:
                     raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
                                               'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
             else:
-                fn_gen = self._legacy_filename_gen(subj)
+                file_names = self._legacy_filename_gen(subj)
 
         elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'SUBJECT_EXP'):
-                fn_gen = list()
+                file_names = list()
                 for s in self._db_type.SUBJECT_EXP[subj]:
-                    fn_gen.extend(sorted(self._data_path.rglob(self._get_subj_pattern(s))))
+                    file_names.extend(sorted(self._data_path.rglob(self._get_subj_pattern(s))))
             else:
                 raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
                                      f'Can not use {SubjectHandle.MIX_EXPERIMENTS} setting.')
@@ -959,7 +959,7 @@ class DataLoader:
             if self._db_type in [BciCompIV2a]:
                 if hasattr(self._db_type, 'SUBJECT_EXP'):
                     s = self._db_type.SUBJECT_EXP[subj][0 if train else 1]
-                    fn_gen = sorted(self._data_path.rglob(self._get_subj_pattern(s)))
+                    file_names = sorted(self._data_path.rglob(self._get_subj_pattern(s)))
                 else:
                     raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
                                          f'Can not use {SubjectHandle.BCI_COMP} setting.')
@@ -969,7 +969,7 @@ class DataLoader:
 
         else:
             raise NotImplementedError(f'{self.subject_handle} is not implemented.')
-        return fn_gen
+        return file_names
 
     def get_task_dict(self):
         self._validate_db_type()
