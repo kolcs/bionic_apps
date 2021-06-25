@@ -333,7 +333,7 @@ class BCISystem(object):
             proc_subjects = None
 
         self._proc.run(proc_subjects, **feature_params)
-        assert len(self._proc.get_subjects()) > 0, 'There are no preprocessed subjects...'
+        assert len(self._proc.get_processed_subjects()) > 0, 'There are no preprocessed subjects...'
 
         kfold = SubjectKFold(
             self._proc, subj_n_fold_num, validation_split=validation_split, shuffle_data=shuffle_data,

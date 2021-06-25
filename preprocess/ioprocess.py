@@ -642,6 +642,8 @@ class DataLoader:
         self._drop_subject = set() if use_drop_subject_list else None
         self.subject_handle = subject_handle
 
+        self._feature_shape = tuple()
+
     def _validate_db_type(self):
         assert self._db_type is not None, 'Database is not defined.'
 
@@ -680,6 +682,8 @@ class DataLoader:
         self._data_path = self._base_dir.joinpath(db_type.DIR)
         assert self._data_path.exists(), "Path {} does not exists.".format(self._data_path)
         self._db_type = db_type
+        self._feature_shape = tuple()
+        self._subject_list = None
 
         if self._drop_subject is not None:
             self._drop_subject = set(db_type.DROP_SUBJECTS)
@@ -1038,7 +1042,6 @@ class DataProcessor(DataLoader):
 
         self.feature_type = FeatureType.FFT_RANGE
         self.feature_kwargs = dict()
-        self._feature_shape = tuple()
 
         self.proc_db_path = Path()
         self._proc_db_filenames = dict()
@@ -1056,7 +1059,7 @@ class DataProcessor(DataLoader):
     def _create_db(self):
         raise NotImplementedError
 
-    def get_subjects(self):
+    def get_processed_subjects(self):
         return list(self._proc_db_filenames)
 
     def get_processed_db_source(self):
@@ -1068,7 +1071,7 @@ class DataProcessor(DataLoader):
     def get_feature_shape(self):
         return self._feature_shape
 
-    def init_processed_db_path(self, feature=None):
+    def _init_processed_db_path(self, feature=None):
         """Initialize the path of preprocessed database.
 
         Parameters
@@ -1173,7 +1176,7 @@ class DataProcessor(DataLoader):
                 feature = feature_extractor.run(ep.get_data())
                 f_shape = feature.shape[1:]
                 if len(self._feature_shape) > 0:
-                    assert f_shape == self._feature_shape, 'Error: Change in feature output shape. prev: {},  ' \
+                    assert f_shape == self._feature_shape, 'Change in feature output shape. prev: {},  ' \
                                                            'current: {}'.format(self._feature_shape, f_shape)
                 self._feature_shape = f_shape
                 for j in range(len(tsk_ep)):
@@ -1316,7 +1319,7 @@ class DataProcessor(DataLoader):
         assert self._db_type is not None, \
             'Define a database with .use_<db_name>() function before creating the database!'
         tic = time()
-        self.init_processed_db_path()
+        self._init_processed_db_path()
         self._create_db()
         print('Database initialization took {} seconds.'.format(int(time() - tic)))
 
@@ -1418,8 +1421,8 @@ class OfflineDataPreprocessor(DataProcessor):
         return self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_x_db(self, subj):
-        fn_gen = self.get_filenames_for_subject(subj)
-        subject_data = self._generate_db_from_file_list(fn_gen)
+        filenames = self.get_filenames_for_subject(subj)
+        subject_data = self._generate_db_from_file_list(filenames)
         return self._save_preprocessed_subject_data(subject_data, subj)
 
     def _create_db_from_file(self):

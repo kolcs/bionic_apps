@@ -1,27 +1,32 @@
 import unittest
 from pathlib import Path, WindowsPath, PosixPath
 from shutil import rmtree
+from time import time
 
 from numpy import ndarray
 from sklearn.preprocessing import LabelEncoder
 
 from config import Physionet, Game_ParadigmC, Game_ParadigmD, DIR_FEATURE_DB
-from preprocess import init_base_config, get_db_name_by_filename, SubjectHandle, DataLoader, \
+from preprocess import init_base_config, get_db_name_by_filename, SubjectHandle, DataLoader, DataProcessor, \
     OfflineDataPreprocessor, OnlineDataPreprocessor, \
     FeatureType, SubjectKFold, load_pickle_data, DataHandler
 
 
-class TestDataLoader(unittest.TestCase):
+def get_available_databases():
+    base_dir = Path(init_base_config('..'))
+    avail_dbs = set()
+    for file in base_dir.rglob('*'):
+        try:
+            avail_dbs.add(get_db_name_by_filename(file.as_posix()))
+        except ValueError:
+            pass
+    return avail_dbs
 
-    @classmethod
-    def setUpClass(cls):
-        base_dir = Path(init_base_config('..'))
-        cls.avail_dbs = set()
-        for file in base_dir.rglob('*'):
-            try:
-                cls.avail_dbs.add(get_db_name_by_filename(file.as_posix()))
-            except ValueError:
-                pass
+
+available_databases = get_available_databases()
+
+
+class TestDataLoader(unittest.TestCase):
 
     def _test_get_subject_list(self):
         subj_list = self.loader.get_subject_list()
@@ -36,12 +41,16 @@ class TestDataLoader(unittest.TestCase):
             self.assertIn(type(file_names[0]), [str, WindowsPath, PosixPath])
 
     def _run_test(self):
-        for db_name in self.avail_dbs:
+        for db_name in available_databases:
             with self.subTest(f'Database: {db_name.name}'):
                 self.loader.use_db(db_name)
                 self.assertIsInstance(self.loader.get_subject_num(), int)
                 self._test_get_subject_list()
                 self._test_get_filenames()
+
+    def test_no_defined_db(self):
+        self.loader = DataLoader('..')
+        self.assertRaises(AssertionError, self.loader.get_subject_num)
 
     def test_independent_days(self):
         self.loader = DataLoader('..', subject_handle=SubjectHandle.INDEPENDENT_DAYS)
@@ -56,52 +65,87 @@ class TestDataLoader(unittest.TestCase):
         self._run_test()
 
 
+class TestDataProcessor(unittest.TestCase):
+
+    def test_no_process(self):
+        loader = DataProcessor(base_config_path='..')
+        self.assertEqual(len(loader.get_processed_subjects()), 0)
+
+    def test_db_generation_days(self):
+        data_proc = DataProcessor(base_config_path='..')
+        for db_name in available_databases:
+            with self.subTest(f'Database: {db_name.name}'):
+                data_proc.use_db(db_name)
+                assert hasattr(data_proc._db_type, 'CONFIG_VER') and data_proc._db_type.CONFIG_VER > 0, \
+                    f'Database generation test implemented for db with CONFIG_VER > 0'
+                subject = data_proc.get_subject_list()[0]
+                self.assertRaises(NotImplementedError,
+                                  data_proc.run, subject, FeatureType.AVG_FFT_POWER, fft_low=7, fft_high=14)
+                filenames = data_proc.get_filenames_for_subject(subject)
+                task_dict = data_proc._generate_db_from_file_list(str(filenames[0]))
+                self.assertIsInstance(task_dict, dict)
+                self.assertGreater(len(task_dict), 1)
+                win_ep = task_dict[list(task_dict)[0]]
+                self.assertIsInstance(win_ep, dict)
+                self.assertGreater(len(win_ep), 1)
+                feat_list = win_ep[list(win_ep)[0]]
+                self.assertIsInstance(feat_list, list)
+                self.assertGreater(len(feat_list), 0)
+                self.assertIsInstance(feat_list[0], tuple)
+                self.assertIsInstance(feat_list[0][0], ndarray)
+                self.assertIsInstance(feat_list[0][1], ndarray)
+
+
 class TestOfflinePreprocessor(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls._path = Path(init_base_config('..'))
-        cls._subject = 1
-        path = cls._path.joinpath(DIR_FEATURE_DB)
+        path = Path(init_base_config('..')).joinpath(DIR_FEATURE_DB)
         if path.exists():
             print('Removing old files. It may take longer...')
             rmtree(str(path))
         cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
+        cls.subj_ind = 0
 
     # def setUp(self):
     #     pass
 
-    def _check_method(self, subj):
-        feature_extraction = dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=14, fft_high=30
-        )
+    def _check_db(self, subj, **feature_extraction):
         self.epoch_proc.run(subject=subj, **feature_extraction)
         self.assertIsInstance(self.epoch_proc.get_processed_db_source(), dict)
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 0)
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_1_physionet(self):
-        self.epoch_proc.use_physionet()
-        self._check_method(self._subject)
+    def _check_method(self, **feature_extraction):
+        for db_name in available_databases:
+            with self.subTest(f'Database: {db_name.name}'):
+                self.epoch_proc.use_db(db_name)
+                subj = self.epoch_proc.get_subject_list()[self.subj_ind]
+                self._check_db(subj, **feature_extraction)
+
+    def test_avg_fft_pow(self):
+        self._check_method(feature_type=FeatureType.AVG_FFT_POWER,
+                           fft_low=14, fft_high=30)
+
+    def test_fft_range(self):
+        self._check_method(feature_type=FeatureType.FFT_RANGE,
+                           fft_low=14, fft_high=30)
+
+    def test_multi_avg_fft_pow(self):
+        self._check_method(feature_type=FeatureType.MULTI_AVG_FFT_POW,
+                           fft_ranges=[(7, 14), (14, 28), (28, 40)])
+
+    def test_fast_load(self):
+        tic = time()
+        self.test_avg_fft_pow()
+        self.assertLess(time() - tic, 1, 'Error in fastload...')
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
                          'Data for Game_paradigmD does not exists. Can not test it.')
-    def test_2_game_paradigmD(self):
+    def test_data_update(self):
         self.epoch_proc.use_game_par_d()
-        self._check_method(self._subject)
-
-    def test_3_fast_load(self):
-        self.test_1_physionet()
-        self.test_2_game_paradigmD()
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
-                         'Data for Game_paradigmD does not exists. Can not test it.')
-    def test_4_data_update(self):
-        # self.epoch_proc = OfflineDataPreprocessor(self._path, subject=self._subject + 1)
-        self.epoch_proc.use_game_par_d()
-        self._check_method(self._subject + 1)
+        subj = self.epoch_proc.get_subject_list()[self.subj_ind + 1]
+        self._check_db(subj, feature_type=FeatureType.AVG_FFT_POWER,
+                       fft_low=14, fft_high=30)
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
 
 
