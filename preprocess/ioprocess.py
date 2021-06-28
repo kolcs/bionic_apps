@@ -803,29 +803,38 @@ class DataLoader:
         assert hasattr(self._db_type, attr), '{} has no {} attribute'.format(self._db_type, attr)
         return self._db_type.COMMAND_CONV
 
+    def _get_exp_num(self):
+        if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
+            exp_num = self._db_type.SUBJECT_NUM
+        elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
+                               ParadigmC, EmotivParC, GameDB]:
+            if self._db_type is EmotivParC:
+                file = '*run-001_eeg.xdf'
+            elif hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
+                file = '*R01_raw.fif'
+            else:
+                file = 'rec01.vhdr'
+            exp_num = len(sorted(Path(self._data_path).rglob(file)))
+        else:
+            raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
+        return exp_num
+
     def get_subject_num(self):
         """Returns the number of available subjects in Database"""
         self._validate_db_type()
         if self.subject_handle is SubjectHandle.INDEPENDENT_DAYS:
-            if self._db_type in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
-                subject_num = self._db_type.SUBJECT_NUM
-            elif self._db_type in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
-                                   ParadigmC, EmotivParC, GameDB]:
-                if self._db_type is EmotivParC:
-                    file = '*run-001_eeg.xdf'
-                elif hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
-                    file = '*R01_raw.fif'
-                else:
-                    file = 'rec01.vhdr'
-                subject_num = len(sorted(Path(self._data_path).rglob(file)))
-            else:
-                raise NotImplementedError('get_subject_num is undefined for {}'.format(self._db_type))
+            subject_num = self._get_exp_num()
 
         elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
-                if self._db_type in [BciCompIV2a]:
-                    subject_num = len(self._db_type.SUBJECT_EXP)
-                else:  # todo: Problems with growing DBs: TTK, Par_C, ect...
+                if self._db_type in [BciCompIV2a, TTK_DB, Physionet]:
+                    exp_num = self._get_exp_num()
+                    exp_to_subj = self._db_type.SUBJECT_EXP
+                    # handling growing db problems: TTK, Par_C, ect...
+                    # todo: warning for downloading latest db if subject is missing...
+                    subj_list = [subj for subj, exp in exp_to_subj.items() if exp[-1] <= exp_num]
+                    subject_num = len(subj_list)
+                else:
                     raise NotImplementedError(f'{SubjectHandle.MIX_EXPERIMENTS} is not implemented '
                                               f'for {self._db_type}')
             else:
@@ -834,11 +843,12 @@ class DataLoader:
 
         elif self.subject_handle is SubjectHandle.BCI_COMP:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
-                if self._db_type in [BciCompIV2a]:
+                bci_comp = [BciCompIV2a, BciCompIV2b]
+                if self._db_type in bci_comp:
                     subject_num = len(self._db_type.SUBJECT_EXP)
                 else:
                     raise ValueError(f'{SubjectHandle.BCI_COMP} is only implemented '
-                                     f'for {self._db_type}')
+                                     f'for {bci_comp}')
             else:
                 raise NotImplementedError(f'{SubjectHandle.BCI_COMP} option only implemented for '
                                           f'CONFIG_VER > 1.')
@@ -960,7 +970,7 @@ class DataLoader:
                                      f'Can not use {SubjectHandle.MIX_EXPERIMENTS} setting.')
 
         elif self.subject_handle is SubjectHandle.BCI_COMP:
-            if self._db_type in [BciCompIV2a]:
+            if self._db_type in [BciCompIV2a, BciCompIV2b]:  # todo: split cases...
                 if hasattr(self._db_type, 'SUBJECT_EXP'):
                     s = self._db_type.SUBJECT_EXP[subj][0 if train else 1]
                     file_names = sorted(self._data_path.rglob(self._get_subj_pattern(s)))
@@ -1609,7 +1619,7 @@ class OnlineDataPreprocessor(DataProcessor):
             raise ValueError(f'{self.__class__.__name__} is not implemented for '
                              f'{SubjectHandle.BCI_COMP} usage.')
 
-        if self._db_type in [Physionet, TTK_DB]:
+        if self._db_type in [Physionet, TTK_DB, BciCompIV2a]:
             self._parallel_generate_db(self._generate_online_db)
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))

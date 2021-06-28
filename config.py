@@ -131,6 +131,13 @@ class Game_ParadigmD:
     DIR = "Game/paradigmD/"
     FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
+    CONFIG_VER = 0
+    if CONFIG_VER > 1:
+        SUBJECT_EXP = {  # must be sorted!
+            1: [1, 2, 5, 6, 7, 8, 10, 11, 13, 15],
+            2: [3, 4, 9, 12, 14, 16],
+        }
+
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
         # EYE_OPEN: 2,
@@ -149,6 +156,13 @@ class Game_ParadigmD:
 class PilotDB_ParadigmA:
     DIR = "Cybathlon_pilot/paradigmA/"
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
+
+    CONFIG_VER = 0
+    if CONFIG_VER > 1:
+        SUBJECT_EXP = {  # must be sorted!
+            1: [1, 4],
+            2: [2, 3],
+        }
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
@@ -169,6 +183,13 @@ class PilotDB_ParadigmB:
     DIR = "Cybathlon_pilot/paradigmB/"
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
+    CONFIG_VER = 0
+    if CONFIG_VER > 1:
+        SUBJECT_EXP = {  # must be sorted!
+            1: [1, 3],
+            2: [2, 4],
+        }
+
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
         # EYE_OPEN: 2,
@@ -187,8 +208,19 @@ class PilotDB_ParadigmB:
 class TTK_DB:
     DIR = "TTK/"
 
-    CONFIG_VER = 1
-    if CONFIG_VER == 1:
+    CONFIG_VER = 1.1
+    if CONFIG_VER >= 1:
+        SUBJECT_EXP = {  # must be sorted!
+            1: [1, 10, 19],
+            2: [2],
+            3: [3, 11, 23],
+            4: [4, 6, 8],
+            5: [5, 7, 17, 21],
+            6: [9, 12, 13, 14, 20],
+            7: [15, 16, 18, 22],
+            8: [24],
+            9: [25],
+        }
         FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
         DROP_SUBJECTS = []
     else:
@@ -213,9 +245,10 @@ class Physionet:
     DIR = "physionet.org/"
     SUBJECT_NUM = 109
 
-    CONFIG_VER = 1
-    if CONFIG_VER == 1:
+    CONFIG_VER = 1.1
+    if CONFIG_VER >= 1:
         FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
+        SUBJECT_EXP = {subj: (subj,) for subj in range(1, SUBJECT_NUM + 1)}
 
         TRIGGER_TASK_CONVERTER = {  # imagined
             # REST: 1,
@@ -322,7 +355,7 @@ class BciCompIV2a:
     DIR = "BCI_comp/4/2a"
     FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
     SUBJECT_NUM = 2 * 9
-    SUBJECT_EXP = {s + 1: (s * 2 + 1, (s + 1) * 2) for s in range(9)}
+    SUBJECT_EXP = {s + 1: [s * 2 + 1, (s + 1) * 2] for s in range(9)}  # must be sorted!
 
     CONFIG_VER = 1.1
 
@@ -342,7 +375,10 @@ class BciCompIV2a:
 class BciCompIV2b:
     DIR = "BCI_comp/4/2b"
     FILE_PATH = 'B{subj}{rec}T_raw.fif'  # .gdf
-    SUBJECT_NUM = 27  # actually 9 but one subject has 3 sessions: 1,2 - no feedback, 3 - feedback
+    SUBJECT_NUM = 5 * 9
+    SUBJECT_EXP = {s + 1: [s * 5 + i for i in range(1, 6)] for s in range(9)}  # must be sorted!
+
+    CONFIG_VER = 1.1
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         LEFT_HAND: 4,

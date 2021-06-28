@@ -18,21 +18,6 @@ def get_filenames_from_dir(ext):
     return filenames
 
 
-def convert_bcicompIV2a_old():
-    loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2a()
-    for subj in loader.get_subject_list():
-        filename = next(loader.get_filenames_for_subject(subj))
-        raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
-
-        # correcting eeg channel names
-        raw.rename_channels(lambda x: x.strip('EEG-'))
-        new_map = {str(i): ch for i, ch in enumerate(['Fc3', 'Fc1', 'FCz', 'Fc2', 'Fc4', 'C5', 'C1', 'C2', 'C6',
-                                                      'Cp3', 'Cp1', 'CPz', 'Cp2', 'Cp4', 'P1', 'P2', 'POz'])}
-        raw.rename_channels(new_map)
-        filename = filename.strip('.gdf') + '_raw.fif'
-        raw.save(filename, overwrite=True)
-
-
 def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3, after_end=1.,
                    plot=False):
     start_ind = np.arange(len(start_mask))[start_mask]
@@ -65,6 +50,13 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
         raw.plot(block=False)
         plt.show()
 
+def _add_missing_bci_comp_4_2_triggers(filename, raw):
+    matfile = str(filename.with_suffix('.mat'))
+    mat = read_mat(matfile)
+    new_tiggers = mat['classlabel']
+    tgdict = {i + 1: str(tg) for i, tg in enumerate([769, 770, 771, 772])}
+    new_tiggers = list(map(lambda x: tgdict[x], new_tiggers))
+    raw.annotations.description[raw.annotations.description == '783'] = new_tiggers
 
 def convert_bcicompIV2a():
     loader = DataLoader('..').use_bci_comp_4_2a()
@@ -82,12 +74,7 @@ def convert_bcicompIV2a():
         raw.rename_channels(new_map)
 
         if filename.stem[-1] == 'E':  # adding correct trigger numbers ot evalset
-            matfile = str(filename.with_suffix('.mat'))
-            mat = read_mat(matfile)
-            new_tiggers = mat['classlabel']
-            tgdict = {i + 1: str(tg) for i, tg in enumerate([769, 770, 771, 772])}
-            new_tiggers = list(map(lambda x: tgdict[x], new_tiggers))
-            raw.annotations.description[raw.annotations.description == '783'] = new_tiggers
+            _add_missing_bci_comp_4_2_triggers(filename, raw)
         elif filename.stem[-1] == 'T':
             pass
         else:
@@ -107,8 +94,8 @@ def convert_bcicompIV2a():
                        after_end=5.7)
 
 
-def convert_bcicompIV2b():
-    loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2a()
+def convert_bcicompIV2b_old():
+    loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2b()
     for subj in loader.get_subject_list():
         # file indexing: one subject has many records in different time-period
         filename = next(loader.get_filenames_for_subject(subj))
@@ -116,6 +103,45 @@ def convert_bcicompIV2b():
         raw.rename_channels(lambda x: x.strip('EEG:'))
         filename = filename.strip('.gdf') + '_raw.fif'
         raw.save(filename, overwrite=True)
+
+
+def convert_bcicompIV2b():
+    loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2b()
+    path = loader.get_data_path()
+    files = sorted(path.rglob('*{}'.format('.gdf')))
+    for i, filename in enumerate(files):
+        subj = i + 1
+        raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
+        raw.rename_channels(lambda x: x.strip('EEG:'))
+        if i % 5 < 3:
+            pass
+        else:
+            _add_missing_bci_comp_4_2_triggers(filename, raw)
+
+        # Session end trigger is missing, creating end mask from start_mask
+        start_mask = raw.annotations.description == '32766'
+        end_mask = start_mask.copy()
+        end_mask[0] = False
+        end_mask[-1] = True
+        print(subj, filename)
+
+        if subj in [2, 24]:
+            drop_first = 0
+        else:
+            drop_first = 1
+
+        if subj in [17, 22]:
+            session_num = 7 + drop_first
+        elif subj == 9:
+            session_num = 3 + drop_first
+        elif subj == 36:
+            session_num = 8 + drop_first
+        elif i % 5 < 2:
+            session_num = 6 + drop_first
+        else:
+            session_num = 4 + drop_first
+        _save_sessions(subj, raw, start_mask, end_mask, path, session_num=session_num, drop_first=drop_first,
+                       after_end=5.7)
 
 
 def _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description):
@@ -175,7 +201,7 @@ def convert_giga():
 
 def convert_physionet():
     loader = DataLoader('..', use_drop_subject_list=False).use_physionet()
-    assert not loader._db_type.CONFIG_VER, 'File conversion only avaliable for old config setup.'
+    assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for old config setup.'
     for s in range(Physionet.SUBJECT_NUM):
         subj = s + 1
         rec_nums = Physionet.TYPE_TO_REC[IMAGINED_MOVEMENT]
@@ -320,4 +346,4 @@ def convert_all_ttk():
 
 
 if __name__ == '__main__':
-    convert_bcicompIV2a()
+    convert_bcicompIV2b()
