@@ -26,6 +26,13 @@ def get_available_databases():
 available_databases = get_available_databases()
 
 
+def cleanup_fastload_data():
+    path = Path(init_base_config('..')).joinpath(DIR_FEATURE_DB)
+    if path.exists():
+        print('Removing old files. It may take longer...')
+        rmtree(str(path))
+
+
 class TestDataLoader(unittest.TestCase):
 
     def _test_get_subject_list(self):
@@ -62,7 +69,15 @@ class TestDataLoader(unittest.TestCase):
 
     def test_bci_comp(self):
         self.loader = DataLoader('..', subject_handle=SubjectHandle.BCI_COMP)
-        self._run_test()
+        for db_name in available_databases:
+            with self.subTest(f'Database: {db_name.name}'):
+                self.loader.use_db(db_name)
+                if 'BCI_COMP' in db_name.name:
+                    self.assertIsInstance(self.loader.get_subject_num(), int)
+                    self._test_get_subject_list()
+                    self._test_get_filenames()
+                else:
+                    self.assertRaises(ValueError, self.loader.get_subject_num)
 
 
 class TestDataProcessor(unittest.TestCase):
@@ -100,10 +115,7 @@ class TestOfflinePreprocessor(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        path = Path(init_base_config('..')).joinpath(DIR_FEATURE_DB)
-        if path.exists():
-            print('Removing old files. It may take longer...')
-            rmtree(str(path))
+        cleanup_fastload_data()
         cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
         cls.subj_ind = 0
 
@@ -139,54 +151,43 @@ class TestOfflinePreprocessor(unittest.TestCase):
         self.test_avg_fft_pow()
         self.assertLess(time() - tic, 1, 'Error in fastload...')
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
-                         'Data for Game_paradigmD does not exists. Can not test it.')
+    @unittest.skipUnless(DataLoader('..').use_physionet().get_data_path().exists(),
+                         'Data for Physionet does not exists. Can not test it.')
     def test_data_update(self):
-        self.epoch_proc.use_game_par_d()
+        self.epoch_proc.use_physionet()
         subj = self.epoch_proc.get_subject_list()[self.subj_ind + 1]
         self._check_db(subj, feature_type=FeatureType.AVG_FFT_POWER,
                        fft_low=14, fft_high=30)
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
 
 
-@unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                     'Data for Physionet does not exists. Can not test it.')
-class TestOnlinePreprocessor(unittest.TestCase):
+class TestOnlinePreprocessor(TestOfflinePreprocessor):
 
     @classmethod
     def setUpClass(cls):
-        cls._path = Path(init_base_config('..'))
-        cls._subject = 1
-        path = cls._path.joinpath(DIR_FEATURE_DB)
-        if path.exists():
-            print('Removing old files. It may take longer...')
-            rmtree(str(path))
-        cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..').use_physionet()
+        cleanup_fastload_data()
+        cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..', do_artefact_rejection=False)
+        cls.subj_ind = 0
 
-    def _check_method(self, subj):
-        feature_extraction = dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=14, fft_high=30
-        )
-        self.epoch_proc.run(subject=subj, **feature_extraction)
-        self.assertIsInstance(self.epoch_proc.get_processed_db_source(), dict)
-        self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 0)
+    # def _check_db(self, subj, **feature_extraction):
+    #     self.epoch_proc.run(subject=subj, **feature_extraction)
+    #     self.assertIsInstance(self.epoch_proc.get_processed_db_source(), dict)
+    #     self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 0)
 
-    def test_1_physionet(self):
-        self._check_method(self._subject)
-
-    def test_2_fast_load(self):
-        self.test_1_physionet()
-
-    def test_3_data_update(self):
-        self._check_method(self._subject + 1)
-        self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
+    def _check_method(self, **feature_extraction):
+        for db_name in available_databases:
+            with self.subTest(f'Database: {db_name.name}'):
+                self.epoch_proc.use_db(db_name)
+                assert hasattr(self.epoch_proc._db_type, 'CONFIG_VER') and self.epoch_proc._db_type.CONFIG_VER > 0, \
+                    f'Database generation test implemented for db with CONFIG_VER > 0'
+                subj = self.epoch_proc.get_subject_list()[self.subj_ind]
+                self._check_db(subj, **feature_extraction)
 
 
 class TestOfflineSubjectKFold(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls._path = Path(init_base_config('..'))
+        cleanup_fastload_data()
         cls.kfold_num = 5
         cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
 
@@ -318,14 +319,9 @@ class TestOfflineSubjectKFold(unittest.TestCase):
 class TestOnlineSubjectKFold(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        path = Path(init_base_config('..'))
+        cleanup_fastload_data()
         cls.kfold_num = 5
         cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..')
-
-        path = path.joinpath(DIR_FEATURE_DB)
-        if path.exists():
-            print('Removing old files. It may take longer...')
-            rmtree(str(path))
 
     # def setUp(self):
     #     pass
