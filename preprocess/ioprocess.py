@@ -827,7 +827,7 @@ class DataLoader:
 
         elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
-                if self._db_type in [BciCompIV2a, TTK_DB, Physionet]:
+                if self._db_type in [BciCompIV2a, TTK_DB, Physionet, BciCompIV2b]:
                     exp_num = self._get_exp_num()
                     exp_to_subj = self._db_type.SUBJECT_EXP
                     # handling growing db problems: TTK, Par_C, ect...
@@ -857,7 +857,7 @@ class DataLoader:
 
         return subject_num
 
-    def get_subject_list(self):  # todo: rethink...
+    def get_subject_list(self):
         """Returns the list of subjects and removes the unwanted ones."""
         subject_num = self.get_subject_num()
         if self._subject_list is not None:
@@ -917,7 +917,7 @@ class DataLoader:
             fn_gen = self._generate_epocplus_filenames(subj)
         else:
             raise NotImplementedError('Filename generation for {} is not implemented'.format(self._db_type))
-        return list(fn_gen)
+        return fn_gen
 
     def _get_subj_pattern(self, subj):
         pattern = self._db_type.FILE_PATH
@@ -925,20 +925,23 @@ class DataLoader:
         pattern = pattern.replace('{rec}', '*')
         return pattern
 
-    def get_filenames_for_subject(self, subj, train=True):
+    def get_filenames_for_subject(self, subj, train=True, train_mask=(False, False, True)):
         """Generating filenames for a defined subject in a database.
 
         Parameters
         ----------
         subj : int
             Subject number in database.
+        train : bool
+            Only used in case of SubjectHandle.BCI_COMP. Select train or test set.
+        train_mask : tuple of bool, list of bool
+            Only used in case of SubjectHandle.BCI_COMP, with BciCompIV2b database.
+            Mask for train file selection.
 
         Returns
         -------
-        fn_gen : list of str, generator of str
-            List or generator containing all of the files corresponding to the subject number.
-        train : bool
-            Only used in case of SubjectHandle.BCI_COMP. Select train or test set.
+        file_names : list of str
+            List containing all of the files corresponding to the subject number.
         """
         subj_num = self.get_subject_num()
         assert subj <= subj_num, f'Subject{subj} is out of subject range. Last subject in db is {subj_num}.' \
@@ -947,7 +950,7 @@ class DataLoader:
         if self.subject_handle is SubjectHandle.INDEPENDENT_DAYS:
             if hasattr(self._db_type, 'CONFIG_VER'):
                 if self._db_type.CONFIG_VER >= 1:
-                    if self._db_type in [Physionet, TTK_DB, BciCompIV2a]:
+                    if self._db_type in [Physionet, TTK_DB, BciCompIV2a, BciCompIV2b]:
                         file_names = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
                         assert len(file_names) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
                                                     f'for {self._db_type} or download the latest database.'
@@ -958,7 +961,7 @@ class DataLoader:
                     raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
                                               'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
             else:
-                file_names = self._legacy_filename_gen(subj)
+                file_names = list(self._legacy_filename_gen(subj))
 
         elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'SUBJECT_EXP'):
@@ -970,30 +973,40 @@ class DataLoader:
                                      f'Can not use {SubjectHandle.MIX_EXPERIMENTS} setting.')
 
         elif self.subject_handle is SubjectHandle.BCI_COMP:
-            if self._db_type in [BciCompIV2a, BciCompIV2b]:  # todo: split cases...
-                if hasattr(self._db_type, 'SUBJECT_EXP'):
+            if hasattr(self._db_type, 'SUBJECT_EXP'):
+                if self._db_type is BciCompIV2a:
                     s = self._db_type.SUBJECT_EXP[subj][0 if train else 1]
                     file_names = sorted(self._data_path.rglob(self._get_subj_pattern(s)))
+                elif self._db_type is BciCompIV2b:
+                    assert len(train_mask) == 3, f'In {BciCompIV2b} there are only 3 train files. ' \
+                                                 f'Please define a train_mask with 3 elements.'
+                    s = np.asarray(self._db_type.SUBJECT_EXP[subj])
+                    mask = list(train_mask) + [False] * 2 if train else [3, 4]
+                    file_names = []
+                    for i in s[mask]:
+                        file_names.extend(sorted(self._data_path.rglob(self._get_subj_pattern(i))))
                 else:
-                    raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
-                                         f'Can not use {SubjectHandle.BCI_COMP} setting.')
+                    raise NotImplementedError(f'{self._db_type} is not implemented with '
+                                              f'Can not use {SubjectHandle.BCI_COMP} setting.')
             else:
-                raise NotImplementedError(f'{self._db_type} is not implemented with '
-                                          f'{SubjectHandle.MIX_EXPERIMENTS} setting.')
+                raise AttributeError(f'{self._db_type} has no attribute called SUBJECT_EXP. '
+                                     f'{SubjectHandle.MIX_EXPERIMENTS} setting.')
 
         else:
             raise NotImplementedError(f'{self.subject_handle} is not implemented.')
+        assert len(file_names) > 0, f'No files were found with {self._db_type.FILE_PATH} pattern ' \
+                                    f'in {self._data_path} path.'
         return file_names
 
     def get_task_dict(self):
         self._validate_db_type()
-        if self._db_type is Physionet and not Physionet.CONFIG_VER == 1:
+        if self._db_type is Physionet and Physionet.CONFIG_VER < 1:
             raise NotImplementedError('This method is not implemented for old Physionet config.')
         return self._db_type.TRIGGER_TASK_CONVERTER
 
     def get_event_id(self):
         self._validate_db_type()
-        if self._db_type is Physionet and not Physionet.CONFIG_VER == 1:
+        if self._db_type is Physionet and Physionet.CONFIG_VER < 1:
             raise NotImplementedError('This method is not implemented for old Physionet config.')
         return self._db_type.TRIGGER_EVENT_ID
 

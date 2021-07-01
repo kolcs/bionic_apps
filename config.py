@@ -374,7 +374,7 @@ class BciCompIV2a:
 
 class BciCompIV2b:
     DIR = "BCI_comp/4/2b"
-    FILE_PATH = 'B{subj}{rec}T_raw.fif'  # .gdf
+    FILE_PATH = 'S{subj}/S{subj}{rec}_raw.fif'
     SUBJECT_NUM = 5 * 9
     SUBJECT_EXP = {s + 1: [s * 5 + i for i in range(1, 6)] for s in range(9)}  # must be sorted!
 
