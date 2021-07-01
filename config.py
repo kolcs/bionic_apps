@@ -77,7 +77,15 @@ class GameDB:
 
 class Game_ParadigmC:
     DIR = "Game/paradigmC/"
-    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
+
+    CONFIG_VER = 1.1
+    if CONFIG_VER > 1:
+        FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
+        SUBJECT_EXP = {  # must be sorted!
+            1: list(range(1, 6)),
+        }
+    else:
+        FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
@@ -124,19 +132,21 @@ class ParadigmC:
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = []
+    DROP_SUBJECTS = [1]
 
 
 class Game_ParadigmD:
     DIR = "Game/paradigmD/"
-    FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
-    CONFIG_VER = 0
+    CONFIG_VER = 1.1
     if CONFIG_VER > 1:
+        FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
         SUBJECT_EXP = {  # must be sorted!
             1: [1, 2, 5, 6, 7, 8, 10, 11, 13, 15],
             2: [3, 4, 9, 12, 14, 16],
         }
+    else:
+        FILE_PATH = 'subject{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
@@ -157,12 +167,15 @@ class PilotDB_ParadigmA:
     DIR = "Cybathlon_pilot/paradigmA/"
     FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
-    CONFIG_VER = 0
+    CONFIG_VER = 1.1
     if CONFIG_VER > 1:
+        FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
         SUBJECT_EXP = {  # must be sorted!
             1: [1, 4],
             2: [2, 3],
         }
+    else:
+        FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
@@ -176,19 +189,21 @@ class PilotDB_ParadigmA:
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = []  # [] or [1, 4] or [2, 3]
+    DROP_SUBJECTS = []
 
 
 class PilotDB_ParadigmB:
     DIR = "Cybathlon_pilot/paradigmB/"
-    FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
-    CONFIG_VER = 0
+    CONFIG_VER = 1.1
     if CONFIG_VER > 1:
+        FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
         SUBJECT_EXP = {  # must be sorted!
             1: [1, 3],
             2: [2, 4],
         }
+    else:
+        FILE_PATH = 'pilot{subj}/rec{rec}.vhdr'
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         # REST: 1,
@@ -202,7 +217,7 @@ class PilotDB_ParadigmB:
 
     TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
-    DROP_SUBJECTS = []  # [] or [1, 3] or [2, 4]
+    DROP_SUBJECTS = []
 
 
 class TTK_DB:

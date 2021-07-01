@@ -7,7 +7,7 @@ from mne.externals.pymatreader import read_mat
 
 from config import Physionet, IMAGINED_MOVEMENT, BOTH_LEGS
 from gui_handler import select_folder_in_explorer
-from preprocess import DataLoader
+from preprocess import DataLoader, Databases
 
 
 def get_filenames_from_dir(ext):
@@ -50,6 +50,7 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
         raw.plot(block=False)
         plt.show()
 
+
 def _add_missing_bci_comp_4_2_triggers(filename, raw):
     matfile = str(filename.with_suffix('.mat'))
     mat = read_mat(matfile)
@@ -57,6 +58,7 @@ def _add_missing_bci_comp_4_2_triggers(filename, raw):
     tgdict = {i + 1: str(tg) for i, tg in enumerate([769, 770, 771, 772])}
     new_tiggers = list(map(lambda x: tgdict[x], new_tiggers))
     raw.annotations.description[raw.annotations.description == '783'] = new_tiggers
+
 
 def convert_bcicompIV2a():
     loader = DataLoader('..').use_bci_comp_4_2a()
@@ -92,17 +94,6 @@ def convert_bcicompIV2a():
         session_num = 6 + drop_first
         _save_sessions(subj, raw, start_mask, end_mask, path, session_num=session_num, drop_first=drop_first,
                        after_end=5.7)
-
-
-def convert_bcicompIV2b_old():
-    loader = DataLoader('..', use_drop_subject_list=False).use_bci_comp_4_2b()
-    for subj in loader.get_subject_list():
-        # file indexing: one subject has many records in different time-period
-        filename = next(loader.get_filenames_for_subject(subj))
-        raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
-        raw.rename_channels(lambda x: x.strip('EEG:'))
-        filename = filename.strip('.gdf') + '_raw.fif'
-        raw.save(filename, overwrite=True)
 
 
 def convert_bcicompIV2b():
@@ -201,7 +192,7 @@ def convert_giga():
 
 def convert_physionet():
     loader = DataLoader('..', use_drop_subject_list=False).use_physionet()
-    assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for old config setup.'
+    assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
     for s in range(Physionet.SUBJECT_NUM):
         subj = s + 1
         rec_nums = Physionet.TYPE_TO_REC[IMAGINED_MOVEMENT]
@@ -237,40 +228,12 @@ def convert_physionet():
                 raw.save(str(file), overwrite=True)
 
 
-def _save_sessions_old(subj, raw, start_mask, end_mask, path, session_num=13, plot=False):
-    start_ind = np.arange(len(start_mask))[start_mask]
-    end_ind = np.arange(len(end_mask))[end_mask]
-    assert len(start_ind) == session_num, f'Incorrect start Triggers at subject {subj}'
-    assert len(end_ind) == session_num, f'Incorrect end Triggers at subject {subj}'
-
-    # remove first 3 True from start mask -- eye, train1, train2 sessions
-    start_mask[start_ind[:3]] = False
-    end_mask[end_ind[:3]] = False
-
-    tmins = raw.annotations.onset[start_mask]
-    tmaxs = raw.annotations.onset[end_mask]
-    for i, tmin in enumerate(tmins):
-        tmax = tmaxs[i]
-        sess = raw.copy()
-        sess.crop(tmin, tmax + 1)
-        file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, i + 1))
-        file.parent.mkdir(parents=True, exist_ok=True)
-        sess.save(str(file), overwrite=True)
-
-        if plot:
-            sess.plot(block=False)
-
-    if plot:
-        raw.plot(block=False)
-        plt.show()
-
-
 def convert_ttk():
     loader = DataLoader('..', use_drop_subject_list=True).use_ttk_db()
-    assert not loader._db_type.CONFIG_VER, 'File conversion only avaliable for old config setup.'
+    assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
     for subj in loader.get_subject_list():
-        filename = next(loader.get_filenames_for_subject(subj))
+        filename = loader.get_filenames_for_subject(subj)[0]
         raw = mne.io.read_raw(filename, preload=True)
 
         start_mask = (raw.annotations.description == 'Response/R  1') | (raw.annotations.description == 'Stimulus/S 16')
@@ -297,12 +260,12 @@ def convert_ttk():
             start_mask[start_ind[-3]] = False  # wrong session, with no end...
             end_mask[end_ind[0]] = False
 
-        _save_sessions_old(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
+        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
 
 
 def convert_bad_ttk():
     loader = DataLoader('..', use_drop_subject_list=False).use_ttk_db()
-    assert not loader._db_type.CONFIG_VER, 'File conversion only avaliable for old config setup.'
+    assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
     for subj in [1, 9, 17]:
         if subj == 1:
@@ -337,7 +300,7 @@ def convert_bad_ttk():
             end_mask[end_ind[5]] = False  # wrong session
             trigger_num = 12
 
-        _save_sessions_old(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
+        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num)
 
 
 def convert_all_ttk():
@@ -345,5 +308,38 @@ def convert_all_ttk():
     convert_bad_ttk()
 
 
+def convert_pilot_par_a_and_b():
+    db_list = [Databases.PILOT_PAR_A, Databases.PILOT_PAR_B]
+    for db_name in db_list:
+        loader = DataLoader('..', use_drop_subject_list=True).use_db(db_name)
+        assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
+
+        for subj in loader.get_subject_list():
+            filename = loader.get_filenames_for_subject(subj)[0]
+            raw = mne.io.read_raw(filename, preload=True)
+            start_mask = (raw.annotations.description == 'Response/R  1') | (
+                    raw.annotations.description == 'Stimulus/S 16')
+            end_mask = raw.annotations.description == 'Stimulus/S 12'
+            _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path())
+
+
+def convert_game_par_c_and_d():
+    db_list = [Databases.GAME_PAR_C, Databases.GAME_PAR_D]
+    for db_name in db_list:
+        loader = DataLoader('..', use_drop_subject_list=True).use_db(db_name)
+        assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
+
+        for subj in loader.get_subject_list():
+            filename = loader.get_filenames_for_subject(subj)[0]
+            raw = mne.io.read_raw(filename, preload=True)
+            start_mask = (raw.annotations.description == 'Response/R  1') | (
+                    raw.annotations.description == 'Stimulus/S 16')
+            end_mask = raw.annotations.description == 'Stimulus/S 12'
+            drop_first = 1
+            session_num = drop_first + 5
+            _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), session_num, drop_first,
+                           plot=True)
+
+
 if __name__ == '__main__':
-    convert_bcicompIV2b()
+    convert_game_par_c_and_d()

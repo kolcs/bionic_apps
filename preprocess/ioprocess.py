@@ -827,7 +827,8 @@ class DataLoader:
 
         elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
-                if self._db_type in [BciCompIV2a, TTK_DB, Physionet, BciCompIV2b]:
+                if self._db_type in [BciCompIV2a, TTK_DB, Physionet, BciCompIV2b, PilotDB_ParadigmA,
+                                     PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD]:
                     exp_num = self._get_exp_num()
                     exp_to_subj = self._db_type.SUBJECT_EXP
                     # handling growing db problems: TTK, Par_C, ect...
@@ -948,18 +949,15 @@ class DataLoader:
                                  f'\nYou may would like to download the latest database.'
 
         if self.subject_handle is SubjectHandle.INDEPENDENT_DAYS:
-            if hasattr(self._db_type, 'CONFIG_VER'):
-                if self._db_type.CONFIG_VER >= 1:
-                    if self._db_type in [Physionet, TTK_DB, BciCompIV2a, BciCompIV2b]:
-                        file_names = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
-                        assert len(file_names) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
-                                                    f'for {self._db_type} or download the latest database.'
-                    else:
-                        raise NotImplementedError('Filename generation for {} with CONFIG_VER=1 '
-                                                  'is not implemented.'.format(self._db_type))
+            if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
+                if self._db_type in [Physionet, TTK_DB, BciCompIV2a, BciCompIV2b, PilotDB_ParadigmA,
+                                     PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD]:
+                    file_names = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
+                    assert len(file_names) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
+                                                f'for {self._db_type} or download the latest database.'
                 else:
-                    raise NotImplementedError('Filename generation for {} with CONFIG_VER={} '
-                                              'is not implemented.'.format(self._db_type, self._db_type.CONFIG_VER))
+                    raise NotImplementedError('Filename generation for {} with CONFIG_VER>=1 '
+                                              'is not implemented.'.format(self._db_type))
             else:
                 file_names = list(self._legacy_filename_gen(subj))
 
