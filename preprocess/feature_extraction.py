@@ -226,7 +226,7 @@ class FeatureExtractor:
         data = list()
         for fft_low, fft_high in self.fft_ranges:
             fft_mask = (freqs >= fft_low) & (freqs <= fft_high)
-            assert np.any(fft_mask), 'Empty frequency range between {} and {} Hz'.format(fft_low, fft_high)
+            assert np.sum(fft_mask) > 1, 'Not enough feature points between {} and {} Hz'.format(fft_low, fft_high)
             fft_power = np.average(fft_res[:, :, fft_mask], axis=-1)
             fft_power = minmax_scale(fft_power, axis=-1)
             data.append(fft_power)
