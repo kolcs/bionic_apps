@@ -18,16 +18,17 @@ def get_filenames_from_dir(ext):
     return filenames
 
 
-def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3, after_end=1.,
-                   plot=False):
+def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3,
+                   before_session=0, after_session=1., after_end=1., plot=False):
     start_ind = np.arange(len(start_mask))[start_mask]
     end_ind = np.arange(len(end_mask))[end_mask]
     assert len(start_ind) == session_num, f'Incorrect start Triggers at subject {subj}'
     assert len(end_ind) == session_num, f'Incorrect end Triggers at subject {subj}'
 
     # remove first 3 True from start mask -- eye, train1, train2 sessions
-    start_mask[start_ind[:drop_first]] = False
-    end_mask[end_ind[:drop_first]] = False
+    if drop_first != 0:
+        start_mask[start_ind[:drop_first]] = False
+        end_mask[end_ind[:drop_first]] = False
 
     tmins = raw.annotations.onset[start_mask]
     tmaxs = raw.annotations.onset[end_mask]
@@ -35,9 +36,9 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
         tmax = tmaxs[i]
         sess = raw.copy()
         if i < len(tmins) - 1:
-            sess.crop(tmin, tmax + 1)
+            sess.crop(tmin - before_session, tmax + after_session)
         else:
-            sess.crop(tmin, tmax + after_end)
+            sess.crop(tmin - before_session, tmax + after_end)
 
         file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, i + 1))
         file.parent.mkdir(parents=True, exist_ok=True)
@@ -45,6 +46,8 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
 
         if plot:
             sess.plot(block=False)
+            r = mne.io.read_raw(str(file))
+            r.plot(block=True)
 
     if plot:
         raw.plot(block=False)
@@ -143,27 +146,65 @@ def _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description):
     return raw
 
 
-def convert_bcicompIV1():
-    filenames = get_filenames_from_dir('.mat')
-    for i, file in enumerate(filenames):
-        mat = read_mat(str(file))
+def convert_bcicompIV1():  # todo: waiting for bugfix from MNE side...
+    path = Path(select_folder_in_explorer('Select base folder which contains the BCI comp IV 1 .mat files',
+                                          'Select directory'))
+    new_subj = 0
+    files = sorted(path.rglob('BCICIV_calib_*_1000Hz.mat'))
+    assert len(files) > 0, 'No files were found...'
 
-        eeg = mat['cnt'].transpose().astype('double') * 1e-7  # convert to 1 Volt unit
-        ch_names = mat['nfo']['clab']
-        ch_types = ['eeg'] * len(ch_names)
-        fs = mat['nfo']['fs']
-        classes = mat['nfo']['classes']
-        onset = mat['mrk']['pos'] / fs
-        duration = [4] * len(onset)
-        description = mat['mrk']['y']
+    for subj, file in enumerate(files):
+        subj += 1
+        # if subj in [3, 4, 5]:
+        #     continue  # artificial data
+        for k in range(2):
+            if k == 1:
+                continue  # todo: problem with varying eval set length...
+                # file = str(file).replace('calib', 'eval')
+            new_subj += 1
+            mat = read_mat(str(file))
 
-        description = description.astype(object)
-        description[description == 1] = classes[0]
-        description[description == -1] = classes[1]
-        filename = file.parent.joinpath('calib_ds_subj{:02d}_raw.fif'.format(i + 1))
+            eeg = mat['cnt'].transpose().astype('double') * 1e-7  # convert to 1 Volt unit
+            ch_names = mat['nfo']['clab']
+            ch_types = ['eeg'] * len(ch_names)
+            fs = mat['nfo']['fs']
+            classes = mat['nfo']['classes']
 
-        raw = _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description)
-        raw.save(str(filename), overwrite=True)
+            if k == 0:
+                onset = mat['mrk']['pos'] / fs
+                description = mat['mrk']['y']
+                duration = [4] * len(onset)
+            else:
+                continue  # todo: problem with varying eval set length...
+                # label_file = file.split('.')
+                # label_file = label_file[0] + '_true_y.' + label_file[1]
+                # mat = read_mat(label_file)
+                # true_y = np.nan_to_num(mat['true_y'])
+                # onset_mask = [False] + [(True if true_y[i] != true_y[i - 1] and true_y[i] != 0 else False) for i in
+                #                         range(1, len(true_y))]
+                # end_mask = [(True if true_y[i] != true_y[i + 1] and true_y[i] != 0 else False) for i in
+                #             range(len(true_y) - 1)] + [False]
+                # end = np.arange(len(true_y))[end_mask] / fs
+                #
+                # onset = np.arange(len(true_y))[onset_mask] / fs
+                # description = true_y[onset_mask]
+                # duration = [t_end - onset[i] for i, t_end in enumerate(end)]
+
+            description = description.astype(object)
+            description[description == -1] = classes[0]
+            description[description == 1] = classes[1]
+
+            start_mask = [True]
+            for i in range(1, len(onset)):
+                start = True if onset[i] - onset[i - 1] > 9 else False
+                start_mask.append(start)
+            end_mask = start_mask.copy()
+            end_mask[0] = False
+            end_mask[-1] = True
+
+            raw = _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description)
+            _save_sessions(new_subj, raw, start_mask, end_mask, path, session_num=np.sum(start_mask), drop_first=0,
+                           before_session=1, after_session=-22, after_end=5, plot=True)
 
 
 def convert_giga():
@@ -342,4 +383,4 @@ def convert_game_par_c_and_d():
 
 
 if __name__ == '__main__':
-    convert_game_par_c_and_d()
+    convert_bcicompIV1()

@@ -412,8 +412,11 @@ class BciCompIV1:
     It is not suggested to train it in a cross subject fashion...
     """
     DIR = "BCI_comp/4/1"
-    FILE_PATH = 'calib_ds_subj{subj}_raw.fif'  # .gdf
+    FILE_PATH = 'S{subj}/S{subj}{rec}_raw.fif'
     SUBJECT_NUM = 7
+    SUBJECT_EXP = {subj: (subj,) for subj in range(1, SUBJECT_NUM + 1)}
+
+    CONFIG_VER = 1.1
 
     TRIGGER_TASK_CONVERTER = {  # imagined
         'class1': 1,
@@ -422,7 +425,7 @@ class BciCompIV1:
 
     TRIGGER_EVENT_ID = 'auto'
 
-    DROP_SUBJECTS = []
+    DROP_SUBJECTS = [3, 4, 5]  # artificial data
 
 
 class EmotivParC:

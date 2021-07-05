@@ -828,7 +828,7 @@ class DataLoader:
         elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
                 if self._db_type in [BciCompIV2a, TTK_DB, Physionet, BciCompIV2b, PilotDB_ParadigmA,
-                                     PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD]:
+                                     PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, BciCompIV1]:
                     exp_num = self._get_exp_num()
                     exp_to_subj = self._db_type.SUBJECT_EXP
                     # handling growing db problems: TTK, Par_C, ect...
@@ -951,7 +951,7 @@ class DataLoader:
         if self.subject_handle is SubjectHandle.INDEPENDENT_DAYS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
                 if self._db_type in [Physionet, TTK_DB, BciCompIV2a, BciCompIV2b, PilotDB_ParadigmA,
-                                     PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD]:
+                                     PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, BciCompIV1]:
                     file_names = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
                     assert len(file_names) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
                                                 f'for {self._db_type} or download the latest database.'
@@ -1010,7 +1010,7 @@ class DataLoader:
 
 
 class DataProcessor(DataLoader):
-    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
+    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=2.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=False,
                  *,
                  base_config_path='.', subject_handle=SubjectHandle.INDEPENDENT_DAYS,
@@ -1347,7 +1347,7 @@ class DataProcessor(DataLoader):
 
 class OfflineDataPreprocessor(DataProcessor):
 
-    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
+    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=2.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True,
                  *,
                  base_config_path='.', subject_handle=SubjectHandle.INDEPENDENT_DAYS,
@@ -1524,7 +1524,7 @@ class OfflineDataPreprocessor(DataProcessor):
 
 class OnlineDataPreprocessor(DataProcessor):
 
-    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=1.0, window_step=0.1,
+    def __init__(self, epoch_tmin=0, epoch_tmax=4, window_length=2.0, window_step=0.1,
                  use_drop_subject_list=True, fast_load=True,
                  *,
                  base_config_path='.', subject_handle=SubjectHandle.INDEPENDENT_DAYS,
@@ -1630,7 +1630,9 @@ class OnlineDataPreprocessor(DataProcessor):
             raise ValueError(f'{self.__class__.__name__} is not implemented for '
                              f'{SubjectHandle.BCI_COMP} usage.')
 
-        if self._db_type in [Physionet, TTK_DB, BciCompIV2a]:
+        if self._db_type in [Physionet, TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB,
+                             Game_ParadigmC, Game_ParadigmD,
+                             BciCompIV1, BciCompIV2a, BciCompIV2b]:
             self._parallel_generate_db(self._generate_online_db)
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(self._db_type))

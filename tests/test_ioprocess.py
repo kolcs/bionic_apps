@@ -72,7 +72,9 @@ class TestDataLoader(unittest.TestCase):
         for db_name in available_databases:
             with self.subTest(f'Database: {db_name.name}'):
                 self.loader.use_db(db_name)
-                if 'BCI_COMP' in db_name.name:
+                if db_name.name == 'BCI_COMP_IV_1':
+                    self.assertRaises(ValueError, self.loader.get_subject_num)
+                elif 'BCI_COMP' in db_name.name:
                     self.assertIsInstance(self.loader.get_subject_num(), int)
                     self._test_get_subject_list()
                     self._test_get_filenames()
@@ -140,7 +142,7 @@ class TestOfflinePreprocessor(unittest.TestCase):
 
     def test_fft_range(self):
         self._check_method(feature_type=FeatureType.FFT_RANGE,
-                           fft_low=14, fft_high=30)
+                           fft_low=2, fft_high=30)
 
     def test_multi_avg_fft_pow(self):
         self._check_method(feature_type=FeatureType.MULTI_AVG_FFT_POW,
