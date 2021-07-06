@@ -642,7 +642,8 @@ class DataLoader:
         self._drop_subject = set() if use_drop_subject_list else None
         self.subject_handle = subject_handle
 
-        self._feature_shape = tuple()
+    def _reset_db(self):
+        self._subject_list = None
 
     def _validate_db_type(self):
         assert self._db_type is not None, 'Database is not defined.'
@@ -682,8 +683,7 @@ class DataLoader:
         self._data_path = self._base_dir.joinpath(db_type.DIR)
         assert self._data_path.exists(), "Path {} does not exists.".format(self._data_path)
         self._db_type = db_type
-        self._feature_shape = tuple()
-        self._subject_list = None
+        self._reset_db()
 
         if self._drop_subject is not None:
             self._drop_subject = set(db_type.DROP_SUBJECTS)
@@ -1063,6 +1063,7 @@ class DataProcessor(DataLoader):
 
         self.feature_type = FeatureType.FFT_RANGE
         self.feature_kwargs = dict()
+        self._feature_shape = tuple()
 
         self.proc_db_path = Path()
         self._proc_db_filenames = dict()
@@ -1079,6 +1080,11 @@ class DataProcessor(DataLoader):
 
     def _create_db(self):
         raise NotImplementedError
+
+    def _reset_db(self):
+        super(DataProcessor, self)._reset_db()
+        self._feature_shape = tuple()
+        self._proc_db_filenames = dict()
 
     def get_processed_subjects(self):
         return list(self._proc_db_filenames)
@@ -1298,7 +1304,7 @@ class DataProcessor(DataLoader):
             subject_file_dict[task] = ep_file_dict
         return subj, subject_file_dict
 
-    def __shared_var_handle(self, func, subj, cp_subj, shared_var):
+    def _shared_var_handle(self, func, subj, cp_subj, shared_var):
         res = func(subj)
         if subj == cp_subj:  # save common data only once...
             shared_var[0] = self.info
@@ -1312,7 +1318,7 @@ class DataProcessor(DataLoader):
         if len(subject_list) > 1:
             manager = Manager()
             shared_variables = manager.list([self.info, self._feature_shape])
-            data = Parallel(n_jobs=-2)(delayed(self.__shared_var_handle)
+            data = Parallel(n_jobs=-2)(delayed(self._shared_var_handle)
                                        (func, subject, subject_list[0], shared_variables) for subject in subject_list)
             self.info, self._feature_shape = shared_variables
             manager.shutdown()

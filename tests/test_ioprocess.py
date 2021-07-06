@@ -113,7 +113,7 @@ class TestDataProcessor(unittest.TestCase):
                 self.assertIsInstance(feat_list[0][1], ndarray)
 
 
-class TestOfflinePreprocessor(unittest.TestCase):
+class TestOfflinePreprocessorIndependent(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
@@ -163,18 +163,68 @@ class TestOfflinePreprocessor(unittest.TestCase):
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
 
 
-class TestOnlinePreprocessor(TestOfflinePreprocessor):
+class TestOfflinePreprocessorMix(TestOfflinePreprocessorIndependent):
+
+    @classmethod
+    def setUpClass(cls):
+        cleanup_fastload_data()
+        cls.epoch_proc = OfflineDataPreprocessor(subject_handle=SubjectHandle.MIX_EXPERIMENTS,
+                                                 base_config_path='..')
+        cls.subj_ind = 0
+
+
+class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
+
+    @classmethod
+    def setUpClass(cls):
+        cleanup_fastload_data()
+        cls.epoch_proc = OfflineDataPreprocessor(subject_handle=SubjectHandle.BCI_COMP,
+                                                 base_config_path='..')
+        cls.subj_ind = 0
+
+    def _check_method(self, **feature_extraction):
+        for db_name in available_databases:
+            with self.subTest(f'Database: {db_name.name}'):
+                self.epoch_proc.use_db(db_name)
+                subj = 2
+                if db_name.name == 'BCI_COMP_IV_1':
+                    with self.assertRaises(ValueError):
+                        subj = self.epoch_proc.get_subject_list()[self.subj_ind]
+                elif 'BCI_COMP' in db_name.name:
+                    subj = self.epoch_proc.get_subject_list()[self.subj_ind]
+                else:
+                    with self.assertRaises(ValueError):
+                        subj = self.epoch_proc.get_subject_list()[self.subj_ind]
+
+                if db_name.name == 'BCI_COMP_IV_1':
+                    with self.assertRaises(ValueError):
+                        self._check_db(subj, **feature_extraction)
+                elif 'BCI_COMP' in db_name.name:
+                    self._check_db(subj, **feature_extraction)
+                else:
+                    with self.assertRaises(ValueError):
+                        self._check_db(subj, **feature_extraction)
+
+    @unittest.skipUnless(DataLoader('..').use_bci_comp_4_2a().get_data_path().exists(),
+                         'Data for BCI comp 4 2a does not exists. Can not test it.')
+    def test_data_update(self):
+        with self.assertRaises(ValueError):
+            super(TestOfflinePreprocessorBciComp, self).test_data_update()
+
+        self.epoch_proc.use_bci_comp_4_2a()
+        subj = self.epoch_proc.get_subject_list()[self.subj_ind + 1]
+        self._check_db(subj, feature_type=FeatureType.AVG_FFT_POWER,
+                       fft_low=14, fft_high=30)
+        self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
+
+
+class TestOnlinePreprocessor(TestOfflinePreprocessorIndependent):
 
     @classmethod
     def setUpClass(cls):
         cleanup_fastload_data()
         cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..', do_artefact_rejection=False)
         cls.subj_ind = 0
-
-    # def _check_db(self, subj, **feature_extraction):
-    #     self.epoch_proc.run(subject=subj, **feature_extraction)
-    #     self.assertIsInstance(self.epoch_proc.get_processed_db_source(), dict)
-    #     self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 0)
 
     def _check_method(self, **feature_extraction):
         for db_name in available_databases:
@@ -187,6 +237,99 @@ class TestOnlinePreprocessor(TestOfflinePreprocessor):
 
 
 class TestOfflineSubjectKFold(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cleanup_fastload_data()
+        cls.kfold_num = 5
+        cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
+
+    def _run_epoch_proc(self):
+        feature_extraction = dict(
+            feature_type=FeatureType.AVG_FFT_POWER,
+            fft_low=14, fft_high=30
+        )
+        subject_list = self.epoch_proc.get_subject_list()[:self.kfold_num]
+        self.epoch_proc.run(subject=subject_list, **feature_extraction)
+
+    def _check_db(self, ans, kfold_num=None):
+        if kfold_num is None:
+            kfold_num = self.kfold_num
+        self.assertEqual(len(ans), kfold_num)
+
+        train, test = ans[0]
+        self.assertTrue(Path(train[0]).exists())
+        self.assertTrue(Path(test[0]).exists())
+
+        window_list = load_pickle_data(train[0])
+        data = window_list[0]
+        self.assertIsInstance(data[0], ndarray)
+        self.assertIn(type(data[1]), [str, int, float, list, ndarray])
+
+    @staticmethod
+    def _distinct(list1, list2):
+        return not any(item in list1 for item in list2)
+
+    def _check_distinct_state(self, train, test, val=None):
+        msg = 'Datasets can not contain the same data'
+        self.assertTrue(self._distinct(train, test), msg)
+        if val is not None:
+            self.assertTrue(self._distinct(train, val), msg)
+            self.assertTrue(self._distinct(val, test), msg)
+
+    def _check_method(self, subj_ind=None, binarize=False, cross_subject=False, kfold_num=None,
+                      validation_split=0.0):
+        for db_name in available_databases:
+            with self.subTest(f'Database: {db_name.name}'):
+                self.epoch_proc.use_db(db_name)
+                self._run_epoch_proc()
+                subj_kfold = SubjectKFold(self.epoch_proc, self.kfold_num,
+                                          validation_split=validation_split, binarize_db=binarize)
+
+                if type(subj_ind) is int:
+                    subj = self.epoch_proc.get_subject_list()[subj_ind]
+                else:
+                    subj = None
+
+                ans = list()
+                for train, test, val, subj in subj_kfold.split(subj, cross_subject=cross_subject):
+                    self._check_distinct_state(train, test, val)
+                    ans.append((train, test))
+
+                if cross_subject and kfold_num is None:
+                    kfold_num = min(self.kfold_num, self.epoch_proc.get_subject_num())
+
+                self._check_db(ans, kfold_num)
+
+    def test_subject_split(self):
+        self._check_method(subj_ind=0)
+
+    def test_subject_split_binarized(self):
+        self._check_method(subj_ind=0, binarize=True)
+
+    def test_subject_split_validation(self):
+        self._check_method(subj_ind=0, validation_split=.2)
+
+    def test_subject_split_validation_binarized(self):
+        self._check_method(subj_ind=0, validation_split=.2, binarize=True)
+
+    def test_cross_subject_split(self):
+        self._check_method(cross_subject=True)
+
+    def test_cross_subject_split_one(self):
+        self._check_method(subj_ind=0, cross_subject=True, kfold_num=1)
+
+    def test_cross_subject_split_binarized(self):
+        self._check_method(cross_subject=True, binarize=True)
+
+    def test_cross_subject_split_one_validation(self):
+        self._check_method(subj_ind=0, cross_subject=True, validation_split=.2, kfold_num=1)
+
+    def test_cross_subject_split_validation_binarized_one(self):
+        self._check_method(subj_ind=0, cross_subject=True, validation_split=.2, binarize=True, kfold_num=1)
+
+
+class TestOfflineSubjectKFold_old(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cleanup_fastload_data()
