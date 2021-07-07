@@ -328,7 +328,7 @@ class BCISystem(object):
             return
 
         if subject_list is not None and not cross_subject:
-            proc_subjects = set(np.array(subject_list).flatten())
+            proc_subjects = list(set(np.array(subject_list).flatten()))
         else:
             proc_subjects = None
 

@@ -1,15 +1,17 @@
 import unittest
-from pathlib import Path, WindowsPath, PosixPath
+from pathlib import Path
 from shutil import rmtree
 from time import time
 
 from numpy import ndarray
 from sklearn.preprocessing import LabelEncoder
 
-from config import Physionet, Game_ParadigmC, Game_ParadigmD, DIR_FEATURE_DB
+from config import Game_ParadigmD, DIR_FEATURE_DB
 from preprocess import init_base_config, get_db_name_by_filename, SubjectHandle, DataLoader, DataProcessor, \
     OfflineDataPreprocessor, OnlineDataPreprocessor, \
-    FeatureType, SubjectKFold, load_pickle_data, DataHandler
+    FeatureType, SubjectKFold, load_pickle_data, DataHandler, Databases
+
+EXCLUDE_DB_LIST = [Databases.BCI_COMP_IV_1, Databases.ParadigmC, Databases.EMOTIV_PAR_C]
 
 
 def get_available_databases():
@@ -20,6 +22,7 @@ def get_available_databases():
             avail_dbs.add(get_db_name_by_filename(file.as_posix()))
         except ValueError:
             pass
+    avail_dbs = [db_name for db_name in avail_dbs if db_name not in EXCLUDE_DB_LIST]
     return avail_dbs
 
 
@@ -45,7 +48,7 @@ class TestDataLoader(unittest.TestCase):
         for subj in self.loader.get_subject_list():
             file_names = self.loader.get_filenames_for_subject(subj)
             self.assertIsInstance(file_names, list)
-            self.assertIn(type(file_names[0]), [str, WindowsPath, PosixPath])
+            self.assertTrue(any([Path(file).exists() for file in file_names]))
 
     def _run_test(self):
         for db_name in available_databases:
@@ -244,12 +247,12 @@ class TestOfflineSubjectKFold(unittest.TestCase):
         cls.kfold_num = 5
         cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
 
-    def _run_epoch_proc(self):
+    def _run_epoch_proc(self, subj_num):
         feature_extraction = dict(
             feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
-        subject_list = self.epoch_proc.get_subject_list()[:self.kfold_num]
+        subject_list = self.epoch_proc.get_subject_list()[:subj_num]
         self.epoch_proc.run(subject=subject_list, **feature_extraction)
 
     def _check_db(self, ans, kfold_num=None):
@@ -257,11 +260,11 @@ class TestOfflineSubjectKFold(unittest.TestCase):
             kfold_num = self.kfold_num
         self.assertEqual(len(ans), kfold_num)
 
-        train, test = ans[0]
-        self.assertTrue(Path(train[0]).exists())
-        self.assertTrue(Path(test[0]).exists())
+        for train, test in ans:
+            self.assertTrue(any([Path(file).exists() for file in train]))
+            self.assertTrue(any([Path(file).exists() for file in test]))
 
-        window_list = load_pickle_data(train[0])
+        window_list = load_pickle_data(ans[0][0][0])
         data = window_list[0]
         self.assertIsInstance(data[0], ndarray)
         self.assertIn(type(data[1]), [str, int, float, list, ndarray])
@@ -281,13 +284,16 @@ class TestOfflineSubjectKFold(unittest.TestCase):
                       validation_split=0.0):
         for db_name in available_databases:
             with self.subTest(f'Database: {db_name.name}'):
+                kfn = kfold_num
                 self.epoch_proc.use_db(db_name)
-                self._run_epoch_proc()
+                self._run_epoch_proc(subj_ind + 1 if not cross_subject else self.kfold_num)
                 subj_kfold = SubjectKFold(self.epoch_proc, self.kfold_num,
                                           validation_split=validation_split, binarize_db=binarize)
 
                 if type(subj_ind) is int:
                     subj = self.epoch_proc.get_subject_list()[subj_ind]
+                    if not cross_subject and type(self.epoch_proc) is OnlineDataPreprocessor:
+                        kfn = min(self.kfold_num, len(self.epoch_proc.get_filenames_for_subject(subj)))
                 else:
                     subj = None
 
@@ -296,10 +302,10 @@ class TestOfflineSubjectKFold(unittest.TestCase):
                     self._check_distinct_state(train, test, val)
                     ans.append((train, test))
 
-                if cross_subject and kfold_num is None:
-                    kfold_num = min(self.kfold_num, self.epoch_proc.get_subject_num())
+                if cross_subject and kfn is None:
+                    kfn = min(self.kfold_num, self.epoch_proc.get_subject_num())
 
-                self._check_db(ans, kfold_num)
+                self._check_db(ans, kfn)
 
     def test_subject_split(self):
         self._check_method(subj_ind=0)
@@ -329,224 +335,28 @@ class TestOfflineSubjectKFold(unittest.TestCase):
         self._check_method(subj_ind=0, cross_subject=True, validation_split=.2, binarize=True, kfold_num=1)
 
 
-class TestOfflineSubjectKFold_old(unittest.TestCase):
+class TestOnlineSubjectKFold(TestOfflineSubjectKFold):
+
     @classmethod
     def setUpClass(cls):
         cleanup_fastload_data()
         cls.kfold_num = 5
-        cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
+        cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..', do_artefact_rejection=False)
 
-    # def setUp(self):
+    # def test_cross_subject_split(self):
     #     pass
-
-    def _run_epoch_proc(self):
-        feature_extraction = dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=14, fft_high=30
-        )
-        self.epoch_proc.run(subject=list(range(1, self.kfold_num + 1)), **feature_extraction)
-
-    def _check_method(self, ans, kfold_num=None):
-        if kfold_num is None:
-            kfold_num = self.kfold_num
-        self.assertEqual(len(ans), kfold_num)
-
-        train, test = ans[0]
-        self.assertTrue(Path(train[0]).exists())
-        self.assertTrue(Path(test[0]).exists())
-
-        window_list = load_pickle_data(train[0])
-        data = window_list[0]
-        self.assertIsInstance(data[0], ndarray)
-        self.assertIn(type(data[1]), [str, int, float, list, ndarray])
-
-    @staticmethod
-    def _distinct(list1, list2):
-        return not any(item in list1 for item in list2)
-
-    def _check_distinct_state(self, train, test, val=None):
-        msg = 'Datasets can not contain the same data'
-        self.assertTrue(self._distinct(train, test), msg)
-        if val is not None:
-            self.assertTrue(self._distinct(train, val), msg)
-            self.assertTrue(self._distinct(val, test), msg)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_split_subject_physio(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_split_subject_physio_binarize(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num, binarize_db=True)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_cross_split_physio(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(cross_subject=True):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_cross_split_one_physio(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1, cross_subject=True):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans, 1)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_cross_split_one_validation_physio(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num,
-                                  validation_split=.2)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1, cross_subject=True):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans, 1)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_cross_split_physio_binarized(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num, binarize_db=True)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(cross_subject=True):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmC.DIR).exists(),
-                         'Data for Game_ParadigmC does not exists. Can not test it.')
-    def test_split_subject_par_c_binarize(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_game_par_c(), self.kfold_num, binarize_db=True)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmC.DIR).exists(),
-                         'Data for Game_ParadigmC does not exists. Can not test it.')
-    def test_cross_split_par_c_binarized(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_game_par_c(), self.kfold_num, binarize_db=True)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(cross_subject=True):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-
-class TestOnlineSubjectKFold(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cleanup_fastload_data()
-        cls.kfold_num = 5
-        cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..')
-
-    # def setUp(self):
+    #
+    # def test_cross_subject_split_one(self):
     #     pass
-
-    def _run_epoch_proc(self):
-        feature_extraction = dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=14, fft_high=30
-        )
-        self.epoch_proc.run(subject=list(range(1, self.kfold_num + 1)), **feature_extraction)
-
-    def _check_method(self, ans):
-        self.assertGreater(len(ans), 1)
-
-        train, test = ans[0]
-        self.assertTrue(Path(train[0]).exists())
-        self.assertTrue(Path(test[0]).exists())
-
-        window_list = load_pickle_data(train[0])
-        data = window_list[0]
-        self.assertIsInstance(data[0], ndarray)
-        self.assertIn(type(data[1]), [str, int, float, list, ndarray])
-
-    @staticmethod
-    def _distinct(list1, list2):
-        return not any(item in list1 for item in list2)
-
-    def _check_distinct_state(self, train, test, val=None):
-        msg = 'Datasets can not contain the same data'
-        self.assertTrue(self._distinct(train, test), msg)
-        if val is not None:
-            self.assertTrue(self._distinct(train, val), msg)
-            self.assertTrue(self._distinct(val, test), msg)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_split_subject_physio(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_split_subject_physio_binarize(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num, binarize_db=True)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_cross_split_physio(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num)
-        self._run_epoch_proc()
-
-        with self.assertRaises(NotImplementedError, msg='Please define test for cross_subject=True case!'):
-            ans = list()
-            for train, test, val, subj in subj_kfold.split(cross_subject=True):
-                self._check_distinct_state(train, test, val)
-                ans.append((train, test))
-            self._check_method(ans)
-
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_split_subject_validation_physio(self):
-        subj_kfold = SubjectKFold(self.epoch_proc.use_physionet(), self.kfold_num,
-                                  validation_split=.2)
-        self._run_epoch_proc()
-        ans = list()
-        for train, test, val, subj in subj_kfold.split(1):
-            self._check_distinct_state(train, test, val)
-            ans.append((train, test))
-        self._check_method(ans)
+    #
+    # def test_cross_subject_split_binarized(self):
+    #     pass
+    #
+    # def test_cross_subject_split_one_validation(self):
+    #     pass
+    #
+    # def test_cross_subject_split_validation_binarized_one(self):
+    #     pass
 
 
 @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),

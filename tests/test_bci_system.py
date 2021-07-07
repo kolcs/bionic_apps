@@ -34,7 +34,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         self.assertIsNone(self.bci.offline_processing(
             Databases.PHYSIONET, feature_params=feature_extraction,
             epoch_tmin=0, epoch_tmax=4,
-            window_length=1, window_step=.1,
+            window_length=2, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject_list=self.subj,
         ))
@@ -52,7 +52,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         self.assertIsNone(self.bci.offline_processing(
             Databases.PHYSIONET, feature_params=feature_extraction,
             epoch_tmin=0, epoch_tmax=4,
-            window_length=1, window_step=.1,
+            window_length=2, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject_list=[1, 2],
             filter_params=filter_params,
@@ -70,7 +70,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         self.assertIsNone(self.bci.offline_processing(
             Databases.GAME_PAR_D, feature_params=feature_extraction,
             epoch_tmin=0, epoch_tmax=4,
-            window_length=1, window_step=.1,
+            window_length=2, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject_list=self.subj,
         ))
@@ -85,7 +85,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         self.assertIsNone(self.bci.offline_processing(
             Databases.GAME_PAR_D, feature_params=feature_extraction,
             epoch_tmin=0, epoch_tmax=4,
-            window_length=1, window_step=.1,
+            window_length=2, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject_list=self.subj,
         ))
@@ -101,7 +101,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         self.assertIsNone(self.bci.offline_processing(
             Databases.GAME_PAR_D, feature_params=feature_extraction,
             epoch_tmin=0, epoch_tmax=4,
-            window_length=1, window_step=.1,
+            window_length=2, window_step=.1,
             method=XvalidateMethod.SUBJECT,
             subject_list=self.subj,
         ))
@@ -116,7 +116,7 @@ class TestOfflineBciSystem(unittest.TestCase):
         self.assertIsNone(self.bci.offline_processing(
             Databases.GAME_PAR_D, feature_params=feature_extraction,
             epoch_tmin=0, epoch_tmax=4,
-            window_length=1, window_step=.1,
+            window_length=2, window_step=.1,
             method=XvalidateMethod.CROSS_SUBJECT,
             subj_n_fold_num=2,
             subject_list=self.subj,
@@ -154,7 +154,7 @@ class TestOnlineBci(unittest.TestCase):
         self.assertIsNone(self.bci.play_game(
             Databases.GAME_PAR_D, feature_params=feature_extraction,
             epoch_tmin=0, epoch_tmax=4,
-            window_length=1, pretrain_window_step=.1,
+            window_length=2, pretrain_window_step=.1,
             train_file=str(self._path.joinpath('rec01.vhdr')),
             time_out=test_time_out
         ))

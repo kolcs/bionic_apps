@@ -1151,7 +1151,7 @@ class DataProcessor(DataLoader):
         epochs.load_data()
 
         if self.artefact_filter is not None:
-            if self._db_type == Physionet and not Physionet.CONFIG_VER == 1:
+            if self._db_type == Physionet and Physionet.CONFIG_VER < 1:
                 raise NotImplementedError('Artefact rejection is implemented for Physionet database '
                                           'with "CONFIG_VER >= 1". Change it in config.py')
             else:
@@ -1162,7 +1162,7 @@ class DataProcessor(DataLoader):
         self.info = epochs.info
 
         if self._channel_selector is not None:
-            if self._db_type == Physionet and not Physionet.CONFIG_VER == 1:
+            if self._db_type == Physionet and Physionet.CONFIG_VER < 1:
                 raise NotImplementedError('Channel selection is implemented for Physionet database '
                                           'with "CONFIG_VER >= 1". Change it in config.py')
             else:
@@ -1608,10 +1608,10 @@ class OnlineDataPreprocessor(DataProcessor):
         for i, (train_index, test_index) in enumerate(kfold.split(session_files)):
             self._mimic_online_method = False
             subject_train = self._generate_db_from_file_list(session_files[train_index])
-            train_files = self._save_preprocessed_subject_data(subject_train, subj, f'train{i}')
+            _, train_files = self._save_preprocessed_subject_data(subject_train, subj, f'train{i}')
             self._mimic_online_method = True
             subject_test = self._generate_db_from_file_list(session_files[test_index])
-            test_files = self._save_preprocessed_subject_data(subject_test, subj, f'test{i}')
+            _, test_files = self._save_preprocessed_subject_data(subject_test, subj, f'test{i}')
 
             kfold_data.append((train_files, test_files))
 
