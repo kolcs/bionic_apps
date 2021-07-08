@@ -260,9 +260,9 @@ def _read_varlen_int(f):
 
 
 if __name__ == "__main__":
-    from preprocess import select_file_in_explorer, init_base_config
+    from preprocess import select_files_in_explorer, init_base_config
 
-    fname = select_file_in_explorer(init_base_config('..'))
+    fname = select_files_in_explorer(init_base_config('..'))[0]
 
     print("=" * len(fname) + "\n" + fname + "\n" + "=" * len(fname))
     raw = read_raw_xdf(fname)

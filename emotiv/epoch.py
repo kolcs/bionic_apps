@@ -67,8 +67,8 @@ def add_trigger_to_edf_file(edf_file, trigger_file):
 
 
 if __name__ == '__main__':
-    from gui_handler import select_file_in_explorer
+    from gui_handler import select_files_in_explorer
 
-    edf_file = select_file_in_explorer(message='Select EDF file!', file_type='Emotiv Epoc EDF', ext='.edf')
-    trigger_file = select_file_in_explorer(message='Select trigger .mat file!', file_type='MATLAB', ext='.mat')
+    edf_file = select_files_in_explorer(message='Select an EDF file!', file_type='Emotiv Epoc EDF', ext='.edf')[0]
+    trigger_file = select_files_in_explorer(message='Select a trigger .mat file!', file_type='MATLAB', ext='.mat')[0]
     add_trigger_to_edf_file(edf_file, trigger_file)

@@ -8,19 +8,19 @@ def show_message(message, title='BCI'):
     root.destroy()
 
 
-def select_file_in_explorer(init_dir='./', message='Select an EEG file!', file_type="EEG files",
-                            ext=".vhdr;*.edf;*.gdf;*.fif;*.xdf", no_file_error=True):
+def select_files_in_explorer(init_dir='./', message='Select an EEG file!', file_type="EEG files",
+                             ext=".vhdr;*.edf;*.gdf;*.fif;*.xdf", no_file_error=True):
     root = Tk()
     root.withdraw()
     messagebox.showinfo(title='BCI', message=message)
     extension = ext if ext[0] == '.' else '.' + ext
-    filename = filedialog.askopenfilename(title='Select file',
-                                          initialdir=init_dir,
-                                          filetypes=((file_type, "*{}".format(extension)), ("all files", "*.*")))
+    filenames = filedialog.askopenfilenames(title='Select file',
+                                            initialdir=init_dir,
+                                            filetypes=((file_type, "*{}".format(extension)), ("all files", "*.*")))
     root.destroy()
     if no_file_error:
-        assert len(filename) > 0, 'No file were selected...'
-    return filename
+        assert len(filenames) > 0, 'No file were selected...'
+    return filenames
 
 
 def select_folder_in_explorer(message, dialog_title, title='BCI', no_dir_error=True):
@@ -47,4 +47,4 @@ def select_base_dir():
 
 if __name__ == '__main__':
     path = select_base_dir()
-    print(select_file_in_explorer(path))
+    print(select_files_in_explorer(path))

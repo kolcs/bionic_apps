@@ -4,7 +4,7 @@ with proper meta-data to LSL."""
 import time
 
 import numpy as np
-from mne.io import read_raw
+from mne.io import read_raw, concatenate_raws
 from pylsl import StreamInfo, StreamOutlet, local_clock
 
 from preprocess.ioprocess import init_base_config
@@ -50,8 +50,8 @@ def get_data_with_labels(raw):  # only for pilot data
     return data, ev, raw
 
 
-def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236', add_extra_data=False):
-    raw = read_raw(filename)
+def run(filenames, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236', add_extra_data=False):
+    raw = concatenate_raws([read_raw(file) for file in filenames])
 
     # strip channel names of "." characters
     raw.rename_channels(lambda x: x.strip('.'))
@@ -145,9 +145,9 @@ def run(filename, get_labels=False, eeg_type='', use_artificial_data=False, host
 
 
 if __name__ == '__main__':
-    from gui_handler import select_file_in_explorer
+    from gui_handler import select_files_in_explorer
 
     base_dir = init_base_config('../')
-    file = select_file_in_explorer(base_dir)
+    files = select_files_in_explorer(base_dir)
 
-    run(file, get_labels=False, add_extra_data=True)
+    run(files, get_labels=False, add_extra_data=True)

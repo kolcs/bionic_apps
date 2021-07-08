@@ -14,7 +14,7 @@ from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
     DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC, EmotivParC
-from gui_handler import select_file_in_explorer
+from gui_handler import select_files_in_explorer
 from preprocess.artefact_faster import ArtefactFilter
 from preprocess.channel_selection import ChannelSelector
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
@@ -67,14 +67,15 @@ def is_platform(os_platform):
 
 
 def open_raw_with_gui():
-    return mne.io.read_raw(select_file_in_explorer(init_base_config()))
+    return mne.io.concatenate_raws([mne.io.read_raw(file)
+                                    for file in sorted(select_files_in_explorer(init_base_config()))])
 
 
 def get_epochs_from_raw_with_gui(epoch_tmin=0, epoch_tmax=4, baseline=(None, .1)):
-    file = select_file_in_explorer(init_base_config())
-    db_name = get_db_name_by_filename(file)
+    files = select_files_in_explorer(init_base_config())
+    db_name = get_db_name_by_filename(files[0])
     loader = DataLoader().use_db(db_name)
-    raw = mne.io.read_raw(file)
+    raw = mne.io.concatenate_raws([mne.io.read_raw(file) for file in files])
     task_dict = loader.get_task_dict()
     event_id = loader.get_event_id()
     return get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id)
@@ -1455,7 +1456,7 @@ class OfflineDataPreprocessor(DataProcessor):
     def _create_db_from_file(self):
         """Game database creation"""
         if self._eeg_file is None:
-            self._eeg_file = select_file_in_explorer(str(self._base_dir))
+            self._eeg_file = select_files_in_explorer(str(self._base_dir))
 
         subject_data = self._generate_db_from_file_list(self._eeg_file)
         data = [self._save_preprocessed_subject_data(subject_data, 0)]

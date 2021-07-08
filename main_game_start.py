@@ -1,5 +1,5 @@
 from BCISystem import BCISystem, FeatureType
-from gui_handler import select_file_in_explorer
+from gui_handler import select_files_in_explorer
 from paramsel import parallel_search_for_fft_params
 from preprocess import init_base_config, get_db_name_by_filename
 
@@ -13,8 +13,10 @@ C, GAMMA = 309.27089776753826, 0.3020223611011116
 if __name__ == '__main__':
     print('Starting BCI System for game play...')
 
-    eeg_file = select_file_in_explorer(init_base_config(),
-                                       message='Select EEG file for training the BCI System!')
+    eeg_file = select_files_in_explorer(init_base_config(),
+                                        message='Select EEG file for training the BCI System!')
+    assert len(eeg_file) == 1, 'Please select only one EEG file!'
+    eeg_file = eeg_file[0]
     db_name = get_db_name_by_filename(eeg_file)
 
     classifier_kwargs = dict(C=C, gamma=GAMMA)

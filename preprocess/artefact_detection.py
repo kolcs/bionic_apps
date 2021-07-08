@@ -1,9 +1,9 @@
-from scipy.signal import butter, lfilter, find_peaks, sosfilt
 import numpy as np
+from scipy.signal import butter, lfilter, find_peaks, sosfilt
 
-from gui_handler import select_file_in_explorer
-from preprocess import get_epochs_from_files
 from config import GameDB
+from gui_handler import select_files_in_explorer
+from preprocess import get_epochs_from_files
 
 
 def butter_bandpass_filter(data, lowcut, highcut, fs, order=5, fmode='ba'):
@@ -64,8 +64,9 @@ def is_there_blinking(eeg, fs, threshold=4, ch_list=None):
 if __name__ == '__main__':
     # on: Game/mixed/subject1
     blink_list = [2, 4, 7, 9, 10, 11, 15, 16, 17, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30, 33, 35, 37, 39, 40, 43, 44,
-                  47, 48, 49, 50, 51, 52, 54, 55, 57, 58, 61, 62, 63, 64, 68, 70, 72, 74, 75, 77, 79, 81, 82, 84, 86, 87,
+                  47, 48, 49, 50, 51, 52, 54, 55, 57, 58, 61, 62, 63, 64, 68, 70, 72, 74, 75, 77, 79, 81, 82, 84, 86,
+                  87,
                   88, 89, 90, 92, 94, 95, 97, 99, 100, 101, 103, 105, 106, 107, 109, 111, 113, 115, 117, 119, 120, 121,
                   122, 123, 125, 127, 128, 129, 131, 133, 134, 135, 137, 138, 139, 140, 141]
-    filename = select_file_in_explorer()
+    filename = select_files_in_explorer()[0]
     _test_blinking_detection(filename, blink_list)
