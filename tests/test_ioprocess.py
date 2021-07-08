@@ -1,39 +1,15 @@
 import unittest
 from pathlib import Path
-from shutil import rmtree
 from time import time
 
 from numpy import ndarray
 from sklearn.preprocessing import LabelEncoder
 
-from config import Game_ParadigmD, DIR_FEATURE_DB
-from preprocess import init_base_config, get_db_name_by_filename, SubjectHandle, DataLoader, DataProcessor, \
+from config import Game_ParadigmD
+from preprocess import init_base_config, SubjectHandle, DataLoader, DataProcessor, \
     OfflineDataPreprocessor, OnlineDataPreprocessor, \
     FeatureType, SubjectKFold, load_pickle_data, DataHandler, Databases
-
-EXCLUDE_DB_LIST = [Databases.BCI_COMP_IV_1, Databases.ParadigmC, Databases.EMOTIV_PAR_C]
-
-
-def get_available_databases():
-    base_dir = Path(init_base_config('..'))
-    avail_dbs = set()
-    for file in base_dir.rglob('*'):
-        try:
-            avail_dbs.add(get_db_name_by_filename(file.as_posix()))
-        except ValueError:
-            pass
-    avail_dbs = [db_name for db_name in avail_dbs if db_name not in EXCLUDE_DB_LIST]
-    return avail_dbs
-
-
-available_databases = get_available_databases()
-
-
-def cleanup_fastload_data():
-    path = Path(init_base_config('..')).joinpath(DIR_FEATURE_DB)
-    if path.exists():
-        print('Removing old files. It may take longer...')
-        rmtree(str(path))
+from tests.utils import AVAILABLE_DBS, cleanup_fastload_data
 
 
 class TestDataLoader(unittest.TestCase):
@@ -50,13 +26,18 @@ class TestDataLoader(unittest.TestCase):
             self.assertIsInstance(file_names, list)
             self.assertTrue(any([Path(file).exists() for file in file_names]))
 
-    def _run_test(self):
-        for db_name in available_databases:
+    def _run_test(self, db_config_ver=-1):
+        for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                self.loader.use_db(db_name)
+                self.loader.use_db(db_name, db_config_ver)
                 self.assertIsInstance(self.loader.get_subject_num(), int)
                 self._test_get_subject_list()
-                self._test_get_filenames()
+                if db_config_ver == 0 and db_name in [Databases.PHYSIONET, Databases.BCI_COMP_IV_2A,
+                                                      Databases.BCI_COMP_IV_2B, Databases.BCI_COMP_IV_1]:
+                    with self.assertRaises(NotImplementedError):
+                        self._test_get_filenames()
+                else:
+                    self._test_get_filenames()
 
     def test_no_defined_db(self):
         self.loader = DataLoader('..')
@@ -66,13 +47,17 @@ class TestDataLoader(unittest.TestCase):
         self.loader = DataLoader('..', subject_handle=SubjectHandle.INDEPENDENT_DAYS)
         self._run_test()
 
+    def test_independent_days_old_db_config(self):
+        self.loader = DataLoader('..', subject_handle=SubjectHandle.INDEPENDENT_DAYS)
+        self._run_test(db_config_ver=0)
+
     def test_mix_experiments(self):
         self.loader = DataLoader('..', subject_handle=SubjectHandle.MIX_EXPERIMENTS)
         self._run_test()
 
     def test_bci_comp(self):
         self.loader = DataLoader('..', subject_handle=SubjectHandle.BCI_COMP)
-        for db_name in available_databases:
+        for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.loader.use_db(db_name)
                 if db_name.name == 'BCI_COMP_IV_1':
@@ -91,29 +76,39 @@ class TestDataProcessor(unittest.TestCase):
         loader = DataProcessor(base_config_path='..')
         self.assertEqual(len(loader.get_processed_subjects()), 0)
 
-    def test_db_generation_days(self):
-        data_proc = DataProcessor(base_config_path='..')
-        for db_name in available_databases:
+    def _check_method(self, subject_handle=SubjectHandle.INDEPENDENT_DAYS, db_config_ver=-1):
+        data_proc = DataProcessor(base_config_path='..', subject_handle=subject_handle)
+        for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                data_proc.use_db(db_name)
-                assert hasattr(data_proc._db_type, 'CONFIG_VER') and data_proc._db_type.CONFIG_VER > 0, \
-                    f'Database generation test implemented for db with CONFIG_VER > 0'
+                data_proc.use_db(db_name, db_config_ver)
                 subject = data_proc.get_subject_list()[0]
                 self.assertRaises(NotImplementedError,
                                   data_proc.run, subject, FeatureType.AVG_FFT_POWER, fft_low=7, fft_high=14)
-                filenames = data_proc.get_filenames_for_subject(subject)
-                task_dict = data_proc._generate_db_from_file_list(str(filenames[0]))
-                self.assertIsInstance(task_dict, dict)
-                self.assertGreater(len(task_dict), 1)
-                win_ep = task_dict[list(task_dict)[0]]
-                self.assertIsInstance(win_ep, dict)
-                self.assertGreater(len(win_ep), 1)
-                feat_list = win_ep[list(win_ep)[0]]
-                self.assertIsInstance(feat_list, list)
-                self.assertGreater(len(feat_list), 0)
-                self.assertIsInstance(feat_list[0], tuple)
-                self.assertIsInstance(feat_list[0][0], ndarray)
-                self.assertIsInstance(feat_list[0][1], ndarray)
+
+                if db_config_ver == 0 and db_name in [Databases.PHYSIONET, Databases.BCI_COMP_IV_1,
+                                                      Databases.BCI_COMP_IV_2A, Databases.BCI_COMP_IV_2B]:
+                    with self.assertRaises(NotImplementedError):
+                        filenames = data_proc.get_filenames_for_subject(subject)
+                else:
+                    filenames = data_proc.get_filenames_for_subject(subject)
+                    task_dict = data_proc._generate_db_from_file_list(str(filenames[0]))
+                    self.assertIsInstance(task_dict, dict)
+                    self.assertGreater(len(task_dict), 1)
+                    win_ep = task_dict[list(task_dict)[0]]
+                    self.assertIsInstance(win_ep, dict)
+                    self.assertGreater(len(win_ep), 1)
+                    feat_list = win_ep[list(win_ep)[0]]
+                    self.assertIsInstance(feat_list, list)
+                    self.assertGreater(len(feat_list), 0)
+                    self.assertIsInstance(feat_list[0], tuple)
+                    self.assertIsInstance(feat_list[0][0], ndarray)
+                    self.assertIsInstance(feat_list[0][1], ndarray)
+
+    def test_db_generation_independent_days(self):
+        self._check_method()
+
+    def test_db_generation_independent_days_old_db_config(self):
+        self._check_method(db_config_ver=0)
 
 
 class TestOfflinePreprocessorIndependent(unittest.TestCase):
@@ -133,7 +128,7 @@ class TestOfflinePreprocessorIndependent(unittest.TestCase):
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 0)
 
     def _check_method(self, **feature_extraction):
-        for db_name in available_databases:
+        for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.epoch_proc.use_db(db_name)
                 subj = self.epoch_proc.get_subject_list()[self.subj_ind]
@@ -142,6 +137,15 @@ class TestOfflinePreprocessorIndependent(unittest.TestCase):
     def test_avg_fft_pow(self):
         self._check_method(feature_type=FeatureType.AVG_FFT_POWER,
                            fft_low=14, fft_high=30)
+
+    def test_avg_fft_pow_old_config(self):
+        feature_extraction = dict(feature_type=FeatureType.AVG_FFT_POWER,
+                                  fft_low=14, fft_high=30)
+        for db_name in AVAILABLE_DBS:
+            with self.subTest(f'Database: {db_name.name}'):
+                self.epoch_proc.use_db(db_name, 0)
+                subj = self.epoch_proc.get_subject_list()[:2]
+                self._check_db(subj, **feature_extraction)
 
     def test_fft_range(self):
         self._check_method(feature_type=FeatureType.FFT_RANGE,
@@ -175,6 +179,10 @@ class TestOfflinePreprocessorMix(TestOfflinePreprocessorIndependent):
                                                  base_config_path='..')
         cls.subj_ind = 0
 
+    def test_avg_fft_pow_old_config(self):
+        with self.assertRaises(NotImplementedError):
+            super(TestOfflinePreprocessorMix, self).test_avg_fft_pow_old_config()
+
 
 class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
 
@@ -186,7 +194,7 @@ class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
         cls.subj_ind = 0
 
     def _check_method(self, **feature_extraction):
-        for db_name in available_databases:
+        for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.epoch_proc.use_db(db_name)
                 subj = 2
@@ -220,6 +228,10 @@ class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
                        fft_low=14, fft_high=30)
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
 
+    def test_avg_fft_pow_old_config(self):
+        with self.assertRaises(NotImplementedError):
+            super(TestOfflinePreprocessorBciComp, self).test_avg_fft_pow_old_config()
+
 
 class TestOnlinePreprocessor(TestOfflinePreprocessorIndependent):
 
@@ -230,13 +242,17 @@ class TestOnlinePreprocessor(TestOfflinePreprocessorIndependent):
         cls.subj_ind = 0
 
     def _check_method(self, **feature_extraction):
-        for db_name in available_databases:
+        for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.epoch_proc.use_db(db_name)
                 assert hasattr(self.epoch_proc._db_type, 'CONFIG_VER') and self.epoch_proc._db_type.CONFIG_VER > 0, \
                     f'Database generation test implemented for db with CONFIG_VER > 0'
                 subj = self.epoch_proc.get_subject_list()[self.subj_ind]
                 self._check_db(subj, **feature_extraction)
+
+    def test_avg_fft_pow_old_config(self):
+        with self.assertRaises(NotImplementedError):
+            super(TestOnlinePreprocessor, self).test_avg_fft_pow_old_config()
 
 
 class TestOfflineSubjectKFold(unittest.TestCase):
@@ -282,7 +298,7 @@ class TestOfflineSubjectKFold(unittest.TestCase):
 
     def _check_method(self, subj_ind=None, binarize=False, cross_subject=False, kfold_num=None,
                       validation_split=0.0):
-        for db_name in available_databases:
+        for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 kfn = kfold_num
                 self.epoch_proc.use_db(db_name)
@@ -359,7 +375,7 @@ class TestOnlineSubjectKFold(TestOfflineSubjectKFold):
     #     pass
 
 
-@unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
+@unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD().DIR).exists(),
                      'Data for Game_paradigmD does not exists. Can not test it.')
 class TestDataHandler(unittest.TestCase):
 

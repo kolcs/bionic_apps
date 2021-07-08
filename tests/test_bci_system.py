@@ -1,12 +1,11 @@
 import unittest
 from multiprocessing import Process
 from pathlib import Path
-from shutil import rmtree
 
-from BCISystem import BCISystem, Databases, FeatureType, XvalidateMethod
-from config import Physionet, Game_ParadigmD, DIR_FEATURE_DB
+from BCISystem import BCISystem, Databases, FeatureType, XvalidateMethod, SubjectHandle
 from online.DataSender import run as send_online_data
-from preprocess import init_base_config
+from preprocess import init_base_config, DataLoader
+from tests.utils import cleanup_fastload_data, AVAILABLE_DBS
 
 
 # @unittest.skip("Not interested")
@@ -14,34 +13,32 @@ class TestOfflineBciSystem(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        path = Path(init_base_config('..'))
-        path = path.joinpath(DIR_FEATURE_DB)
-        if path.exists():
-            print('Removing old files. It may take longer...')
-            rmtree(str(path))
-        cls.subj = 1
+        cleanup_fastload_data()
 
     def setUp(self):
         self.bci = BCISystem()
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_physionet_subject_x_val(self):
-        feature_extraction = dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=14, fft_high=30
-        )
-        self.assertIsNone(self.bci.offline_processing(
-            Databases.PHYSIONET, feature_params=feature_extraction,
-            epoch_tmin=0, epoch_tmax=4,
-            window_length=2, window_step=.1,
-            method=XvalidateMethod.SUBJECT,
-            subject_list=self.subj,
-        ))
+    def _run_test(self, feature_extraction, db_config_ver=-1, subject_handle=SubjectHandle.INDEPENDENT_DAYS,
+                  mimic_online=False, filter_params=None, xval_method=XvalidateMethod.SUBJECT,
+                  subj_n_fold_num=5, subj_num=1):
+        for db_name in AVAILABLE_DBS:
+            with self.subTest(f'Database: {db_name.name}'):
+                loader = DataLoader('..', subject_handle=subject_handle).use_db(db_name, db_config_ver)
+                subject = loader.get_subject_list()[:subj_num]
+                self.assertIsNone(self.bci.offline_processing(
+                    db_name, db_config_ver=db_config_ver,
+                    feature_params=feature_extraction,
+                    epoch_tmin=0, epoch_tmax=4,
+                    window_length=2, window_step=.1,
+                    method=xval_method,
+                    subject_list=subject,
+                    subject_handle=subject_handle,
+                    filter_params=filter_params,
+                    mimic_online_method=mimic_online,
+                    subj_n_fold_num=subj_n_fold_num,
+                ))
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Physionet.DIR).exists(),
-                         'Data for Physionet does not exists. Can not test it.')
-    def test_physionet_subject_x_val_mimic_online(self):
+    def test_subject_x_val_mimic_online(self):
         filter_params = dict(  # required for FASTER artefact filter
             order=5, l_freq=1, h_freq=45
         )
@@ -49,78 +46,44 @@ class TestOfflineBciSystem(unittest.TestCase):
             feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
-        self.assertIsNone(self.bci.offline_processing(
-            Databases.PHYSIONET, feature_params=feature_extraction,
-            epoch_tmin=0, epoch_tmax=4,
-            window_length=2, window_step=.1,
-            method=XvalidateMethod.SUBJECT,
-            subject_list=[1, 2],
-            filter_params=filter_params,
-            do_artefact_rejection=True,
-            mimic_online_method=True
-        ))
+        self._run_test(feature_extraction, mimic_online=True, filter_params=filter_params)
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
-                         'Data for Game_paradigmD does not exists. Can not test it.')
     def test_subject_x_val_fft_power(self):
         feature_extraction = dict(
             feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
-        self.assertIsNone(self.bci.offline_processing(
-            Databases.GAME_PAR_D, feature_params=feature_extraction,
-            epoch_tmin=0, epoch_tmax=4,
-            window_length=2, window_step=.1,
-            method=XvalidateMethod.SUBJECT,
-            subject_list=self.subj,
-        ))
+        self._run_test(feature_extraction, subj_num=2)
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
-                         'Data for Game_paradigmD does not exists. Can not test it.')
+    def test_subject_x_val_fft_power_old_db_config(self):
+        feature_extraction = dict(
+            feature_type=FeatureType.AVG_FFT_POWER,
+            fft_low=14, fft_high=30
+        )
+        self._run_test(feature_extraction, db_config_ver=0)
+
     def test_subject_x_val_fft_range(self):
         feature_extraction = dict(
             feature_type=FeatureType.FFT_RANGE,
             fft_low=14, fft_high=30
         )
-        self.assertIsNone(self.bci.offline_processing(
-            Databases.GAME_PAR_D, feature_params=feature_extraction,
-            epoch_tmin=0, epoch_tmax=4,
-            window_length=2, window_step=.1,
-            method=XvalidateMethod.SUBJECT,
-            subject_list=self.subj,
-        ))
+        self._run_test(feature_extraction)
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
-                         'Data for Game_paradigmD does not exists. Can not test it.')
     def test_subject_x_val_multi_fft_power(self):
         feature_extraction = dict(
             feature_type=FeatureType.MULTI_AVG_FFT_POW,
             fft_ranges=[(14, 36), (18, 32), (18, 36), (22, 28),
                         (22, 32), (22, 36), (26, 32), (26, 36)]
         )
-        self.assertIsNone(self.bci.offline_processing(
-            Databases.GAME_PAR_D, feature_params=feature_extraction,
-            epoch_tmin=0, epoch_tmax=4,
-            window_length=2, window_step=.1,
-            method=XvalidateMethod.SUBJECT,
-            subject_list=self.subj,
-        ))
+        self._run_test(feature_extraction)
 
-    @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD.DIR).exists(),
-                         'Data for Game_paradigmD does not exists. Can not test it.')
     def test_cross_subject_fft_power(self):
         feature_extraction = dict(
             feature_type=FeatureType.AVG_FFT_POWER,
             fft_low=14, fft_high=30
         )
-        self.assertIsNone(self.bci.offline_processing(
-            Databases.GAME_PAR_D, feature_params=feature_extraction,
-            epoch_tmin=0, epoch_tmax=4,
-            window_length=2, window_step=.1,
-            method=XvalidateMethod.CROSS_SUBJECT,
-            subj_n_fold_num=2,
-            subject_list=self.subj,
-        ))
+        self._run_test(feature_extraction, xval_method=XvalidateMethod.CROSS_SUBJECT,
+                       subj_n_fold_num=2, subj_num=2)
 
 
 @unittest.skipUnless(Path(init_base_config('..')).joinpath('Game', 'paradigmD', 'subject2', 'game01.vhdr').exists(),

@@ -16,7 +16,7 @@ from ai import init_classifier, ClassifierType
 from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, OnlineDataPreprocessor, SubjectKFold, \
-    FeatureType, FeatureExtractor, Databases, DataHandler, is_platform
+    FeatureType, FeatureExtractor, Databases, DataHandler, is_platform, SubjectHandle, DataLoader
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -204,7 +204,9 @@ class BCISystem(object):
 
         return class_report, conf_matrix, acc
 
-    def offline_processing(self, db_name=Databases.PHYSIONET, feature_params=None,
+    def offline_processing(self, db_name=Databases.PHYSIONET, db_config_ver=1,
+                           subject_handle=SubjectHandle.INDEPENDENT_DAYS,
+                           feature_params=None,
                            epoch_tmin=0, epoch_tmax=4,
                            window_length=1.0, window_step=.1,
                            filter_params=None,
@@ -225,6 +227,14 @@ class BCISystem(object):
         ----------
         db_name : Databases
             The database which will be used.
+        db_config_ver : float
+            Configuration version number of used database. Default is -1
+            which defines the latest version.
+        subject_handle : SubjectHandle
+            Type of subject data loading.
+            - INDEPENDENT_DAYS: Handle each experiment as an individual subject.
+            - MIX_EXPERIMENTS: Train on all experiments of a given subject.
+            - BCI_COMP: BCI competition setup, train and test sets are given.
         feature_params : dict
             Arbitrary keyword arguments for feature extraction.
         epoch_tmin : float
@@ -306,15 +316,17 @@ class BCISystem(object):
                                                 filter_params=filter_params,
                                                 do_artefact_rejection=do_artefact_rejection,
                                                 n_fold=subj_n_fold_num, shuffle=shuffle_data,
-                                                make_channel_selection=make_channel_selection)
+                                                make_channel_selection=make_channel_selection,
+                                                subject_handle=subject_handle)
         else:
             self._proc = OfflineDataPreprocessor(epoch_tmin, epoch_tmax, window_length, window_step,
                                                  use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                                  select_eeg_file=select_eeg_file,
                                                  eeg_file=train_file, filter_params=filter_params,
                                                  do_artefact_rejection=do_artefact_rejection,
-                                                 make_channel_selection=make_channel_selection)
-        self._proc.use_db(db_name)
+                                                 make_channel_selection=make_channel_selection,
+                                                 subject_handle=subject_handle)
+        self._proc.use_db(db_name, db_config_ver)
         if make_binary_classification:
             self._proc.validate_make_binary_classification_use()
 
@@ -327,8 +339,12 @@ class BCISystem(object):
         if subject_list is not None and len(subject_list) == 1 and skipp_subject(subject_list[0]):
             return
 
-        if subject_list is not None and not cross_subject:
+        if subject_list is not None:
             proc_subjects = list(set(np.array(subject_list).flatten()))
+            loader = DataLoader(subject_handle=subject_handle).use_db(db_name, db_config_ver)
+            loader.set_subjects(proc_subjects)
+            if cross_subject and any([not loader.is_subject_in_drop_list(subj) for subj in proc_subjects]):
+                proc_subjects = None
         else:
             proc_subjects = None
 
