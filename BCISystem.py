@@ -342,8 +342,7 @@ class BCISystem(object):
         if subject_list is not None:
             proc_subjects = list(set(np.array(subject_list).flatten()))
             loader = DataLoader(subject_handle=subject_handle).use_db(db_name, db_config_ver)
-            loader.set_subjects(proc_subjects)
-            if cross_subject and any([not loader.is_subject_in_drop_list(subj) for subj in proc_subjects]):
+            if cross_subject and any(loader.is_subject_in_drop_list(subj) for subj in proc_subjects):
                 proc_subjects = None
         else:
             proc_subjects = None

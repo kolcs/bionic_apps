@@ -24,7 +24,7 @@ class TestDataLoader(unittest.TestCase):
         for subj in self.loader.get_subject_list():
             file_names = self.loader.get_filenames_for_subject(subj)
             self.assertIsInstance(file_names, list)
-            self.assertTrue(any([Path(file).exists() for file in file_names]))
+            self.assertTrue(all(Path(file).exists() for file in file_names))
 
     def _run_test(self, db_config_ver=-1):
         for db_name in AVAILABLE_DBS:
@@ -277,8 +277,8 @@ class TestOfflineSubjectKFold(unittest.TestCase):
         self.assertEqual(len(ans), kfold_num)
 
         for train, test in ans:
-            self.assertTrue(any([Path(file).exists() for file in train]))
-            self.assertTrue(any([Path(file).exists() for file in test]))
+            self.assertTrue(all(Path(file).exists() for file in train))
+            self.assertTrue(all(Path(file).exists() for file in test))
 
         window_list = load_pickle_data(ans[0][0][0])
         data = window_list[0]
