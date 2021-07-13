@@ -4,7 +4,7 @@ from shutil import rmtree
 from config import DIR_FEATURE_DB
 from preprocess import Databases, init_base_config, get_db_name_by_filename
 
-EXCLUDE_DB_LIST = [Databases.BCI_COMP_IV_1, Databases.ParadigmC, Databases.EMOTIV_PAR_C]
+EXCLUDE_DB_LIST = [Databases.ParadigmC, Databases.EMOTIV_PAR_C]
 
 
 def get_available_databases():

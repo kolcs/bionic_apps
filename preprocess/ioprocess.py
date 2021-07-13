@@ -390,26 +390,26 @@ def _generate_file_db(source_db, equalize_labels=True, create_binary_db=False):
     return _get_file_list(source_db, np.arange(len(source_db)))
 
 
-def get_db_name_by_filename(filename, config_ver=-1):
-    if Game_ParadigmC(config_ver).DIR in filename:
+def get_db_name_by_filename(filename):
+    if Game_ParadigmC().DIR in filename:
         db_name = Databases.GAME_PAR_C
-    elif Game_ParadigmD(config_ver).DIR in filename:
+    elif Game_ParadigmD().DIR in filename:
         db_name = Databases.GAME_PAR_D
-    elif PilotDB_ParadigmA(config_ver).DIR in filename:
+    elif PilotDB_ParadigmA().DIR in filename:
         db_name = Databases.PILOT_PAR_A
-    elif PilotDB_ParadigmB(config_ver).DIR in filename:
+    elif PilotDB_ParadigmB().DIR in filename:
         db_name = Databases.PILOT_PAR_B
-    elif Physionet(config_ver).DIR in filename:
+    elif Physionet().DIR in filename:
         db_name = Databases.PHYSIONET
-    elif ParadigmC(config_ver).DIR in filename:
+    elif ParadigmC().DIR in filename:
         db_name = Databases.ParadigmC
-    elif BciCompIV1(config_ver).DIR in filename:
+    elif BciCompIV1().DIR in filename:
         db_name = Databases.BCI_COMP_IV_1
-    elif BciCompIV2a(config_ver).DIR in filename:
+    elif BciCompIV2a().DIR in filename:
         db_name = Databases.BCI_COMP_IV_2A
-    elif BciCompIV2b(config_ver).DIR in filename:
+    elif BciCompIV2b().DIR in filename:
         db_name = Databases.BCI_COMP_IV_2B
-    elif TTK_DB(config_ver).DIR in filename:
+    elif TTK_DB().DIR in filename:
         db_name = Databases.TTK
     else:
         raise ValueError('No database defined with path {}'.format(filename))
