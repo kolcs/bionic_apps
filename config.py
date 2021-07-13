@@ -459,3 +459,23 @@ class EmotivParC:
         self.TRIGGER_EVENT_ID = {'S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = [1, 2, 3]
+
+
+class Giga:
+
+    def __init__(self, config_ver=-1):
+        self.DIR = "giga"
+        self.CONFIG_VER = 1.1 if config_ver == -1. else config_ver
+
+        self.FILE_PATH = 'S{subj}/S{subj}R{rec}_raw.fif'
+        self.SUBJECT_NUM = 2 * 54
+        self.SUBJECT_EXP = {s + 1: [s * 2 + 1, (s + 1) * 2] for s in range(54)}  # must be sorted!
+
+        self.TRIGGER_TASK_CONVERTER = {  # imagined
+            RIGHT_HAND: 1,
+            LEFT_HAND: 2,
+        }
+
+        self.TRIGGER_EVENT_ID = {el: i + 1 for i, el in enumerate(['right', 'left'])}
+
+        self.DROP_SUBJECTS = []

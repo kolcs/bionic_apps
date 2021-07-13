@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pathlib import Path
 
 import mne
@@ -5,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from mne.externals.pymatreader import read_mat
 
-from config import Physionet, IMAGINED_MOVEMENT, BOTH_LEGS
+from config import IMAGINED_MOVEMENT, BOTH_LEGS
 from gui_handler import select_folder_in_explorer
 from preprocess import DataLoader, Databases
 
@@ -19,7 +20,7 @@ def get_filenames_from_dir(ext):
 
 
 def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3,
-                   before_session=0, after_session=1., after_end=1., plot=False):
+                   before_session=0, after_session=1., after_end=1., sess_num=0, plot=False):
     start_ind = np.arange(len(start_mask))[start_mask]
     end_ind = np.arange(len(end_mask))[end_mask]
     assert len(start_ind) == session_num, f'Incorrect start Triggers at subject {subj}'
@@ -40,17 +41,17 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
         else:
             sess.crop(tmin - before_session, tmax + after_end)
 
-        file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, i + 1))
+        file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, sess_num + i + 1))
         file.parent.mkdir(parents=True, exist_ok=True)
         sess.save(str(file), overwrite=True)
 
         if plot:
             sess.plot(block=False)
             r = mne.io.read_raw(str(file))
-            r.plot(block=True)
+            r.plot(block=False)
 
     if plot:
-        raw.plot(block=False)
+        raw.plot(block=True)
         plt.show()
 
 
@@ -138,15 +139,17 @@ def convert_bcicompIV2b():
                        after_end=5.7)
 
 
-def _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description):
+def _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description, rec_date=None):
     info = mne.create_info(ch_names, ch_types=ch_types, sfreq=fs)
     raw = mne.io.RawArray(eeg, info)
     annotation = mne.Annotations(onset, duration, description)
     raw = raw.set_annotations(annotation)
+    if rec_date is not None:
+        raw.set_meas_date(rec_date)
     return raw
 
 
-def convert_bcicompIV1():  # todo: waiting for bugfix from MNE side...
+def convert_bcicompIV1():
     path = Path(select_folder_in_explorer('Select base folder which contains the BCI comp IV 1 .mat files',
                                           'Select directory'))
     new_subj = 0
@@ -169,6 +172,8 @@ def convert_bcicompIV1():  # todo: waiting for bugfix from MNE side...
             ch_types = ['eeg'] * len(ch_names)
             fs = mat['nfo']['fs']
             classes = mat['nfo']['classes']
+            date = mat['__header__'].decode('utf-8').split('Created on:')[-1]
+            rec_date = datetime.strptime(date, ' %a %b\t%d  %H:%M:%S %Y').replace(tzinfo=timezone.utc)
 
             if k == 0:
                 onset = mat['mrk']['pos'] / fs
@@ -202,48 +207,64 @@ def convert_bcicompIV1():  # todo: waiting for bugfix from MNE side...
             end_mask[0] = False
             end_mask[-1] = True
 
-            raw = _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description)
+            raw = _create_raw(eeg, ch_names, ch_types, fs, onset, duration, description, rec_date)
             _save_sessions(new_subj, raw, start_mask, end_mask, path, session_num=np.sum(start_mask), drop_first=0,
-                           before_session=1, after_session=-22, after_end=5, plot=True)
+                           before_session=1, after_session=-22, after_end=5)
 
 
 def convert_giga():
-    filenames = get_filenames_from_dir('.mat')
-    for file in filenames:
+    path = Path(select_folder_in_explorer('Select base folder which contains the Giga database .mat files',
+                                          'Select directory'))
+    files = sorted(path.rglob('sess*_subj*_EEG_MI.mat'), key=lambda x: x.stem.split('subj')[0])
+    files = sorted(files, key=lambda x: x.stem.split('subj')[-1])
+    assert len(files) > 0, 'No files were found...'
+
+    for subj, file in enumerate(files):
+        subj += 1
         mat = read_mat(str(file))
-        raw_list = list()
+
+        prev_onset = 0
         for state in ['EEG_MI_train', 'EEG_MI_test']:
             data_dict = mat[state]
-            eeg = data_dict['x'].transpose() * 1e-6  # todo: waiting for info! convert to 1 Volt unit
-            ch_names = data_dict['chan']
-            ch_types = ['eeg'] * len(ch_names)
+            eeg = np.round(data_dict['x'].transpose(), 1) * 1e-6
+            emg = np.round(data_dict['EMG'].transpose(), 1) * 1e-6
+            data = np.concatenate((eeg, emg), axis=0)
+            ch_names = data_dict['chan'] + data_dict['EMG_index']
+            ch_types = ['eeg'] * len(data_dict['chan']) + ['emg'] * len(data_dict['EMG_index'])
             fs = data_dict['fs']
             onset = data_dict['t'] / fs
             duration = [4] * len(onset)
             description = data_dict['y_class']
+            date = mat['__header__'].decode('utf-8').split('Created on:')[-1]
+            rec_date = datetime.strptime(date, ' %a %b\t%d  %H:%M:%S %Y').replace(tzinfo=timezone.utc)
 
-            raw_list.append(_create_raw(eeg, ch_names, ch_types, fs, onset, duration, description))
+            start_mask = [True]
+            for i in range(1, len(onset)):
+                start = True if onset[i] - onset[i - 1] > 20 else False
+                start_mask.append(start)
+            end_mask = start_mask.copy()
+            end_mask[0] = False
+            end_mask[-1] = True
 
-        raw = mne.concatenate_raws(raw_list)  # todo: same experiment?
-
-        filename = str(file).strip('.mat') + '_raw.fif'
-        # filename = file.parent.joinpath('calib_ds_subj{:02d}_raw.fif'.format(i + 1))
-        raw.save(str(filename), overwrite=True)
+            raw = _create_raw(data, ch_names, ch_types, fs, onset, duration, description, rec_date)
+            _save_sessions(subj, raw, start_mask, end_mask, path, session_num=np.sum(start_mask), drop_first=0,
+                           before_session=1, after_session=-50, after_end=5, sess_num=prev_onset)
+            prev_onset = np.sum(start_mask)
 
 
 def convert_physionet():
     loader = DataLoader('..', use_drop_subject_list=False).use_physionet()
     assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
-    for s in range(Physionet.SUBJECT_NUM):
+    for s in range(loader._db_type.SUBJECT_NUM):
         subj = s + 1
-        rec_nums = Physionet.TYPE_TO_REC[IMAGINED_MOVEMENT]
+        rec_nums = loader._db_type.TYPE_TO_REC[IMAGINED_MOVEMENT]
         raw_list = list()
         new_rec_num = 1
         for rec in rec_nums:
             filename = next(
                 loader._generate_physionet_filenames(subj, rec)
             )
-            trigger_id = Physionet.TRIGGER_CONV_REC_TO_TASK[rec]
+            trigger_id = loader._db_type.TRIGGER_CONV_REC_TO_TASK[rec]
             raw = mne.io.read_raw(filename, preload=True)
             if BOTH_LEGS in trigger_id:
                 description = list()
@@ -383,4 +404,4 @@ def convert_game_par_c_and_d():
 
 
 if __name__ == '__main__':
-    convert_bcicompIV1()
+    convert_giga()

@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 from sklearn.model_selection import KFold
 
 from config import Physionet, PilotDB_ParadigmA, PilotDB_ParadigmB, TTK_DB, GameDB, Game_ParadigmC, Game_ParadigmD, \
-    DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC, EmotivParC
+    DIR_FEATURE_DB, REST, CALM, ACTIVE, BciCompIV1, BciCompIV2a, BciCompIV2b, ParadigmC, EmotivParC, Giga
 from gui_handler import select_files_in_explorer
 from preprocess.artefact_faster import ArtefactFilter
 from preprocess.channel_selection import ChannelSelector
@@ -52,6 +52,7 @@ class Databases(Enum):
     BCI_COMP_IV_2B = 'BCICompIV2b'
     ParadigmC = 'par_c'
     EMOTIV_PAR_C = 'emotiv_par_c'
+    GIGA = 'giga'
 
 
 class SubjectHandle(Enum):
@@ -411,6 +412,8 @@ def get_db_name_by_filename(filename):
         db_name = Databases.BCI_COMP_IV_2B
     elif TTK_DB().DIR in filename:
         db_name = Databases.TTK
+    elif Giga().DIR in filename:
+        db_name = Databases.GIGA
     else:
         raise ValueError('No database defined with path {}'.format(filename))
     return db_name
@@ -674,6 +677,8 @@ class DataLoader:
             self.use_par_c(config_ver)
         elif db_name == Databases.EMOTIV_PAR_C:
             self.use_emotiv(config_ver)
+        elif db_name == Databases.GIGA:
+            self.use_giga(config_ver)
 
         else:
             raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
@@ -743,6 +748,10 @@ class DataLoader:
         self._use_db(EmotivParC(config_ver))
         return self
 
+    def use_giga(self, config_ver=-1):
+        self._use_db(Giga(config_ver))
+        return self
+
     @property
     def fs(self):
         return self.info['sfreq']
@@ -773,7 +782,7 @@ class DataLoader:
         elif REST not in self._db_type.TRIGGER_TASK_CONVERTER:
             implemented_dbs = [GameDB, Game_ParadigmC, ParadigmC, PilotDB_ParadigmA, PilotDB_ParadigmB,
                                TTK_DB, Physionet]
-            not_implemented_dbs = [BciCompIV1, BciCompIV2a, BciCompIV2b]
+            not_implemented_dbs = [BciCompIV1, BciCompIV2a, BciCompIV2b, Giga]
             if type(self._db_type) in implemented_dbs:
                 raise ValueError(f'Can not make binary classification. Check values of '
                                  f'TRIGGER_TASK_CONVERTER in class {type(self._db_type).__name__} '
@@ -805,7 +814,7 @@ class DataLoader:
         return self._db_type.COMMAND_CONV
 
     def _get_exp_num(self):
-        if type(self._db_type) in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b]:
+        if type(self._db_type) in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b, Giga]:
             exp_num = self._db_type.SUBJECT_NUM
         elif type(self._db_type) in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
                                      ParadigmC, EmotivParC, GameDB]:
@@ -829,7 +838,8 @@ class DataLoader:
         elif self.subject_handle is SubjectHandle.MIX_EXPERIMENTS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
                 if type(self._db_type) in [BciCompIV2a, TTK_DB, Physionet, BciCompIV2b, PilotDB_ParadigmA,
-                                           PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, BciCompIV1]:
+                                           PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD, BciCompIV1,
+                                           Giga]:
                     exp_num = self._get_exp_num()
                     exp_to_subj = self._db_type.SUBJECT_EXP
                     # handling growing db problems: TTK, Par_C, ect...
@@ -845,7 +855,7 @@ class DataLoader:
 
         elif self.subject_handle is SubjectHandle.BCI_COMP:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER > 1:
-                bci_comp = [BciCompIV2a, BciCompIV2b]
+                bci_comp = [BciCompIV2a, BciCompIV2b, Giga]
                 if type(self._db_type) in bci_comp:
                     subject_num = len(self._db_type.SUBJECT_EXP)
                 else:
@@ -953,7 +963,8 @@ class DataLoader:
         if self.subject_handle is SubjectHandle.INDEPENDENT_DAYS:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
                 if type(self._db_type) in [Physionet, TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB,
-                                           Game_ParadigmC, Game_ParadigmD, BciCompIV2a, BciCompIV2b]:
+                                           Game_ParadigmC, Game_ParadigmD, BciCompIV2a, BciCompIV2b,
+                                           BciCompIV1, Giga]:
                     file_names = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
                     assert len(file_names) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
                                                 f'for {type(self._db_type).__name__} or download the latest database.'
@@ -974,7 +985,7 @@ class DataLoader:
 
         elif self.subject_handle is SubjectHandle.BCI_COMP:
             if hasattr(self._db_type, 'SUBJECT_EXP'):
-                if type(self._db_type) is BciCompIV2a:
+                if type(self._db_type) in [BciCompIV2a, Giga]:
                     s = self._db_type.SUBJECT_EXP[subj][0 if train else 1]
                     file_names = sorted(self._data_path.rglob(self._get_subj_pattern(s)))
                 elif type(self._db_type) is BciCompIV2b:
@@ -1641,7 +1652,7 @@ class OnlineDataPreprocessor(DataProcessor):
 
         if type(self._db_type) in [Physionet, TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB,
                                    Game_ParadigmC, Game_ParadigmD,
-                                   BciCompIV1, BciCompIV2a, BciCompIV2b]:
+                                   BciCompIV1, BciCompIV2a, BciCompIV2b, Giga]:
             self._parallel_generate_db(self._generate_online_db)
         else:
             raise NotImplementedError('Cannot create subject database for {}'.format(type(self._db_type).__name__))

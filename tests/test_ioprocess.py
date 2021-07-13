@@ -33,7 +33,8 @@ class TestDataLoader(unittest.TestCase):
                 self.assertIsInstance(self.loader.get_subject_num(), int)
                 self._test_get_subject_list()
                 if db_config_ver == 0 and db_name in [Databases.PHYSIONET, Databases.BCI_COMP_IV_2A,
-                                                      Databases.BCI_COMP_IV_2B, Databases.BCI_COMP_IV_1]:
+                                                      Databases.BCI_COMP_IV_2B, Databases.BCI_COMP_IV_1,
+                                                      Databases.GIGA]:
                     with self.assertRaises(NotImplementedError):
                         self._test_get_filenames()
                 else:
@@ -62,7 +63,7 @@ class TestDataLoader(unittest.TestCase):
                 self.loader.use_db(db_name)
                 if db_name.name == 'BCI_COMP_IV_1':
                     self.assertRaises(ValueError, self.loader.get_subject_num)
-                elif 'BCI_COMP' in db_name.name:
+                elif 'BCI_COMP' in db_name.name or 'GIGA' in db_name.name:
                     self.assertIsInstance(self.loader.get_subject_num(), int)
                     self._test_get_subject_list()
                     self._test_get_filenames()
@@ -86,7 +87,8 @@ class TestDataProcessor(unittest.TestCase):
                                   data_proc.run, subject, FeatureType.AVG_FFT_POWER, fft_low=7, fft_high=14)
 
                 if db_config_ver == 0 and db_name in [Databases.PHYSIONET, Databases.BCI_COMP_IV_1,
-                                                      Databases.BCI_COMP_IV_2A, Databases.BCI_COMP_IV_2B]:
+                                                      Databases.BCI_COMP_IV_2A, Databases.BCI_COMP_IV_2B,
+                                                      Databases.GIGA]:
                     with self.assertRaises(NotImplementedError):
                         filenames = data_proc.get_filenames_for_subject(subject)
                 else:
@@ -118,6 +120,7 @@ class TestOfflinePreprocessorIndependent(unittest.TestCase):
         cleanup_fastload_data()
         cls.epoch_proc = OfflineDataPreprocessor(base_config_path='..')
         cls.subj_ind = 0
+        cls._old_conf_exp_error = None
 
     # def setUp(self):
     #     pass
@@ -144,8 +147,14 @@ class TestOfflinePreprocessorIndependent(unittest.TestCase):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.epoch_proc.use_db(db_name, 0)
-                subj = self.epoch_proc.get_subject_list()[:2]
-                self._check_db(subj, **feature_extraction)
+
+                if self._old_conf_exp_error is None:
+                    subj = self.epoch_proc.get_subject_list()[:2]
+                    self._check_db(subj, **feature_extraction)
+                else:
+                    with self.assertRaises(self._old_conf_exp_error):
+                        subj = [2, 3]
+                        self._check_db(subj, **feature_extraction)
 
     def test_fft_range(self):
         self._check_method(feature_type=FeatureType.FFT_RANGE,
@@ -178,10 +187,7 @@ class TestOfflinePreprocessorMix(TestOfflinePreprocessorIndependent):
         cls.epoch_proc = OfflineDataPreprocessor(subject_handle=SubjectHandle.MIX_EXPERIMENTS,
                                                  base_config_path='..')
         cls.subj_ind = 0
-
-    def test_avg_fft_pow_old_config(self):
-        with self.assertRaises(NotImplementedError):
-            super(TestOfflinePreprocessorMix, self).test_avg_fft_pow_old_config()
+        cls._old_conf_exp_error = NotImplementedError
 
 
 class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
@@ -192,6 +198,7 @@ class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
         cls.epoch_proc = OfflineDataPreprocessor(subject_handle=SubjectHandle.BCI_COMP,
                                                  base_config_path='..')
         cls.subj_ind = 0
+        cls._old_conf_exp_error = NotImplementedError
 
     def _check_method(self, **feature_extraction):
         for db_name in AVAILABLE_DBS:
@@ -201,7 +208,7 @@ class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
                 if db_name.name == 'BCI_COMP_IV_1':
                     with self.assertRaises(ValueError):
                         subj = self.epoch_proc.get_subject_list()[self.subj_ind]
-                elif 'BCI_COMP' in db_name.name:
+                elif 'BCI_COMP' in db_name.name or 'GIGA' in db_name.name:
                     subj = self.epoch_proc.get_subject_list()[self.subj_ind]
                 else:
                     with self.assertRaises(ValueError):
@@ -210,7 +217,7 @@ class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
                 if db_name.name == 'BCI_COMP_IV_1':
                     with self.assertRaises(ValueError):
                         self._check_db(subj, **feature_extraction)
-                elif 'BCI_COMP' in db_name.name:
+                elif 'BCI_COMP' in db_name.name or 'GIGA' in db_name.name:
                     self._check_db(subj, **feature_extraction)
                 else:
                     with self.assertRaises(ValueError):
@@ -228,10 +235,6 @@ class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
                        fft_low=14, fft_high=30)
         self.assertGreater(len(self.epoch_proc.get_processed_db_source()), 1)
 
-    def test_avg_fft_pow_old_config(self):
-        with self.assertRaises(NotImplementedError):
-            super(TestOfflinePreprocessorBciComp, self).test_avg_fft_pow_old_config()
-
 
 class TestOnlinePreprocessor(TestOfflinePreprocessorIndependent):
 
@@ -240,6 +243,7 @@ class TestOnlinePreprocessor(TestOfflinePreprocessorIndependent):
         cleanup_fastload_data()
         cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..', do_artefact_rejection=False)
         cls.subj_ind = 0
+        cls._old_conf_exp_error = NotImplementedError
 
     def _check_method(self, **feature_extraction):
         for db_name in AVAILABLE_DBS:
@@ -249,10 +253,6 @@ class TestOnlinePreprocessor(TestOfflinePreprocessorIndependent):
                     f'Database generation test implemented for db with CONFIG_VER > 0'
                 subj = self.epoch_proc.get_subject_list()[self.subj_ind]
                 self._check_db(subj, **feature_extraction)
-
-    def test_avg_fft_pow_old_config(self):
-        with self.assertRaises(NotImplementedError):
-            super(TestOnlinePreprocessor, self).test_avg_fft_pow_old_config()
 
 
 class TestOfflineSubjectKFold(unittest.TestCase):
@@ -319,7 +319,7 @@ class TestOfflineSubjectKFold(unittest.TestCase):
                     ans.append((train, test))
 
                 if cross_subject and kfn is None:
-                    kfn = min(self.kfold_num, self.epoch_proc.get_subject_num())
+                    kfn = min(self.kfold_num, len(self.epoch_proc.get_subject_list()))
 
                 self._check_db(ans, kfn)
 
@@ -359,20 +359,20 @@ class TestOnlineSubjectKFold(TestOfflineSubjectKFold):
         cls.kfold_num = 5
         cls.epoch_proc = OnlineDataPreprocessor(base_config_path='..', do_artefact_rejection=False)
 
-    # def test_cross_subject_split(self):
-    #     pass
-    #
-    # def test_cross_subject_split_one(self):
-    #     pass
-    #
-    # def test_cross_subject_split_binarized(self):
-    #     pass
-    #
-    # def test_cross_subject_split_one_validation(self):
-    #     pass
-    #
-    # def test_cross_subject_split_validation_binarized_one(self):
-    #     pass
+    def test_cross_subject_split(self):
+        pass
+
+    def test_cross_subject_split_one(self):
+        pass
+
+    def test_cross_subject_split_binarized(self):
+        pass
+
+    def test_cross_subject_split_one_validation(self):
+        pass
+
+    def test_cross_subject_split_validation_binarized_one(self):
+        pass
 
 
 @unittest.skipUnless(Path(init_base_config('..')).joinpath(Game_ParadigmD().DIR).exists(),
