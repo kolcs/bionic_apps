@@ -204,7 +204,7 @@ class BCISystem(object):
 
         return class_report, conf_matrix, acc
 
-    def offline_processing(self, db_name=Databases.PHYSIONET, db_config_ver=1,
+    def offline_processing(self, db_name=Databases.PHYSIONET, db_config_ver=-1,
                            subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                            feature_params=None,
                            epoch_tmin=0, epoch_tmax=4,
