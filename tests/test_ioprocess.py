@@ -61,9 +61,7 @@ class TestDataLoader(unittest.TestCase):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.loader.use_db(db_name)
-                if db_name.name == 'BCI_COMP_IV_1':
-                    self.assertRaises(ValueError, self.loader.get_subject_num)
-                elif 'BCI_COMP' in db_name.name or 'GIGA' in db_name.name:
+                if db_name in [Databases.BCI_COMP_IV_2A, Databases.BCI_COMP_IV_2B, Databases.GIGA]:
                     self.assertIsInstance(self.loader.get_subject_num(), int)
                     self._test_get_subject_list()
                     self._test_get_filenames()
@@ -148,13 +146,18 @@ class TestOfflinePreprocessorIndependent(unittest.TestCase):
             with self.subTest(f'Database: {db_name.name}'):
                 self.epoch_proc.use_db(db_name, 0)
 
-                if self._old_conf_exp_error is None:
-                    subj = self.epoch_proc.get_subject_list()[:2]
-                    self._check_db(subj, **feature_extraction)
-                else:
-                    with self.assertRaises(self._old_conf_exp_error):
+                if self._old_conf_exp_error is not None or db_name in [Databases.BCI_COMP_IV_1,
+                                                                       Databases.BCI_COMP_IV_2A,
+                                                                       Databases.BCI_COMP_IV_2B,
+                                                                       Databases.GIGA]:
+                    error = NotImplementedError if self._old_conf_exp_error is None else self._old_conf_exp_error
+
+                    with self.assertRaises(error):
                         subj = [2, 3]
                         self._check_db(subj, **feature_extraction)
+                else:
+                    subj = self.epoch_proc.get_subject_list()[:2]
+                    self._check_db(subj, **feature_extraction)
 
     def test_fft_range(self):
         self._check_method(feature_type=FeatureType.FFT_RANGE,
@@ -204,23 +207,12 @@ class TestOfflinePreprocessorBciComp(TestOfflinePreprocessorIndependent):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.epoch_proc.use_db(db_name)
-                subj = 2
-                if db_name.name == 'BCI_COMP_IV_1':
-                    with self.assertRaises(ValueError):
-                        subj = self.epoch_proc.get_subject_list()[self.subj_ind]
-                elif 'BCI_COMP' in db_name.name or 'GIGA' in db_name.name:
+                if db_name in [Databases.BCI_COMP_IV_2A, Databases.BCI_COMP_IV_2B, Databases.GIGA]:
                     subj = self.epoch_proc.get_subject_list()[self.subj_ind]
-                else:
-                    with self.assertRaises(ValueError):
-                        subj = self.epoch_proc.get_subject_list()[self.subj_ind]
-
-                if db_name.name == 'BCI_COMP_IV_1':
-                    with self.assertRaises(ValueError):
-                        self._check_db(subj, **feature_extraction)
-                elif 'BCI_COMP' in db_name.name or 'GIGA' in db_name.name:
                     self._check_db(subj, **feature_extraction)
                 else:
                     with self.assertRaises(ValueError):
+                        subj = 2
                         self._check_db(subj, **feature_extraction)
 
     @unittest.skipUnless(DataLoader('..').use_bci_comp_4_2a().get_data_path().exists(),
