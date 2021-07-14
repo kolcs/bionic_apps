@@ -28,14 +28,22 @@ class OnlinePipeline(Pipeline):
         return self
 
 
-def _init_one_svm(svm, svm_kargs):
+def _init_one_svm(svm, pipeline=('norm',), **svm_kargs):
     if svm is None:
         # svm = OnlinePipeline([('norm', Normalizer()), ('svm', SGDClassifier(**svm_kargs))])
-        svm = Pipeline([
-            ('norm', Normalizer()),
-            # ('minmax', MinMaxScaler()),
-            # ('stamdard', StandardScaler()),
-            ('svm', SVC(**svm_kargs))])  # or StandardScaler()
+        pipe_list = list()
+        for el in pipeline:
+            if el == 'norm':
+                element = ('norm', Normalizer())
+            elif el == 'standard':
+                element = ('standard', StandardScaler())
+            elif el == 'minmax':
+                element = ('minmax', MinMaxScaler())
+            else:
+                raise ValueError(f'{el} is not in SVM pipeline options.')
+            pipe_list.append(element)
+        pipe_list.append(('svm', SVC(**svm_kargs)))
+        svm = Pipeline(pipe_list)
     return svm
 
 
@@ -69,7 +77,7 @@ class MultiSVM(ClassifierInterface):
         """
         X = np.array(X)
         n_svms = X.shape[1]
-        self._svms = {i: _init_one_svm(self._svms.get(i), self._svm_kargs) for i in range(n_svms)}
+        self._svms = {i: _init_one_svm(self._svms.get(i), **self._svm_kargs) for i in range(n_svms)}
         # self._svms = [SVM(*self._svm_args) for _ in range(n_svms)]  # serial: 3 times slower
         # for i in range(len(self._svms)):
         #     self._fit_svm(i, X[:, i, :], y)

@@ -20,16 +20,16 @@ class FeatureType(Enum):
     PSD = auto()
 
 
-def _get_fft(data, fs, method='absolute'):
+def _get_fft(data, fs, method='pow'):
     """Calculating the frequency power."""
     n_data_point, n_channel, n_timeponts = data.shape
     fft_res = np.fft.rfft(data)
-    if method == 'absolute':
+    if method == 'abs':
         fft_res = np.abs(fft_res)
-    elif method == 'power':
+    elif method == 'pow':
         fft_res = np.power(fft_res, 2)
     else:
-        raise NotImplementedError('{} method is not defined in fft calculation.')
+        raise NotImplementedError(f'{method} method is not defined in fft calculation.')
     freqs = np.fft.rfftfreq(n_timeponts, 1. / fs)
     return fft_res, freqs
 
@@ -119,9 +119,9 @@ def _crop_spatial_data(spatial_data):
 
 class FeatureExtractor:
 
-    def __init__(self, feature_type, fs=None,
+    def __init__(self, feature_type, fs=None, scale=True,
                  fft_low=None, fft_high=None, fft_step=2, fft_width=2, fft_ranges=None,
-                 fft_method='psd',
+                 fft_method='psd', feature_scale='MinMax0:1',
                  channel_list=None, info=None, crop=True):
         """Class for feature extraction.
 
@@ -131,6 +131,8 @@ class FeatureExtractor:
             Specify the features which will be created in the preprocessing phase.
         fs : int
             Sampling frequency.
+        scale : bool
+            If ture data will be scaled with 1e6. (In case of eeg V -> microV)
         fft_low : float
             Low border for fft power calculation.
         fft_high : float
@@ -142,8 +144,9 @@ class FeatureExtractor:
         fft_ranges : list of (float, float)
             a list of frequency ranges. Each each element of the list is a tuple, where the
             first element of a tuple corresponds to fft_min and the second is fft_max
-        fft_method : {'fft', 'psd'}
-            Method for frequency feature generation. fft - pure FFT, psd - wlechs psd gen.
+        fft_method : {'fftabs', 'fftpow', 'psd'}
+            Method for frequency feature generation. fftabs - absolute of FFT, fftabs -
+            power of FFT, psd - welch psd gen. Default is 'psd'.
         channel_list : list of int, optional
             Dummy eeg channel selection. Do not use it.
         info : mne.Info, dict
@@ -151,6 +154,7 @@ class FeatureExtractor:
         """
         self.feature_type = feature_type
         self.fs = fs
+        self.scale = scale
 
         self.fft_low = fft_low
         self.fft_high = fft_high
@@ -158,6 +162,7 @@ class FeatureExtractor:
         self.fft_width = fft_width
         self.fft_ranges = fft_ranges
         self.fft_method = fft_method
+        self.feature_scale = feature_scale
 
         self.channel_list = channel_list
         self._crop = crop
@@ -216,8 +221,8 @@ class FeatureExtractor:
             Feature extracted data. Shape: (data_points, n_fft, n_channels)
 
         """
-        if self.fft_method == 'fft':
-            fft_res, freqs = _get_fft(data, self.fs)
+        if self.fft_method[:3] == 'fft':
+            fft_res, freqs = _get_fft(data, self.fs, self.fft_method.strip('fft'))
         elif self.fft_method == 'psd':
             freqs, fft_res = signal.welch(data, self.fs, nperseg=np.size(data, -1) // 4)
         else:
@@ -230,7 +235,15 @@ class FeatureExtractor:
             assert all(fft_width >= freqs[i] - freqs[i - 1] for i in range(1, len(freqs))), \
                 'Not enough feature points between {} and {} Hz'.format(fft_low, fft_high)
             fft_power = np.average(fft_res[:, :, fft_mask], axis=-1)
-            fft_power = minmax_scale(fft_power, axis=-1)
+            if self.feature_scale is None:
+                pass
+            elif 'minmax' in self.feature_scale.lower():
+                f_range = self.feature_scale.lower().strip('minmax').split(':')
+                f_range = [int(r) for r in f_range]
+                assert len(f_range) == 2, f'{self.feature_scale} is not in correct format.'
+                fft_power = minmax_scale(fft_power, feature_range=f_range, axis=-1)
+            else:
+                raise ValueError(f'Can not scale feature with {self.feature_scale}.')
             data.append(fft_power)
 
         data = np.transpose(data, (1, 0, 2))
@@ -354,7 +367,8 @@ class FeatureExtractor:
         return data
 
     def run(self, data):
-        data *= 1e6  # scale to microVoltage from Voltage
+        if self.scale:
+            data *= 1e6  # scale to microVoltage from Voltage
 
         if len(data.shape) == 2:
             data = np.expand_dims(data, 0)
