@@ -437,6 +437,9 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
     elif isinstance(thresholds, (int, float)):
         thresholds = [thresholds] * 4
 
+    assert len(thresholds) == 4, f'There are 4 steps in FASTER algorithm. ' \
+                                 f'{len(thresholds)} thresholds were defined instead.'
+
     epochs.load_data()
 
     if copy:
@@ -444,6 +447,8 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
 
     if apply_frequency_filter:
         epochs.filter(filter_low, filter_high)
+
+    droped_epochs = -1
 
     # Step one - save bad channels to online, interpolate here and even online
 
@@ -458,13 +463,14 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
             logger.info('Step 1 - mark bad channels - is dismissed')
         bads = list.copy(epochs.info['bads'])
 
-    # Step two - only offline
+    # Step two - only offline, drop bad epochs
     if thresholds[1] > 0:
         if verbose:
             logger.info('Step 2: mark bad epochs')
         bad_epochs = faster_bad_epochs(epochs, thres=thresholds[1], verbose=verbose)
         good_epochs = list(set(range(len(epochs))).difference(set(bad_epochs)))
         epochs = epochs[good_epochs]
+        droped_epochs = len(bad_epochs) / len(good_epochs)
     else:
         if verbose:
             logger.info('Step 2 - mark bad epochs - is dismissed')
@@ -504,6 +510,9 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
         epochs.info['custom_ref_applied'] = False
         epochs, _ = mne.io.set_eeg_reference(epochs, verbose=verbose)
         epochs.apply_proj()
+
+    if droped_epochs != -1:
+        logger.info('\nAmount of dropped epochs {}'.format(droped_epochs))
 
     return epochs, bads, ica, ica_scores
 

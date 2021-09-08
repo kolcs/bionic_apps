@@ -215,7 +215,8 @@ class BCISystem(object):
                            subj_n_fold_num=None, shuffle_data=True,
                            make_binary_classification=False, train_file=None,
                            classifier_type=ClassifierType.SVM, classifier_kwargs=None,
-                           validation_split=0, do_artefact_rejection=False,
+                           validation_split=0,
+                           do_artefact_rejection=False, artefact_thresholds=None,
                            make_channel_selection=False,
                            mimic_online_method=False):
         """Offline data processing.
@@ -272,6 +273,12 @@ class BCISystem(object):
             How much of the train set should be used as validation data. value range: [0, 1]
         do_artefact_rejection : bool
             To do artefact-rejection preprocessing or no
+        artefact_thresholds : float or int or list of float or list of int
+            The threshold value, in standard deviations, to apply. An epoch
+            crossing this threshold value is marked as bad. Defaults to 3.
+            Can be given as an array of 4 elements, where the n-th element
+            is the threshold of the n-th step of FASTER algorithm. If a
+            threshold is set to 0, it means that actual step will be left out.
         make_channel_selection : bool
             To do channel selection or not.
         mimic_online_method : bool
@@ -315,6 +322,7 @@ class BCISystem(object):
                                                 use_drop_subject_list=use_drop_subject_list, fast_load=fast_load,
                                                 filter_params=filter_params,
                                                 do_artefact_rejection=do_artefact_rejection,
+                                                artefact_thresholds=artefact_thresholds,
                                                 n_fold=subj_n_fold_num, shuffle=shuffle_data,
                                                 make_channel_selection=make_channel_selection,
                                                 subject_handle=subject_handle)
@@ -324,6 +332,7 @@ class BCISystem(object):
                                                  select_eeg_file=select_eeg_file,
                                                  eeg_file=train_file, filter_params=filter_params,
                                                  do_artefact_rejection=do_artefact_rejection,
+                                                 artefact_thresholds=artefact_thresholds,
                                                  make_channel_selection=make_channel_selection,
                                                  subject_handle=subject_handle)
         self._proc.use_db(db_name, db_config_ver)
@@ -569,6 +578,7 @@ if __name__ == '__main__':
         classifier_kwargs=classifier_kwargs,
         validation_split=0,
         mimic_online_method=False,
-        do_artefact_rejection=False,
+        do_artefact_rejection=True,
+        artefact_thresholds=[3, 3, 0, 3],
         make_channel_selection=False
     )
