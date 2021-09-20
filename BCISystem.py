@@ -1,3 +1,4 @@
+import sys
 import time
 from enum import Enum
 from multiprocessing import Queue, Process
@@ -5,6 +6,7 @@ from warnings import warn, simplefilter
 
 import numpy as np
 import pandas as pd
+import tblib.pickling_support
 from mne import set_log_level as mne_set_log_level
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.preprocessing import LabelEncoder
@@ -17,6 +19,8 @@ from control import GameControl, create_opponents
 from logger import setup_logger, log_info, GameLogger
 from preprocess import OfflineDataPreprocessor, OnlineDataPreprocessor, SubjectKFold, \
     FeatureType, FeatureExtractor, Databases, DataHandler, is_platform, SubjectHandle, DataLoader
+
+tblib.pickling_support.install()
 
 AI_MODEL = 'ai.model'
 LOGGER_NAME = 'BCISystem'
@@ -53,12 +57,21 @@ def _validate_feature_classifier_pair(feature_type, classifier_type):
 """Helpers for memory management"""
 
 
+class ExceptionWrapper(object):
+
+    def __init__(self, ee):
+        self.ee = ee
+        __, __, self.tb = sys.exc_info()
+
+    def re_raise(self):
+        raise self.ee.with_traceback(self.tb)
+
+
 def __wrapper_func(func, queue, *args):
-    ans = dict(result=None, exception=None)
     try:
-        ans['result'] = func(*args)
+        ans = func(*args)
     except Exception as e:
-        ans['exception'] = e
+        ans = e
     queue.put(ans)
 
 
@@ -69,10 +82,9 @@ def _process_run(func, *args):
     p.start()
     ans = queue.get()
     p.join()
-    if ans['exception'] is not None:
-        print('The error came from {}'.format(func))
-        raise ans['exception']
-    return ans['result']
+    if isinstance(ans, ExceptionWrapper):
+        ans.re_raise()
+    return ans
 
 
 class BCISystem(object):
