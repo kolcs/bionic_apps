@@ -19,7 +19,6 @@ from gui_handler import select_files_in_explorer
 from preprocess.artefact_faster import ArtefactFilter
 from preprocess.channel_selection import ChannelSelector
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
-from preprocess.processepoch import *
 
 EPOCH_DB = 'preprocessed_database'
 
