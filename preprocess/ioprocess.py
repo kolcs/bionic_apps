@@ -1,3 +1,4 @@
+import time as time
 from copy import deepcopy
 from enum import Enum
 from json import dump as json_dump, load as json_load
@@ -18,6 +19,7 @@ from gui_handler import select_files_in_explorer
 from preprocess.artefact_faster import ArtefactFilter
 from preprocess.channel_selection import ChannelSelector
 from preprocess.feature_extraction import FeatureType, FeatureExtractor
+from preprocess.processepoch import *
 
 EPOCH_DB = 'preprocessed_database'
 
@@ -825,6 +827,15 @@ class DataLoader:
             else:
                 file = 'rec01.vhdr'
             exp_num = len(sorted(Path(self._data_path).rglob(file)))
+
+            if exp_num == 0:
+                if self._db_type.CONFIG_VER >= 1:
+                    raise ValueError(f'No files were found for {type(self._db_type).__name__} with config ver '
+                                     f'{self._db_type.CONFIG_VER}.\nPlease Download the latest database!')
+                else:
+                    raise ValueError(f'No files were found for {type(self._db_type).__name__} with config ver '
+                                     f'{self._db_type.CONFIG_VER}.\nPlease Download the older database or '
+                                     f'change the config number to the latest (-1)!')
         else:
             raise NotImplementedError('get_subject_num is undefined for {}'.format(type(self._db_type).__name__))
         return exp_num
@@ -1491,7 +1502,8 @@ class OfflineDataPreprocessor(DataProcessor):
 
         if self._init_fast_load_data():
             return  # fast load ok. Do not create database.
-        print('{} file is not found. Creating database.'.format(self._proc_db_source))
+        if self._fast_load:
+            print('{} file is not found. Creating database.'.format(self._proc_db_source))
 
         if type(self._db_type) is Physionet and self._db_type.CONFIG_VER < 1:
             if self._select_one_file or self._eeg_file is not None:
