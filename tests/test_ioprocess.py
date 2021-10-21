@@ -170,7 +170,7 @@ class TestOfflinePreprocessorIndependent(unittest.TestCase):
     def test_fast_load(self):
         tic = time()
         self.test_avg_fft_pow()
-        self.assertLess(time() - tic, 1, 'Error in fastload...')
+        self.assertLess(time() - tic, len(AVAILABLE_DBS), 'Error in fastload...')
 
     @unittest.skipUnless(DataLoader('..').use_physionet().get_data_path().exists(),
                          'Data for Physionet does not exists. Can not test it.')
