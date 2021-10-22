@@ -96,7 +96,7 @@ class TestOnlineBci(unittest.TestCase):
         cls._path = Path(init_base_config())
         cls._path = cls._path.joinpath('Game', 'paradigmD', 'subject2')
         cls._live_eeg_emulator = Process(target=send_online_data,
-                                         kwargs=dict(filename=cls._path.joinpath('game01.vhdr'), get_labels=False,
+                                         kwargs=dict(filenames=str(cls._path.joinpath('game01.vhdr')), get_labels=False,
                                                      add_extra_data=True))
         cls._live_eeg_emulator.start()
 

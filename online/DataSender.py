@@ -51,6 +51,8 @@ def get_data_with_labels(raw):  # only for pilot data
 
 
 def run(filenames, get_labels=False, eeg_type='', use_artificial_data=False, host='myuid1236', add_extra_data=False):
+    if isinstance(filenames, str):
+        filenames = [filenames]
     raw = concatenate_raws([read_raw(file) for file in filenames])
 
     # strip channel names of "." characters
