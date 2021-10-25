@@ -1201,7 +1201,7 @@ class DataProcessor(DataLoader):
         if self._window_step == 0 or self._window_length == self._epoch_tmax - self._epoch_tmin:
             win_num = 1
         else:
-            win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step)
+            win_num = int((self._epoch_tmax - self._epoch_tmin - window_length) / self._window_step) + 1
 
         feature_extractor = FeatureExtractor(self.feature_type, self.fs, info=self.info, **self.feature_kwargs)
 
