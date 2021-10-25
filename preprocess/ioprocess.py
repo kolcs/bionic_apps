@@ -1352,6 +1352,7 @@ class DataProcessor(DataLoader):
         feature_kwargs
             Arbitrary keyword arguments for feature extraction.
         """
+        assert not isinstance(subject, set), 'Subject param can not be an instance of set.'
         self._subject_list = [subject] if type(subject) is int else subject
         self.feature_type = feature_type
         self.feature_kwargs = feature_kwargs

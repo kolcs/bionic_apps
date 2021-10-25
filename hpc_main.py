@@ -33,7 +33,7 @@ def make_test(feature_params, db_name, subject_from=1, verbose=True,
     )
     proc.use_db(db_name)
     subject_list = np.arange(subject_from, proc.get_subject_num() + 1)
-    proc_subjects = set(np.array(subject_list).flatten()) if subject_list is not None else None
+    proc_subjects = list(set(np.array(subject_list).flatten())) if subject_list is not None else None
     proc.run(proc_subjects, **feature_params)
 
     # make test
