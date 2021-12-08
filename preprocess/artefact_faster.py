@@ -512,7 +512,7 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
         epochs.apply_proj()
 
     if droped_epochs != -1:
-        logger.info('\nAmount of dropped epochs {}'.format(droped_epochs))
+        logger.info(f'\nAmount of dropped epochs {droped_epochs * 100:.2f}%')
 
     return epochs, bads, ica, ica_scores
 
