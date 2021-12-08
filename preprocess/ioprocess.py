@@ -923,10 +923,10 @@ class DataLoader:
         return self._generate_filenames_for_subject(subject, '{:03d}', runs, '{:03d}')
 
     def _legacy_filename_gen(self, subj):
-        if type(self._db_type) is TTK_DB:
+        if isinstance(self._db_type, TTK_DB):
             fn_gen = self._generate_ttk_filename(subj)
-        elif type(self._db_type) in [PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC,
-                                     Game_ParadigmD, ParadigmC]:
+        elif isinstance(self._db_type, (PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB,
+                                        Game_ParadigmC, Game_ParadigmD, ParadigmC)):
             fn_gen = self._generate_pilot_filename(subj)
         # elif type(self._db_type) in [BciCompIV1, BciCompIV2a]:
         #     fn_gen = self._generate_ttk_filename(subj)
@@ -935,7 +935,7 @@ class DataLoader:
         #     s = s_ind // 3 + 1
         #     rec = s_ind % 3 + 1
         #     fn_gen = self._generate_ttk_filename(s, rec)
-        elif type(self._db_type) is EmotivParC:
+        elif isinstance(self._db_type, EmotivParC):
             fn_gen = self._generate_epocplus_filenames(subj)
         else:
             raise NotImplementedError(

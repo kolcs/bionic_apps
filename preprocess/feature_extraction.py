@@ -22,16 +22,15 @@ class FeatureType(Enum):
 
 def _get_fft(data, fs, method='pow'):
     """Calculating the frequency power."""
-    n_data_point, n_channel, n_timeponts = data.shape
     fft_res = np.fft.rfft(data)
     if method == 'abs':
         fft_res = np.abs(fft_res)
     elif method == 'pow':
-        fft_res = np.power(fft_res, 2)
+        fft_res = np.power(np.abs(fft_res), 2)
     else:
         raise NotImplementedError(f'{method} method is not defined in fft calculation.')
-    freqs = np.fft.rfftfreq(n_timeponts, 1. / fs)
-    return fft_res, freqs
+    freqs = np.fft.rfftfreq(data.shape[-1], 1. / fs)
+    return freqs, fft_res
 
 
 def _init_interp(info, ch_type='eeg'):
@@ -121,7 +120,7 @@ class FeatureExtractor:
 
     def __init__(self, feature_type, fs=None, scale=True,
                  fft_low=None, fft_high=None, fft_step=2, fft_width=2, fft_ranges=None,
-                 fft_method='psd', feature_scale='MinMax0:1',
+                 fft_method='psd', feature_scale=None,
                  channel_list=None, info=None, crop=True):
         """Class for feature extraction.
 
@@ -222,7 +221,7 @@ class FeatureExtractor:
 
         """
         if self.fft_method[:3] == 'fft':
-            fft_res, freqs = _get_fft(data, self.fs, self.fft_method.strip('fft'))
+            freqs, fft_res = _get_fft(data, self.fs, self.fft_method.strip('fft'))
         elif self.fft_method == 'psd':
             freqs, fft_res = signal.welch(data, self.fs, nperseg=np.size(data, -1) // 4)
         else:
