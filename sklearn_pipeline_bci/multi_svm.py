@@ -4,7 +4,7 @@ import pandas as pd
 from sklearn.ensemble import VotingClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.model_selection import StratifiedGroupKFold
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import make_pipeline, FeatureUnion
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.svm import SVC
@@ -80,6 +80,23 @@ def new_multi_svm(fs, fft_ranges):
         VotingClassifier(inner_clfs, n_jobs=len(inner_clfs)) if len(inner_clfs) > 1 else inner_clfs[0][1]
     )
 
+    return clf
+
+
+def all_alpha_svm(fs, fft_low, fft_high):
+    # todo: make all comb
+    # - psd, psd2, fftabs, fftpow
+    # - no norm, l2 norm, ...
+    parallel_lines = [(f'unit{i}', make_pipeline(, StandardScaler()))]
+
+    clf = make_pipeline(
+        FunctionTransformer(to_micro_volt),
+        FFTCalc(fs),
+        AvgFFTCalc(fft_low, fft_high),
+        FeatureUnion(parallel_lines),
+        # todo: pca
+        SVC()
+    )
     return clf
 
 
