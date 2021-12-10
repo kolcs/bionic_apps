@@ -6,9 +6,9 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import make_pipeline, FeatureUnion
 from sklearn.preprocessing import FunctionTransformer
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder, StandardScaler, Normalizer, MinMaxScaler
 from sklearn.svm import SVC
-from sklearn.utils import class_weight
+from sklearn.decomposition import PCA
 
 from preprocess import DataLoader, get_epochs_from_raw, SubjectHandle, standardize_channel_names, \
     Databases
@@ -83,19 +83,25 @@ def new_multi_svm(fs, fft_ranges):
     return clf
 
 
-def all_alpha_svm(fs, fft_low, fft_high):
-    # todo: make all comb
-    # - psd, psd2, fftabs, fftpow
-    # - no norm, l2 norm, ...
-    parallel_lines = [(f'unit{i}', make_pipeline(, StandardScaler()))]
+def band_comb_svm(fs, fft_ranges):
+    assert len(fft_ranges) == 1
+    fft_low, fft_high = fft_ranges[0]
+
+    normalizers = FeatureUnion([(norm.__name__, norm()) for norm in
+                                [FunctionTransformer, Normalizer, MinMaxScaler, StandardScaler]])
+
+    parallel_lines = [
+        make_pipeline(FFTCalc(fs, meth), AvgFFTCalc(fft_low, fft_high), normalizers)
+        for meth in ['psd', 'psd2', 'fftabs', 'fftpow']
+    ]
+
+    parallel_lines = [(f'feature{i}', pl) for i, pl in enumerate(parallel_lines)]
 
     clf = make_pipeline(
         FunctionTransformer(to_micro_volt),
-        FFTCalc(fs),
-        AvgFFTCalc(fft_low, fft_high),
         FeatureUnion(parallel_lines),
-        # todo: pca
-        SVC()
+        PCA(n_components=63),
+        SVC(cache_size=2048)
     )
     return clf
 
@@ -112,7 +118,8 @@ def train_test_model(x, y, groups, fs, fft_ranges):
         test_x = x[test]
         test_y = y[test]
 
-        clf = new_multi_svm(fs, fft_ranges)
+        # clf = new_multi_svm(fs, fft_ranges)
+        clf = band_comb_svm(fs, fft_ranges)
 
         clf.fit(train_x, train_y)
         y_pred = clf.predict(test_x)
@@ -207,15 +214,28 @@ def test_db(feature_params, db_name,
 def run_new_multi_svm():
     test_db(
         feature_params=dict(
-            feature_type=FeatureType.FFT_RANGE,
-            fft_low=4, fft_high=30
+            feature_type=FeatureType.AVG_FFT_POWER,
+            fft_low=4, fft_high=7
         ),
         db_name=Databases.PHYSIONET,
         filter_params=dict(  # required for FASTER artefact filter
             order=5, l_freq=1, h_freq=45
         ),
         do_artefact_rejection=True,
-        log_file='out.csv'
+        log_file='theta_svm.csv'
+    )
+
+    test_db(
+        feature_params=dict(
+            feature_type=FeatureType.AVG_FFT_POWER,
+            fft_low=30, fft_high=45
+        ),
+        db_name=Databases.PHYSIONET,
+        filter_params=dict(  # required for FASTER artefact filter
+            order=5, l_freq=1, h_freq=45
+        ),
+        do_artefact_rejection=True,
+        log_file='gamma_svm.csv'
     )
 
 
