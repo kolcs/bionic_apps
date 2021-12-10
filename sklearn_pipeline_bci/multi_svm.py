@@ -69,6 +69,31 @@ def filter_raw(raw, f_type='butter', order=5, l_freq=1, h_freq=None):
     return raw
 
 
+def balance_epoch_nums(epochs, labels):
+    labels = np.array(labels)
+    class_xs = []
+    min_elems = len(epochs)
+
+    for label in np.unique(labels):
+        lab_ind = (labels == label)
+        class_xs.append((label, lab_ind))
+        if np.sum(lab_ind) < min_elems:
+            min_elems = np.sum(lab_ind)
+
+    use_elems = min_elems
+
+    sel_ind = list()
+    for label, lab_ind in class_xs:
+        ind = np.arange(len(labels))[lab_ind]
+        if np.sum(lab_ind) > use_elems:
+            np.random.shuffle(ind)
+            ind = ind[:use_elems]
+        sel_ind.extend(ind)
+
+    sel_ind = np.sort(sel_ind)
+    return epochs[sel_ind], labels[sel_ind]
+
+
 def new_multi_svm(fs, fft_ranges):
     inner_clfs = [(f'unit{i}', make_pipeline(AvgFFTCalc(fft_low, fft_high),
                                              StandardScaler(), SVC()))
@@ -146,6 +171,7 @@ def test_db(feature_params, db_name,
             use_drop_subject_list=True,
             filter_params=None,
             do_artefact_rejection=True,
+            balance_data=True,
             log_file='out.csv'):
     if filter_params is None:
         filter_params = {}
@@ -186,6 +212,9 @@ def test_db(feature_params, db_name,
             epochs = ArtefactFilter(apply_frequency_filter=False).offline_filter(epochs)
 
         ep_labels = [list(epochs[i].event_id)[0] for i in range(len(epochs))]
+
+        if balance_data:
+            epochs, ep_labels = balance_epoch_nums(epochs, ep_labels)
 
         if db_name is Databases.GAME_PAR_D:
             ep_labels = [_create_binary_label(label) for label in ep_labels]
