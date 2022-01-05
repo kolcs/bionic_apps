@@ -141,7 +141,7 @@ def new_multi_svm(fs, fft_ranges, *, method='psd2', norm=StandardScaler):
     return clf
 
 
-def band_comb_svm(fs, fft_ranges):
+def band_comb_svm(fs, fft_ranges, cache_size=2048):
     assert len(fft_ranges) == 1
     fft_low, fft_high = fft_ranges[0]
 
@@ -159,7 +159,7 @@ def band_comb_svm(fs, fft_ranges):
         FunctionTransformer(to_micro_volt),
         FeatureUnion(parallel_lines),
         PCA(n_components=63),
-        SVC(cache_size=2048, probability=True)
+        SVC(cache_size=cache_size, probability=True)
     )
     return clf
 
@@ -348,6 +348,7 @@ def test_db(feature_params, db_name,
             balance_data=True,
             norm=StandardScaler,
             method='psd2',
+            subj_cp=0,
             log_file='out.csv'):
     if filter_params is None:
         filter_params = {}
@@ -362,6 +363,8 @@ def test_db(feature_params, db_name,
     }
 
     for subj in loader.get_subject_list():
+        if subj < subj_cp:
+            continue
         files = loader.get_filenames_for_subject(subj)
         task_dict = loader.get_task_dict()
         event_id = loader.get_event_id()
@@ -383,6 +386,7 @@ def test_db(feature_params, db_name,
         epochs = get_epochs_from_raw(raw, task_dict,
                                      epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                      event_id=event_id)
+        del raw
 
         if do_artefact_rejection:
             epochs = ArtefactFilter(apply_frequency_filter=False).offline_filter(epochs)
@@ -399,6 +403,8 @@ def test_db(feature_params, db_name,
         windowed_data = window_epochs(epochs.get_data(),
                                       window_length=window_length, window_step=window_step,
                                       fs=fs)
+        del epochs
+
         groups = [i // windowed_data.shape[1] for i in range(windowed_data.shape[0] * windowed_data.shape[1])]
         labels = [ep_labels[i // windowed_data.shape[1]] for i in range(len(groups))]
         windowed_data = np.vstack(windowed_data)
