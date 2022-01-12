@@ -20,7 +20,8 @@ def get_filenames_from_dir(ext):
 
 
 def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3,
-                   before_session=0, after_session=1., after_end=1., sess_num=0, plot=False):
+                   before_session=0, after_session=1., after_end=1., sess_num=0,
+                   plot=False, check_saved=False):
     start_ind = np.arange(len(start_mask))[start_mask]
     end_ind = np.arange(len(end_mask))[end_mask]
     assert len(start_ind) == session_num, f'Incorrect start Triggers at subject {subj}'
@@ -47,8 +48,9 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
 
         if plot:
             sess.plot(block=False)
-            r = mne.io.read_raw(str(file))
-            r.plot(block=False)
+            if check_saved:
+                r = mne.io.read_raw(str(file))
+                r.plot(block=False)
 
     if plot:
         raw.plot(block=True)
@@ -253,7 +255,7 @@ def convert_giga():
 
 
 def convert_physionet():
-    loader = DataLoader('..', use_drop_subject_list=False).use_physionet()
+    loader = DataLoader('..', use_drop_subject_list=False).use_physionet(config_ver=0)
     assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
     for s in range(loader._db_type.SUBJECT_NUM):
         subj = s + 1
@@ -282,6 +284,9 @@ def convert_physionet():
 
             if len(raw_list) == 2:
                 raw = mne.io.concatenate_raws(raw_list)
+                # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+                raw.set_meas_date(None)
+
                 raw_list = list()
                 file = loader.get_data_path().joinpath('S{:03d}'.format(subj),
                                                        'S{:03d}R{:02d}_raw.fif'.format(subj, new_rec_num))
@@ -291,7 +296,7 @@ def convert_physionet():
 
 
 def convert_ttk():
-    loader = DataLoader('..', use_drop_subject_list=True).use_ttk_db()
+    loader = DataLoader('..', use_drop_subject_list=True).use_ttk_db(config_ver=0)
     assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
     for subj in loader.get_subject_list():
@@ -326,7 +331,7 @@ def convert_ttk():
 
 
 def convert_bad_ttk():
-    loader = DataLoader('..', use_drop_subject_list=False).use_ttk_db()
+    loader = DataLoader('..', use_drop_subject_list=False).use_ttk_db(config_ver=0)
     assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
     for subj in [1, 9, 17]:
@@ -339,6 +344,8 @@ def convert_bad_ttk():
             filenames = loader._generate_ttk_filename(subj, [1, 2])
 
         raw = mne.io.concatenate_raws([mne.io.read_raw(file) for file in filenames])
+        # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+        raw.set_meas_date(None)
 
         start_mask = (raw.annotations.description == 'Response/R  1') | (raw.annotations.description == 'Stimulus/S 16')
         end_mask = raw.annotations.description == 'Stimulus/S 12'
@@ -370,25 +377,55 @@ def convert_all_ttk():
     convert_bad_ttk()
 
 
-def convert_pilot_par_a_and_b():
-    db_list = [Databases.PILOT_PAR_A, Databases.PILOT_PAR_B]
-    for db_name in db_list:
-        loader = DataLoader('..', use_drop_subject_list=True).use_db(db_name)
-        assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
+def convert_pilot_par_a():
+    loader = DataLoader('..', use_drop_subject_list=True).use_db(Databases.PILOT_PAR_A, config_ver=0)
+    assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
-        for subj in loader.get_subject_list():
-            filename = loader.get_filenames_for_subject(subj)[0]
-            raw = mne.io.read_raw(filename, preload=True)
-            start_mask = (raw.annotations.description == 'Response/R  1') | (
-                    raw.annotations.description == 'Stimulus/S 16')
-            end_mask = raw.annotations.description == 'Stimulus/S 12'
-            _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path())
+    for subj in loader.get_subject_list():
+        filename = loader.get_filenames_for_subject(subj)[0]
+        raw = mne.io.read_raw(filename, preload=True)
+        start_mask = (raw.annotations.description == 'Response/R  1') | (
+                raw.annotations.description == 'Stimulus/S 16')
+        end_mask = raw.annotations.description == 'Stimulus/S 12'
+        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path())
+
+
+def convert_pilot_par_b():
+    loader = DataLoader('..', use_drop_subject_list=True).use_db(Databases.PILOT_PAR_B, config_ver=0)
+    assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
+
+    for subj in loader.get_subject_list():
+        if subj in [7, 9]:
+            filenames = list(loader._generate_pilot_filename(subj, [1, 2]))
+        else:
+            filenames = loader.get_filenames_for_subject(subj)
+
+        raw = mne.io.concatenate_raws([mne.io.read_raw(file, preload=True) for file in filenames])
+        # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+        raw.set_meas_date(None)
+
+        start_mask = (raw.annotations.description == 'Response/R  1') | (
+                raw.annotations.description == 'Stimulus/S 16')
+        end_mask = raw.annotations.description == 'Stimulus/S 12'
+        trigger_num = 9
+        drop_first = 1
+
+        if subj < 5:
+            trigger_num = 13
+            drop_first = 3
+        elif subj in [5, 6]:
+            trigger_num = 11
+        elif subj == 9:
+            start_ind = np.arange(len(start_mask))[start_mask]
+            start_mask[start_ind[3]] = False
+
+        _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), trigger_num, drop_first)
 
 
 def convert_game_par_c_and_d():
     db_list = [Databases.GAME_PAR_C, Databases.GAME_PAR_D]
     for db_name in db_list:
-        loader = DataLoader('..', use_drop_subject_list=True).use_db(db_name)
+        loader = DataLoader('..', use_drop_subject_list=True).use_db(db_name, config_ver=0)
         assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
         for subj in loader.get_subject_list():

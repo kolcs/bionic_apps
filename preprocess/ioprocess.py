@@ -69,8 +69,11 @@ def is_platform(os_platform):
 
 
 def open_raw_with_gui():
-    return mne.io.concatenate_raws([mne.io.read_raw(file)
-                                    for file in sorted(select_files_in_explorer(init_base_config()))])
+    raw = mne.io.concatenate_raws([mne.io.read_raw(file)
+                                   for file in sorted(select_files_in_explorer(init_base_config()))])
+    # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+    raw.set_meas_date(None)
+    return raw
 
 
 def get_epochs_from_raw_with_gui(epoch_tmin=0, epoch_tmax=4, baseline=(None, .1)):
@@ -78,6 +81,9 @@ def get_epochs_from_raw_with_gui(epoch_tmin=0, epoch_tmax=4, baseline=(None, .1)
     db_name = get_db_name_by_filename(files[0])
     loader = DataLoader().use_db(db_name)
     raw = mne.io.concatenate_raws([mne.io.read_raw(file) for file in files])
+    # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+    raw.set_meas_date(None)
+
     task_dict = loader.get_task_dict()
     event_id = loader.get_event_id()
     return get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id)
@@ -285,6 +291,8 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
             raw_list.append(mne.io.read_raw(file, preload=False))
 
     raw = mne.io.concatenate_raws(raw_list)
+    # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+    raw.set_meas_date(None)
 
     standardize_channel_names(raw)
     try:  # check available channel positions
