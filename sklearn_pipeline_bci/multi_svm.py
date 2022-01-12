@@ -210,12 +210,13 @@ def norm_test_multi_svm(fs, *, norm=StandardScaler):
     fft_ranges = sorted(set(fft_ranges), key=lambda tup: tup[0])
 
     def get_fft_bin(f_low, f_high):
-        fft_bins = [(method, make_pipeline(FFTCalc(fs, method), AvgFFTCalc(f_low, f_high)))
+        fft_bins = [(method, make_pipeline(FFTCalc(fs, method), AvgFFTCalc(f_low, f_high), norm()))
                     for method in ['psd', 'psd2', 'fftabs', 'fftpow']]
         return FeatureUnion(fft_bins)
 
-    inner_clfs = [(f'unit{i}', make_pipeline(get_fft_bin(fft_low, fft_high), norm(), SVC(probability=True)))
-                  for i, (fft_low, fft_high) in enumerate(fft_ranges)]
+    inner_clfs = [
+        (f'unit{i}', make_pipeline(get_fft_bin(fft_low, fft_high), PCA(n_components=63), SVC(probability=True)))
+        for i, (fft_low, fft_high) in enumerate(fft_ranges)]
 
     clf = make_pipeline(
         FunctionTransformer(to_micro_volt),
