@@ -48,9 +48,9 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
 
         if plot:
             sess.plot(block=False)
-            if check_saved:
-                r = mne.io.read_raw(str(file))
-                r.plot(block=False)
+        if not (plot and not check_saved or not check_saved):
+            r = mne.io.read_raw_fif(str(file))
+            r.plot(block=(not plot and i == len(tmins) - 1))
 
     if plot:
         raw.plot(block=True)

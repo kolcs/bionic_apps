@@ -1,9 +1,9 @@
 from enum import Enum, auto
+from pathlib import Path
 
 import mne
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from sklearn.decomposition import PCA
 from sklearn.ensemble import VotingClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
@@ -370,7 +370,12 @@ def test_db(feature_params, db_name,
         task_dict = loader.get_task_dict()
         event_id = loader.get_event_id()
         print(f'\nSubject{subj}')
-        raw = mne.io.concatenate_raws([mne.io.read_raw(file) for file in files])
+        raws = [mne.io.read_raw(file) for file in files]
+        # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+        from datetime import datetime, timezone
+        raws[0].set_meas_date(datetime.now(tz=timezone.utc))
+
+        raw = mne.io.concatenate_raws(raws)
         raw.load_data()
         fs = raw.info['sfreq']
 
