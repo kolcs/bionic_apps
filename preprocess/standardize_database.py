@@ -8,7 +8,7 @@ from mne.externals.pymatreader import read_mat
 
 from config import IMAGINED_MOVEMENT, BOTH_LEGS
 from gui_handler import select_folder_in_explorer
-from preprocess import DataLoader, Databases
+from preprocess import DataLoader, Databases, get_epochs_from_raw, get_db_name_by_filename
 
 
 def get_filenames_from_dir(ext):
@@ -17,6 +17,29 @@ def get_filenames_from_dir(ext):
                                           'Select directory'))
     filenames = list(path.rglob('*{}'.format(ext)))
     return filenames
+
+
+def _check_annotations(raws):
+    file = Path(raws[0].filenames[0]).as_posix()
+    loader = DataLoader('..').use_db(get_db_name_by_filename(file))
+    prev_annot_num = 0
+    for raw in raws:
+        annot_num = len(raw.annotations.description)
+        assert annot_num > 0, 'Annotations are missing...'
+        # if prev_annot_num != 0 and prev_annot_num != annot_num:
+        #     print(f'Number of annotations are not equal: {prev_annot_num} != {annot_num}')
+        prev_annot_num = annot_num
+
+    # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
+    from datetime import datetime, timezone
+    raws[0].set_meas_date(datetime.now(tz=timezone.utc))
+
+    raw = mne.io.concatenate_raws(raws)
+
+    # if no error OK.
+    ep = get_epochs_from_raw(raw, loader.get_task_dict(), event_id=loader.get_event_id())
+    # raw.plot()
+    # ep.plot(block=True)
 
 
 def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_first=3,
@@ -32,6 +55,7 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
         start_mask[start_ind[:drop_first]] = False
         end_mask[end_ind[:drop_first]] = False
 
+    saved_sess = []
     tmins = raw.annotations.onset[start_mask]
     tmaxs = raw.annotations.onset[end_mask]
     for i, tmin in enumerate(tmins):
@@ -45,16 +69,18 @@ def _save_sessions(subj, raw, start_mask, end_mask, path, session_num=13, drop_f
         file = path.joinpath('S{:03d}'.format(subj), 'S{:03d}R{:02d}_raw.fif'.format(subj, sess_num + i + 1))
         file.parent.mkdir(parents=True, exist_ok=True)
         sess.save(str(file), overwrite=True)
+        saved_sess.append(mne.io.read_raw_fif(str(file)))
 
         if plot:
             sess.plot(block=False)
         if not (plot and not check_saved or not check_saved):
-            r = mne.io.read_raw_fif(str(file))
-            r.plot(block=(not plot and i == len(tmins) - 1))
+            saved_sess[i].plot(block=(not plot and i == len(tmins) - 1))
 
     if plot:
         raw.plot(block=True)
         plt.show()
+
+    _check_annotations(saved_sess)
 
 
 def _add_missing_bci_comp_4_2_triggers(filename, raw):
