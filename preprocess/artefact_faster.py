@@ -507,7 +507,7 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
 
     # Now that the data is clean, apply average reference
     if apply_avg_reference:
-        epochs.info['custom_ref_applied'] = False
+        # epochs.info['custom_ref_applied'] = False
         epochs, _ = mne.io.set_eeg_reference(epochs, verbose=verbose)
         epochs.apply_proj()
 
