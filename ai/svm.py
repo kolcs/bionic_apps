@@ -1,7 +1,8 @@
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import Normalizer, MinMaxScaler, StandardScaler
+from sklearn.preprocessing import Normalizer, MinMaxScaler, StandardScaler, MaxAbsScaler, RobustScaler, \
+    PowerTransformer, QuantileTransformer
 from sklearn.svm import SVC
 
 from ai.interface import ClassifierInterface
@@ -34,11 +35,19 @@ def _init_one_svm(svm, pipeline=('norm',), **svm_kargs):
         pipe_list = list()
         for el in pipeline:
             if el == 'norm':
-                element = ('norm', Normalizer())
+                element = (el, Normalizer())
             elif el == 'standard':
-                element = ('standard', StandardScaler())
+                element = (el, StandardScaler())
             elif el == 'minmax':
-                element = ('minmax', MinMaxScaler())
+                element = (el, MinMaxScaler())
+            elif el == 'maxabs':
+                element = (el, MaxAbsScaler())
+            elif el == 'robust':
+                element = (el, RobustScaler())
+            elif el == 'power':
+                element = (el, PowerTransformer())
+            elif el == 'quantile':
+                element = (el, QuantileTransformer(output_distribution='normal'))
             else:
                 raise ValueError(f'{el} is not in SVM pipeline options.')
             pipe_list.append(element)
