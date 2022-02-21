@@ -4,7 +4,7 @@ from pathlib import Path
 import mne
 import numpy as np
 from matplotlib import pyplot as plt
-from mne.externals.pymatreader import read_mat
+from pymatreader import read_mat
 
 from config import IMAGINED_MOVEMENT, BOTH_LEGS
 from gui_handler import select_folder_in_explorer
@@ -29,10 +29,6 @@ def _check_annotations(raws):
         # if prev_annot_num != 0 and prev_annot_num != annot_num:
         #     print(f'Number of annotations are not equal: {prev_annot_num} != {annot_num}')
         prev_annot_num = annot_num
-
-    # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
-    from datetime import datetime, timezone
-    raws[0].set_meas_date(datetime.now(tz=timezone.utc))
 
     raw = mne.io.concatenate_raws(raws)
 
@@ -310,8 +306,6 @@ def convert_physionet():
 
             if len(raw_list) == 2:
                 raw = mne.io.concatenate_raws(raw_list)
-                # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
-                raw.set_meas_date(None)
 
                 raw_list = list()
                 file = loader.get_data_path().joinpath('S{:03d}'.format(subj),
@@ -370,8 +364,6 @@ def convert_bad_ttk():
             filenames = loader._generate_ttk_filename(subj, [1, 2])
 
         raw = mne.io.concatenate_raws([mne.io.read_raw(file) for file in filenames])
-        # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
-        raw.set_meas_date(None)
 
         start_mask = (raw.annotations.description == 'Response/R  1') | (raw.annotations.description == 'Stimulus/S 16')
         end_mask = raw.annotations.description == 'Stimulus/S 12'
@@ -427,8 +419,6 @@ def convert_pilot_par_b():
             filenames = loader.get_filenames_for_subject(subj)
 
         raw = mne.io.concatenate_raws([mne.io.read_raw(file, preload=True) for file in filenames])
-        # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
-        raw.set_meas_date(None)
 
         start_mask = (raw.annotations.description == 'Response/R  1') | (
                 raw.annotations.description == 'Stimulus/S 16')
@@ -463,7 +453,7 @@ def convert_game_par_c_and_d():
             drop_first = 1
             session_num = drop_first + 5
             _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), session_num, drop_first,
-                           plot=True)
+                           plot=False)
 
 
 if __name__ == '__main__':

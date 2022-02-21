@@ -296,10 +296,6 @@ def test_db(feature_params, db_name,
         event_id = loader.get_event_id()
         print(f'\nSubject{subj}')
         raws = [mne.io.read_raw(file) for file in files]
-        # temporal bug fix. Issue: https://github.com/mne-tools/mne-python/issues/10195
-        from datetime import datetime, timezone
-        raws[0].set_meas_date(datetime.now(tz=timezone.utc))
-
         raw = mne.io.concatenate_raws(raws)
         raw.load_data()
         fs = raw.info['sfreq']
