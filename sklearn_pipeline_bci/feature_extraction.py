@@ -125,7 +125,8 @@ def get_fft_ranges(feature_type, fft_low=None, fft_high=None,
     elif feature_type is FeatureType.FFT_RANGE:
         assert fft_low is not None and fft_high is not None, \
             'fft_low and fft_high must be defined for {} feature'.format(feature_type.name)
-        fft_ranges = [(f, f + fft_width) for f in np.arange(fft_low, fft_high, fft_step)]
+        fft_ranges = [(f, f + fft_width) for f in np.arange(fft_low, fft_high, fft_step)
+                      if f + fft_width <= fft_high]
 
     elif feature_type is FeatureType.MULTI_AVG_FFT_POW:
         assert type(fft_ranges) is list and type(fft_ranges[0]) is tuple, \
