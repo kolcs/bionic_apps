@@ -108,9 +108,16 @@ class MultiAvgFFTCalc(BaseEstimator, TransformerMixin):
                        for i in range(1, len(freqs))), \
                 'Not enough feature points between {} and {} Hz'.format(fft_low, fft_high)
             fft_mask = (freqs >= fft_low) & (freqs <= fft_high)
-            fft_power = np.average(fft_res[:, :, :, fft_mask], axis=-1)
+            fft_power = np.average(fft_res[..., fft_mask], axis=-1)
             data_list.append(fft_power)
-        data = np.transpose(data_list, (1, 0, 2, 3))
+
+        if len(data.shape) == 4:
+            data = np.transpose(data_list, (1, 0, 2, 3))
+        elif len(data.shape) == 3:
+            data = np.transpose(data_list, (1, 0, 2))
+        else:
+            raise ValueError(f'Input data must be 3 or 4 dimensional. '
+                             f'Got {data.shape} instead.')
         return data
 
 
