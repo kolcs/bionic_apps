@@ -19,7 +19,7 @@ from preprocess.artefact_faster import ArtefactFilter
 from preprocess.ioprocess import _create_binary_label
 from sklearn_pipeline_bci.feature_extraction import to_micro_volt, FFTCalc, AvgFFTCalc, get_fft_ranges, FeatureType
 
-from sklearn_pipeline_bci.utils import window_epochs, filter_raw, balance_epoch_nums
+from sklearn_pipeline_bci.utils import window_epochs, filter_mne_obj, balance_epoch_nums
 
 
 def get_fft_ranges_dict():
@@ -308,7 +308,7 @@ def test_db(feature_params, db_name,
             raw.set_montage(montage, on_missing='warn')
 
         if len(filter_params) > 0:
-            raw = filter_raw(raw, **filter_params)
+            raw = filter_mne_obj(raw, **filter_params)
 
         epochs = get_epochs_from_raw(raw, task_dict,
                                      epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
