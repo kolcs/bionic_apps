@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.feature_selection import SelectKBest, mutual_info_classif
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.svm import SVC
@@ -19,24 +19,24 @@ from sklearn_pipeline_bci.utils import filter_mne_obj, balance_epoch_nums
 def train_test_model(x, y, **window_kwargs):
     label_encoder = LabelEncoder()
     y = label_encoder.fit_transform(y)
-    kfold = KFold(shuffle=False)
+    kfold = StratifiedKFold(n_splits=5, shuffle=True)
+
+    n_epochs = len(x)
+    x = FilterBank().transform(x)
 
     cross_acc = []
-    for train, test in kfold.split(np.arange(len(x)), y):
-        train_x = x[train]
+    for train, test in kfold.split(np.arange(n_epochs), y):
+        train_x = x[:, train, ...]
         train_y = y[train]
-        test_x = x[test]
+        test_x = x[:, test, ...]
         test_y = y[test]
 
-        # filter_bank = FilterBank()
-        # train_x = filter_bank.transform(train_x)
-        # test_x = filter_bank.transform(test_x)
+        fbcsp = FBCSP().fit(train_x, train_y)  # fit FBCSP on whole epochs
 
-        # fbcsp = FBCSP().fit(train_x, train_y)  # fit FBCSP on whole epochs
-        fbcsp = mne.decoding.CSP(n_components=4, log=True, cov_est='epoch')
-        train_x = train_x.get_data()
-        test_x = test_x.get_data()
-        fbcsp.fit(train_x, train_y)  # fit FBCSP on whole epochs
+        # fbcsp = mne.decoding.CSP(n_components=4, log=True, cov_est='epoch')
+        # train_x = train_x.get_data()
+        # test_x = test_x.get_data()
+        # fbcsp.fit(train_x, train_y)  # fit FBCSP on whole epochs
 
         windower = WindowEpochs(**window_kwargs, shuffle=True)
 
@@ -144,8 +144,8 @@ def test_fbcsp_db(db_name,
 
 if __name__ == '__main__':
     filter_params = dict(  # required for FASTER artefact filter
-        # order=5,
-        # l_freq=1,
-        # h_freq=45
+        order=5,
+        l_freq=1,
+        h_freq=45
     )
     test_fbcsp_db(Databases.PHYSIONET, filter_params=filter_params)

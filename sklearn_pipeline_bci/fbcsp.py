@@ -3,6 +3,8 @@ import numpy as np
 from mne.decoding import CSP
 # from pyriemann.spatialfilters import CSP
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import make_pipeline
+from sklearn.decomposition import PCA
 
 from sklearn_pipeline_bci.utils import filter_mne_obj, window_epochs
 
@@ -23,8 +25,12 @@ class FBCSP(BaseEstimator, TransformerMixin):
         x = self._expand_and_check(x)
         self.fbcsp = []
         for f_x in x:
-            self.fbcsp.append(CSP(self.n_components, cov_est='epoch'
-                                  ).fit(f_x, y))
+            # https://github.com/mne-tools/mne-python/issues/9094
+            csp = make_pipeline(
+                mne.decoding.UnsupervisedSpatialFilter(PCA(n_components=32)),
+                CSP(self.n_components, log=True)
+            )
+            self.fbcsp.append(csp.fit(f_x, y))
 
         return self
 
