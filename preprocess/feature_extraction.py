@@ -1,6 +1,7 @@
 from enum import Enum, auto
 
 import numpy as np
+import pywt
 from joblib import Parallel, delayed
 from mne.viz import plot_topomap
 from mne.viz.topomap import _prepare_topomap_plot
@@ -18,6 +19,7 @@ class FeatureType(Enum):
     RAW = auto()
     FFT_POWER = auto()
     PSD = auto()
+    SIMPLE_TIME_DOMAIN = auto()
 
 
 def _get_fft(data, fs, method='pow'):
@@ -116,6 +118,19 @@ def _crop_spatial_data(spatial_data):
 #     return i, interp_list
 
 
+def madev(d, axis=None):
+    """ Mean absolute deviation of a signal """
+    return np.mean(np.absolute(d - np.mean(d, axis)), axis)
+
+
+def wavelet_denoising(x, wavelet='db2', level=3):
+    coeff = pywt.wavedec(x, wavelet, mode="per")
+    sigma = (1 / 0.6745) * madev(coeff[-level])
+    uthresh = sigma * np.sqrt(2 * np.log(len(x)))
+    coeff[1:] = (pywt.threshold(i, value=uthresh, mode='hard') for i in coeff[1:])
+    return pywt.waverec(coeff, wavelet, mode='per')
+
+
 class FeatureExtractor:
 
     def __init__(self, feature_type, fs=None, scale=True,
@@ -191,6 +206,8 @@ class FeatureExtractor:
             self._check_fft_low_and_high()
         elif self.feature_type == FeatureType.PSD:
             self._check_fft_low_and_high()
+        elif self.feature_type == FeatureType.SIMPLE_TIME_DOMAIN:
+            pass
 
         else:
             raise NotImplementedError("Parameter constrains for {} are not defined.".format(self.feature_type.name))
@@ -366,6 +383,33 @@ class FeatureExtractor:
         data = psd[:, :, fft_mask]  # (epoch, channel, fft)
         return data
 
+    @staticmethod
+    def calculate_simple_time_domain(data):
+        data = wavelet_denoising(data)
+        sum_ = np.sum(data, axis=-1)
+        mean_ = np.mean(data, axis=-1)
+        var_ = np.var(data, axis=-1)
+        std_ = np.std(data, axis=-1)
+        sum_alt = (np.sum(data, axis=-1) ** 2 + np.sum(data, axis=-1)) / 2
+        mean_alt = (np.mean(data, axis=-1) ** 2 + np.mean(data, axis=-1)) / 2
+        var_alt = (np.var(data, axis=-1) ** 2 + np.var(data, axis=-1)) / 2
+        std_alt = (np.std(data, axis=-1) ** 2 + np.std(data, axis=-1)) / 2
+        max_ = np.max(data, axis=-1)
+        min_ = np.min(data, axis=-1)
+        perc_25 = np.percentile(data, 25, axis=-1)
+        perc_50 = np.percentile(data, 50, axis=-1)
+        perc_75 = np.percentile(data, 75, axis=-1)
+        # hist_count, hist_val = np.histogram(data)
+        quantile = np.quantile(data, q=0.25, axis=-1)
+        ptp = np.ptp(data, axis=-1)
+
+        features = [  # sum_, mean_, var_, std_,
+            sum_alt, mean_alt, var_alt, std_alt,
+            min_, max_, perc_25,
+            perc_50, perc_75,  # hist_count, hist_val,
+            quantile, ptp]
+        return np.hstack(features)
+
     def run(self, data):
         if self.scale:
             data *= 1e6  # scale to microVoltage from Voltage
@@ -393,6 +437,8 @@ class FeatureExtractor:
             feature = self.calculate_fft(data, method='power')
         elif self.feature_type == FeatureType.PSD:
             feature = self.calculate_psd(data)
+        elif self.feature_type == FeatureType.SIMPLE_TIME_DOMAIN:
+            feature = self.calculate_simple_time_domain(data)
 
         else:
             raise NotImplementedError('{} feature is not implemented'.format(self.feature_type))
