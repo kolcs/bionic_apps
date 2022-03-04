@@ -1,11 +1,12 @@
 import mne
 import numpy as np
 import pandas as pd
-from sklearn.feature_selection import SelectKBest, mutual_info_classif
+from sklearn.decomposition import PCA
+from sklearn.ensemble import VotingClassifier, StackingClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.svm import SVC
 
 from preprocess import DataLoader, get_epochs_from_raw, SubjectHandle, standardize_channel_names, \
@@ -17,8 +18,6 @@ from sklearn_pipeline_bci.utils import filter_mne_obj, balance_epoch_nums
 
 
 def train_test_model(x, y, **window_kwargs):
-    label_encoder = LabelEncoder()
-    y = label_encoder.fit_transform(y)
     kfold = StratifiedKFold(n_splits=5, shuffle=True)
 
     n_epochs = len(x)
@@ -54,8 +53,60 @@ def train_test_model(x, y, **window_kwargs):
         clf.fit(train_x, train_y)
         y_pred = clf.predict(test_x)
 
-        y_pred = label_encoder.inverse_transform(y_pred)
-        test_y = label_encoder.inverse_transform(test_y)
+        # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
+        class_report = classification_report(test_y, y_pred)
+        conf_matrix = confusion_matrix(test_y, y_pred)
+        acc = accuracy_score(test_y, y_pred)
+        print(class_report)
+        print("Confusion matrix:\n%s\n" % conf_matrix)
+        print("Accuracy score: {}\n".format(acc))
+
+        cross_acc.append(acc)
+    print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
+    print(f"Avg accuracy: {np.mean(cross_acc):.4f}   +/- {np.std(cross_acc):.4f}")
+    return cross_acc
+
+
+def _select_fb(x, i):
+    return x[:, i, ...]
+
+
+def train_test_voting_FBCSP(x, y, **window_kwargs):
+    kfold = StratifiedKFold(n_splits=5, shuffle=True)
+    n_epochs = len(x)
+    x = FilterBank().transform(x)
+    n_filter = len(x)
+    x = x.transpose((1, 0, 2, 3))
+
+    cross_acc = []
+    for train, test in kfold.split(np.arange(n_epochs), y):
+        train_x = x[train]
+        train_y = y[train]
+        test_x = x[test]
+        test_y = y[test]
+
+        clfs = [(f'CSP {i}', make_pipeline(
+            FunctionTransformer(_select_fb, kw_args=dict(i=i)),
+            mne.decoding.UnsupervisedSpatialFilter(PCA(n_components=32)),
+            mne.decoding.CSP(n_components=7, reg='ledoit_wolf', log=True),
+            StandardScaler(),
+            SVC(probability=True)
+        )) for i in range(n_filter)]
+
+        windower = WindowEpochs(**window_kwargs, shuffle=True)
+
+        # train_x, train_y, _ = windower.transform(train_x, train_y)
+        # train_x = fbcsp.transform(train_x)
+        test_x = test_x.transpose((1, 0, 2, 3))
+        test_x, test_y, _ = windower.transform(test_x, test_y)
+        test_x = test_x.transpose((1, 0, 2, 3))
+        # test_x = fbcsp.transform(test_x)
+
+        # clf = VotingClassifier(clfs, voting='soft', n_jobs=len(clfs))
+        clf = StackingClassifier(clfs, SVC(), n_jobs=len(clfs))
+
+        clf.fit(train_x, train_y)
+        y_pred = clf.predict(test_x)
 
         # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
         class_report = classification_report(test_y, y_pred)
@@ -131,10 +182,14 @@ def test_fbcsp_db(db_name,
             ep_labels = [_create_binary_label(label) for label in ep_labels]
 
         print("####### Classification report for subject{}: #######".format(subj))
-        cross_acc = train_test_model(epochs, ep_labels,
-                                     window_length=window_length,
-                                     window_step=window_step,
-                                     fs=fs)
+        # cross_acc = train_test_model(epochs, ep_labels,
+        #                              window_length=window_length,
+        #                              window_step=window_step,
+        #                              fs=fs)
+        cross_acc = train_test_voting_FBCSP(epochs, ep_labels,
+                                            window_length=window_length,
+                                            window_step=window_step,
+                                            fs=fs)
         res['Subject'].append(subj)
         res['Accuracy list'].append(cross_acc)
         res['Std of Avg. Acc'].append(np.std(cross_acc))
@@ -148,4 +203,5 @@ if __name__ == '__main__':
         l_freq=1,
         h_freq=45
     )
-    test_fbcsp_db(Databases.PHYSIONET, filter_params=filter_params)
+    test_fbcsp_db(Databases.PHYSIONET, filter_params=filter_params,
+                  log_file='Stacked_classifiers.csv')
