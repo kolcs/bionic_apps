@@ -24,11 +24,13 @@ class FeatureType(Enum):
 
 def _get_fft(data, fs, method='pow'):
     """Calculating the frequency power."""
+    # https://dsp.stackexchange.com/questions/16438/why-fft-does-not-retrieve-original-amplitude-when-increasing-signal-length
     fft_res = np.fft.rfft(data)
     if method == 'abs':
-        fft_res = np.abs(fft_res)
+        fft_res = np.abs(fft_res) * 2 / data.shape[-1]
     elif method == 'pow':
-        fft_res = np.power(np.abs(fft_res), 2)
+        # https://www.mathworks.com/matlabcentral/answers/162846-amplitude-of-signal-after-fft-operation
+        fft_res = np.abs(np.power(fft_res, 2))  # * 2
     else:
         raise NotImplementedError(f'{method} method is not defined in fft calculation.')
     freqs = np.fft.rfftfreq(data.shape[-1], 1. / fs)
