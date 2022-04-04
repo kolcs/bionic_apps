@@ -57,7 +57,7 @@ class EEGNet(BaseNet):
                              'or Dropout, passed as a string.')
         self.dropout_type = dropoutType
         if isinstance(kernLength, float) and kernLength < 1:
-            self.kernel_length = int(input_shape * kernLength)
+            self.kernel_length = int(input_shape[-1] * kernLength)
         else:
             self.kernel_length = kernLength
         self.f1 = F1
@@ -67,18 +67,19 @@ class EEGNet(BaseNet):
         super(EEGNet, self).__init__(input_shape, classes)
 
     def _build_graph(self):
-        input1 = keras.layers.Input(shape=self._input_shape)
+        input_tensor = keras.layers.Input(shape=self._input_shape)
+        x = input_tensor
 
         channels = self._input_shape[0]
         samples = self._input_shape[1]
 
         if len(self._input_shape) == 2:
-            input1 = keras.layers.Lambda(lambda tens: tf.expand_dims(tens, axis=-1))(input1)
-        print(input1)
+            x = keras.layers.Lambda(lambda tens: tf.expand_dims(tens, axis=-1))(x)
+        print(x)
 
         block1 = tf.keras.layers.Conv2D(self.f1, (1, self.kernel_length), padding='same',
                                         input_shape=(channels, samples, 1),
-                                        use_bias=False)(input1)
+                                        use_bias=False)(x)
         block1 = tf.keras.layers.BatchNormalization()(block1)
         block1 = tf.keras.layers.DepthwiseConv2D((channels, 1), use_bias=False,
                                                  depth_multiplier=self.d,
@@ -101,7 +102,7 @@ class EEGNet(BaseNet):
                                       kernel_constraint=tf.keras.constraints.max_norm(self.norm_rate))(flatten)
         softmax = tf.keras.layers.Activation('softmax', name='softmax')(dense)
 
-        return input1, softmax
+        return input_tensor, softmax
 
 
 class QNet(BaseNet):
@@ -381,6 +382,6 @@ class PCNN(BaseNet):
 
 
 if __name__ == '__main__':
-    nn = QNet('a', (64, 481), 2)
+    nn = EEGNet((64, 128), 2)
     nn.summary()
     # keras.utils.plot_model(nn, "model.png", show_shapes=True)
