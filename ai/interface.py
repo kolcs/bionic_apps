@@ -44,32 +44,40 @@ class BaseNet(ClassifierInterface):
         return np_argmax(predictions, axis=-1)
 
     def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=1):
-        best_model_cp_file = Path(TF_LOG).joinpath('models')
-        best_model_cp_file.mkdir(parents=True, exist_ok=True)
-        best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')
-        best_model_cp_file.unlink(missing_ok=True)
+        callbacks = [
+            # TensorBoard(
+            #     log_dir=TF_LOG + '/fit/' + datetime.now().strftime("%Y%m%d-%H%M%S"),
+            #     update_freq=1
+            #     ),
+            # EarlyStopping(monitor='loss', patience=3),
+        ]
 
-        self._model.fit(
-            x, y,
-            validation_data=validation_data,
-            batch_size=batch_size,
-            epochs=epochs,
-            callbacks=[
-                # TensorBoard(
-                #     log_dir=TF_LOG + '/fit/' + datetime.now().strftime("%Y%m%d-%H%M%S"),
-                #     update_freq=1
-                #     ),
-                # EarlyStopping(monitor='loss', patience=3),
+        best_model_cp_file = Path(TF_LOG).joinpath('models')
+        if validation_data is not None:
+            best_model_cp_file.mkdir(parents=True, exist_ok=True)
+            best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')
+            best_model_cp_file.unlink(missing_ok=True)
+
+            callbacks.append(
                 ModelCheckpoint(
                     str(best_model_cp_file),
                     save_weights_only=True,
                     monitor='val_accuracy',
                     mode='max',
                     save_best_only=True
-                )]
+                )
+            )
+
+        self._model.fit(
+            x, y,
+            validation_data=validation_data,
+            batch_size=batch_size,
+            epochs=epochs,
+            callbacks=callbacks
         )
 
-        self._model.load_weights(best_model_cp_file)
+        if validation_data is not None:
+            self._model.load_weights(best_model_cp_file)
 
     def summary(self):
         self._model.summary()
