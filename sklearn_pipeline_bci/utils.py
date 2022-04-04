@@ -16,10 +16,19 @@ def _windowed_view(data, window_length, window_step):
     ndarray
         Windowed data with shape (n_windows, n_channels, time)
     """
-    overlap = window_length - window_step
-    new_shape = ((data.shape[-1] - overlap) // window_step, data.shape[0], window_length)
-    new_strides = (window_step * data.strides[-1], *data.strides)
-    result = np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
+    if window_step > 0:
+        overlap = window_length - window_step
+        n_windows = data.shape[-1] - overlap
+        assert n_windows > 0, f'Can not create {n_windows} windows.'
+        new_shape = (n_windows // window_step, data.shape[0], window_length)
+        new_strides = (window_step * data.strides[-1], *data.strides)
+        result = np.lib.stride_tricks.as_strided(data, shape=new_shape, strides=new_strides)
+    elif window_step == 0:
+        result = data[..., :window_length]
+        result = np.expand_dims(result, axis=0)
+    else:
+        raise ValueError(f'window_step parameter must be non negative. '
+                         f'Got {window_step} instead.')
     return result
 
 
@@ -55,7 +64,7 @@ def filter_mne_obj(mne_obj, f_type='butter', order=5, l_freq=1, h_freq=None, n_j
     return mne_obj
 
 
-def balance_epoch_nums(epochs, labels):
+def balance_epoch_nums(epochs, labels, groups=None):
     labels = np.array(labels)
     class_xs = []
     min_elems = len(epochs)
@@ -77,4 +86,6 @@ def balance_epoch_nums(epochs, labels):
         sel_ind.extend(ind)
 
     sel_ind = np.sort(sel_ind)
-    return epochs[sel_ind], labels[sel_ind]
+    if groups is None:
+        return epochs[sel_ind], labels[sel_ind]
+    return epochs[sel_ind], labels[sel_ind], groups[sel_ind]
