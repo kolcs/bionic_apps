@@ -1,6 +1,7 @@
 from enum import Enum, auto
 
 from ai.kolcs_neural_networks import VGG, VggType, DenseNet, DenseNetType, CascadeConvRecNet, BasicNet
+from ai.pusar_neural_networks import EEGNet
 from ai.svm import MultiSVM
 
 
@@ -13,6 +14,7 @@ class ClassifierType(Enum):
     VGG19 = auto()
     CASCADE_CONV_REC = auto()
     KOLCS_NET = auto()
+    EEG_NET = auto()
 
 
 def init_classifier(classifier_type, input_shape, classes, **kwargs):
@@ -32,6 +34,8 @@ def init_classifier(classifier_type, input_shape, classes, **kwargs):
         classifier = CascadeConvRecNet(input_shape, classes, **kwargs)
     elif classifier_type is ClassifierType.KOLCS_NET:
         classifier = BasicNet(input_shape, classes)
+    elif classifier_type is ClassifierType.EEG_NET:
+        classifier = EEGNet(input_shape, classes, **kwargs)
 
     else:
         raise NotImplementedError('Classifier {} is not implemented.'.format(classifier_type.name))

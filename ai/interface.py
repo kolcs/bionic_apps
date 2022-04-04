@@ -59,6 +59,7 @@ class BaseNet(ClassifierInterface):
                 #     log_dir=TF_LOG + '/fit/' + datetime.now().strftime("%Y%m%d-%H%M%S"),
                 #     update_freq=1
                 #     ),
+                # EarlyStopping(monitor='loss', patience=3),
                 ModelCheckpoint(
                     str(best_model_cp_file),
                     save_weights_only=True,
@@ -75,3 +76,9 @@ class BaseNet(ClassifierInterface):
 
     def evaluate(self, x, y=None):
         self._model.evaluate(x, y)
+
+    def write_summary_to_file(self, filename):
+        dirname = Path(__file__).parent
+        filename = dirname.joinpath(f'{filename}.txt')
+        with open(filename, 'w') as fh:
+            self._model.summary(print_fn=lambda x: fh.write(x + '\n'))
