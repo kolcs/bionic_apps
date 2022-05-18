@@ -43,7 +43,7 @@ class BaseNet(ClassifierInterface):
         predictions = self._model.predict(x)
         return np_argmax(predictions, axis=-1)
 
-    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=1):
+    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=1, shuffle=False):
         callbacks = [
             # TensorBoard(
             #     log_dir=TF_LOG + '/fit/' + datetime.now().strftime("%Y%m%d-%H%M%S"),
@@ -73,7 +73,8 @@ class BaseNet(ClassifierInterface):
             validation_data=validation_data,
             batch_size=batch_size,
             epochs=epochs,
-            callbacks=callbacks
+            callbacks=callbacks,
+            shuffle=shuffle
         )
 
         if validation_data is not None:
