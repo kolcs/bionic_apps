@@ -384,6 +384,51 @@ def band_comb_test(db_name):
         )
 
 
+def band_comb_test_old(db_name):
+    global TEST
+    TEST = TestType.NO_TEST
+
+    path = Path(db_name.name, 'band_old')
+    path.mkdir(parents=True, exist_ok=True)
+
+    for band, feature_params in get_fft_ranges_dict().items():
+        test_db(
+            feature_params=feature_params,
+            db_name=db_name,
+            filter_params=dict(  # required for FASTER artefact filter
+                order=5, l_freq=1, h_freq=45
+            ),
+            norm=Normalizer,
+            method='fftabs',
+            do_artefact_rejection=True,
+            log_file=str(path.joinpath(band + '_band_svm.csv'))
+        )
+
+
+def band_comb_test_old2(db_name, cp_subj=0):
+    global TEST
+    TEST = TestType.NO_TEST
+
+    path = Path(db_name.name, 'band_old')
+    path.mkdir(parents=True, exist_ok=True)
+
+    for band, feature_params in get_fft_ranges_dict().items():
+        if band in ['gamma', 'range30', 'range40']:
+            test_db(
+                feature_params=feature_params,
+                db_name=db_name,
+                filter_params=dict(  # required for FASTER artefact filter
+                    order=5, l_freq=1, h_freq=45
+                ),
+                norm=Normalizer,
+                method='fftabs',
+                do_artefact_rejection=True,
+                subj_cp=cp_subj,
+                log_file=str(path.joinpath(band + '_band_svm.csv'))
+            )
+            cp_subj = 0
+
+
 def norm_test(db_name):
     global TEST
 
@@ -451,4 +496,5 @@ def make_tests_on(db_name=Databases.PHYSIONET):
 
 
 if __name__ == '__main__':
-    make_tests_on()
+    band_comb_test_old2(Databases.PHYSIONET, 106)
+    band_comb_test_old(Databases.GAME_PAR_D)
