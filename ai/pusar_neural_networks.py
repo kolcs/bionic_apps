@@ -75,7 +75,6 @@ class EEGNet(BaseNet):
 
         if len(self._input_shape) == 2:
             x = keras.layers.Lambda(lambda tens: tf.expand_dims(tens, axis=-1))(x)
-        print(x)
 
         block1 = tf.keras.layers.Conv2D(self.f1, (1, self.kernel_length), padding='same',
                                         input_shape=(channels, samples, 1),
