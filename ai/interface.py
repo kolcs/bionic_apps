@@ -32,8 +32,8 @@ class BaseNet(ClassifierInterface):
         self._model = keras.Model(inputs=input_tensor, outputs=outputs)
         self._model.compile(
             optimizer=keras.optimizers.Adam(),
-            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=["accuracy"]
+            loss=keras.losses.SparseCategoricalCrossentropy(from_logits=False),
+            metrics=['accuracy']
         )
 
     def _build_graph(self):
