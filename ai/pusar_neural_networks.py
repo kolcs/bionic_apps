@@ -22,7 +22,6 @@ class CNN(BaseNet):
         self._weights = weights
         self.classes = classes
         super(CNN, self).__init__(input_shape, classes)
-        # tf.compat.v1.reset_default_graph()
 
     def _build_graph(self):
 
