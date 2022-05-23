@@ -272,10 +272,6 @@ class QNet(BaseNet):
 
     def _create_model(self, input_tensor, outputs):
         self._model = keras.Model(inputs=input_tensor, outputs=outputs)
-        # run_opts = tf.compat.v1.RunOptions(report_tensor_allocations_upon_oom=True)
-        # decay_steps = 1000
-        # lr_decayed_fn = tf.keras.optimizers.schedules.CosineDecay(
-        #     1.19 * 1e-3, decay_steps, alpha=(4.18 * 1e-9))
 
         self._model.compile(
             optimizer=keras.optimizers.Adam(
