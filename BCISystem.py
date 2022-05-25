@@ -295,7 +295,7 @@ class BCISystem(object):
             To do channel selection or not.
         mimic_online_method : bool
             If True artefact filtering and channel selection algorithms will be tested
-            in online fashion. The parameters of the algorithm will be set on the
+            in lsl fashion. The parameters of the algorithm will be set on the
             train data and used for the test data. On the other hand, it will generate
             subj_n_fold_num times more processed data, because they can not be reused
             for cross-validation.
@@ -434,7 +434,7 @@ class BCISystem(object):
                   batch_size=None,
                   time_out=None,
                   do_artefact_rejection=False):
-        """Function for online BCI game and control.
+        """Function for lsl BCI game and braindriver.
 
         Parameters
         ----------
@@ -524,12 +524,12 @@ class BCISystem(object):
             create_opponents(main_player=1, game_logger=game_log, reaction=command_delay)
 
         dsp = online.DSP(use_filter=len(filter_params) > 0, **filter_params)
-        assert dsp.fs == self._proc.fs, 'Sampling rate frequency must be equal for preprocessed and online data.'
+        assert dsp.fs == self._proc.fs, 'Sampling rate frequency must be equal for preprocessed and lsl data.'
 
         controller = GameControl(make_log=True, log_to_stream=True, game_logger=game_log)
         command_converter = self._proc.get_command_converter() if not make_binary_classification else dict()
 
-        print("Starting game control...")
+        print("Starting game braindriver...")
         simplefilter('always', UserWarning)
         start_time = time.time()
         tic = start_time

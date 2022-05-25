@@ -32,7 +32,7 @@ class TestFaster(unittest.TestCase):
         toc = time()
         self.assertIsInstance(filt_epochs, ndarray)
         self.assertLess(toc - tic, .1, 'Online FASTER is not fast enough...')
-        print(f'Total time spent in online: {toc - tic}')
+        print(f'Total time spent in lsl: {toc - tic}')
 
     @unittest.skipUnless(Path(init_base_config('..')).joinpath(TTK_DB.DIR).exists(),
                          'Data for TTK does not exists. Can not test it.')
