@@ -17,10 +17,6 @@ def _get_fft(data, fs, method='pow', n=512):
     return freqs, fft_res
 
 
-def to_micro_volt(data):
-    return data * 1e6
-
-
 class FFTCalc(BaseEstimator, TransformerMixin):
 
     def __init__(self, fs, method='psd2', min_nfft=None, return_only_fft=False):
