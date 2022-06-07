@@ -22,8 +22,7 @@ def generate_eeg_db(db_name, db_filename, f_type=FeatureType.HUGINES,
         filter_params = {}
 
     feature_params = locals()
-    feature_params['f_type'] = f_type.name
-    feature_params['subject_handle'] = subject_handle.name
+    feature_params.pop('fast_load')
 
     loader = DataLoader(use_drop_subject_list=use_drop_subject_list,
                         subject_handle=subject_handle)

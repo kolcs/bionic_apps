@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 
 import h5py
@@ -22,6 +23,20 @@ class HDF5Dataset:
         self._last_ep_num = 0
 
         self.feature_params = feature_params.copy()
+        self._validate_feat_params()
+
+    def _validate_feat_params(self):
+        validated_f_pars = {}
+        for key, val in self.feature_params.items():
+            if isinstance(val, Enum):
+                validated_f_pars[key] = val.name
+            elif isinstance(val, dict):
+                validated_f_pars.update(val)
+            elif isinstance(val, (int, float, str)):
+                validated_f_pars[key] = val
+            else:
+                raise ValueError(f'Can not save meta data with type {type(val)}.')
+        self.feature_params = validated_f_pars
 
     def _open(self, mode):
         self.mode = mode
@@ -45,6 +60,7 @@ class HDF5Dataset:
 
         self.y.extend(label)
         self.subj_meta.extend(subj)
+        ep_group = np.array(ep_group)
         self.ep_meta.extend(ep_group + self._last_ep_num)
         self._last_ep_num += np.max(ep_group) + 1
 
@@ -57,6 +73,7 @@ class HDF5Dataset:
             self.file.attrs.create('subject', np.array(self.subj_meta))
             self.file.attrs.create('ep_group', np.array(self.ep_meta))
             for key, val in self.feature_params.items():
+                assert isinstance(val, (str, int, float)), f'Can not save meta data with type {type(val)}.'
                 self.file.attrs.create(key, val)
 
         self.file.close()
