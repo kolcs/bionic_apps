@@ -12,7 +12,8 @@ from .feature_extraction import FeatureType
 from .handlers import init_hdf5_db, ResultHandler
 from .model_selection import BalancedKFold
 from .preprocess import generate_eeg_db
-from .utils import init_base_config
+from .preprocess.io import SubjectHandle
+from .databases import EEG_Databases
 
 
 def get_ensemble_clf(mode='ensemble'):
@@ -134,13 +135,24 @@ def make_within_subject_classification(db_filename, classifier, classifier_kwarg
     db.close()
 
 
-def test_eegdb_within_subject(f_type=FeatureType.HUGINES,
-                              window_len=.05, window_step=.01, *,
-                              n_splits=5,
-                              classifier='ensemble',
-                              classifier_kwargs=None,
-                              ch_mode='all', ep_mode='distinct',
-                              db_file='database.hdf5', log_file='out.csv', base_dir='.'):
+def test_eegdb_within_subject(
+        db_name=EEG_Databases.PHYSIONET,
+        f_type=FeatureType.RAW,
+        epoch_tmin=0, epoch_tmax=4,
+        window_len=2, window_step=.1, *,
+        feature_kwargs=None,
+        use_drop_subject_list=True,
+        filter_params=None,
+        do_artefact_rejection=True,
+        balance_data=True,
+        subject_handle=SubjectHandle.INDEPENDENT_DAYS,
+        n_splits=5,
+        classifier='ensemble',
+        classifier_kwargs=None,
+        ch_mode='all', ep_mode='distinct',
+        db_file='database.hdf5', log_file='out.csv', base_dir='.',
+        fast_load=True,
+):
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
@@ -156,9 +168,18 @@ def test_eegdb_within_subject(f_type=FeatureType.HUGINES,
     results = ResultHandler(fix_params, ['Subject', 'Accuracy list', 'Std of Avg. Acc', 'Avg. Acc'],
                             to_beginning=('Subject',), filename=log_file)
 
-    generate_eeg_db(db_file, f_type, init_base_config(base_dir), window_len, window_step)
+    generate_eeg_db(db_name, db_file, f_type,
+                    epoch_tmin, epoch_tmax,
+                    window_len, window_step,
+                    feature_kwargs=feature_kwargs,
+                    use_drop_subject_list=use_drop_subject_list,
+                    filter_params=filter_params,
+                    do_artefact_rejection=do_artefact_rejection,
+                    balance_data=balance_data,
+                    subject_handle=subject_handle,
+                    base_dir=base_dir, fast_load=fast_load)
 
-    make_subject_test(db_file, classifier, classifier_kwargs=classifier_kwargs,
-                      use_ep_groups=window_step < window_len,
-                      n_splits=n_splits,
-                      res_handler=results)
+    # make_subject_test(db_file, classifier, classifier_kwargs=classifier_kwargs,
+    #                   use_ep_groups=window_step < window_len,
+    #                   n_splits=n_splits,
+    #                   res_handler=results)
