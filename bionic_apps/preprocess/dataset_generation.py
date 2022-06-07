@@ -17,7 +17,8 @@ def generate_eeg_db(db_name, db_filename, f_type=FeatureType.HUGINES,
                     filter_params=None,
                     do_artefact_rejection=True,
                     balance_data=True,
-                    subject_handle=SubjectHandle.INDEPENDENT_DAYS):
+                    subject_handle=SubjectHandle.INDEPENDENT_DAYS,
+                    base_dir='.', fast_load=True):
     if filter_params is None:
         filter_params = {}
 
@@ -32,7 +33,7 @@ def generate_eeg_db(db_name, db_filename, f_type=FeatureType.HUGINES,
 
     # TODO: handle error
     # Fast load
-    if not database.exists():
+    if not (database.exists() and fast_load):
         for subj in loader.get_subject_list():
             files = loader.get_filenames_for_subject(subj)
             task_dict = loader.get_task_dict()
