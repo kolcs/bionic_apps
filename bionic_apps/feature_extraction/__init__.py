@@ -72,7 +72,7 @@ def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, **kwarg
         # pipeline_steps.append(get_avg_fft_transformer(feature_type, fs, **kwargs))
         pipeline_steps.append(get_multi_fft_transformer(fs, get_fft_ranges(feature_type.value, **kwargs)))
     else:
-        pass
+        raise NotImplementedError(f'{feature_type.name} feature extraction is not implemented.')
 
     if norm:
         pipeline_steps.append(StandardScaler())
