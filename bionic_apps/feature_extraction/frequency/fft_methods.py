@@ -113,22 +113,22 @@ class MultiAvgFFTCalc(BaseEstimator, TransformerMixin):
 def get_fft_ranges(feature_type, fft_low=None, fft_high=None,
                    fft_width=2, fft_step=2,
                    fft_ranges=None):
-    if feature_type.value == 'avg_fft_pow':
+    if feature_type == 'avg_fft_pow':
         assert fft_low is not None and fft_high is not None, \
-            'fft_low and fft_high must be defined for {} feature'.format(feature_type.name)
+            'fft_low and fft_high must be defined for {} feature'.format(feature_type)
         fft_ranges = [(fft_low, fft_high)]
 
-    elif feature_type.value == 'fft_range':
+    elif feature_type == 'fft_range':
         assert fft_low is not None and fft_high is not None, \
-            'fft_low and fft_high must be defined for {} feature'.format(feature_type.name)
+            'fft_low and fft_high must be defined for {} feature'.format(feature_type)
         fft_ranges = [(f, f + fft_width) for f in np.arange(fft_low, fft_high, fft_step)
                       if f + fft_width <= fft_high]
 
-    elif feature_type.value == 'multi_avg_fft_pow':
+    elif feature_type == 'multi_avg_fft_pow':
         assert type(fft_ranges) is list and type(fft_ranges[0]) is tuple, \
-            'fft_ranges parameter not defined correctly for {} feature'.format(feature_type.name)
+            'fft_ranges parameter not defined correctly for {} feature'.format(feature_type)
     else:
-        raise ValueError(f'{feature_type.name} is not defined.')
+        raise ValueError(f'{feature_type} is not defined.')
     return fft_ranges
 
 
@@ -137,3 +137,78 @@ def get_avg_fft_transformer(feature_type, fs, fft_low=None, fft_high=None,
                             fft_ranges=None):
     fft_ranges = get_fft_ranges(feature_type, fft_low, fft_high, fft_width, fft_step, fft_ranges)
     return MultiAvgFFTCalc(fft_ranges, fs, fft_method)
+
+
+from sklearn.pipeline import FeatureUnion, _fit_transform_one, _transform_one, make_pipeline
+from joblib import Parallel, delayed
+
+
+class FFTUnion(FeatureUnion):
+
+    def fit_transform(self, X, y=None, **fit_params):
+        """Fit all transformers, transform the data and concatenate results.
+
+        Parameters
+        ----------
+        X : iterable or array-like, depending on transformers
+            Input data to be transformed.
+
+        y : array-like of shape (n_samples, n_outputs), default=None
+            Targets for supervised learning.
+
+        **fit_params : dict, default=None
+            Parameters to pass to the fit method of the estimator.
+
+        Returns
+        -------
+        X_t : array-like or sparse matrix of \
+                shape (n_samples, sum_n_components)
+            The `hstack` of results of transformers. `sum_n_components` is the
+            sum of `n_components` (output dimension) over transformers.
+        """
+        results = self._parallel_func(X, y, fit_params, _fit_transform_one)
+        if not results:
+            # All transformers are None
+            return np.zeros((X.shape[0], 0))
+
+        Xs, transformers = zip(*results)
+        self._update_transformer_list(transformers)
+
+        return np.array(Xs).transpose((1, 0, 2))
+
+    def transform(self, X):
+        """Transform X separately by each transformer, concatenate results.
+
+        Parameters
+        ----------
+        X : iterable or array-like, depending on transformers
+            Input data to be transformed.
+
+        Returns
+        -------
+        X_t : array-like or sparse matrix of \
+                shape (n_samples, sum_n_components)
+            The `hstack` of results of transformers. `sum_n_components` is the
+            sum of `n_components` (output dimension) over transformers.
+        """
+        Xs = Parallel(n_jobs=self.n_jobs)(
+            delayed(_transform_one)(trans, X, None, weight)
+            for name, trans, weight in self._iter()
+        )
+        if not Xs:
+            # All transformers are None
+            return np.zeros((X.shape[0], 0))
+
+        return np.array(Xs).transpose((1, 0, 2))
+
+
+def get_multi_fft_transformer(fs, fft_ranges, *, method='psd2'):
+    inner_ffts = [(f'unit{i}', make_pipeline(AvgFFTCalc(fft_low, fft_high)))
+                  for i, (fft_low, fft_high) in enumerate(fft_ranges)]
+
+    clf = make_pipeline(
+        FFTCalc(fs, method),
+        FFTUnion(inner_ffts, n_jobs=len(inner_ffts)) if len(inner_ffts) > 1 else inner_ffts[0][1]
+    )
+
+    return clf

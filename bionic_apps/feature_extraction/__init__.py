@@ -3,7 +3,7 @@ from enum import Enum
 from sklearn.pipeline import FeatureUnion, make_pipeline, Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
-from .frequency.fft_methods import get_avg_fft_transformer
+from .frequency.fft_methods import get_avg_fft_transformer, get_multi_fft_transformer, get_fft_ranges
 from .time.utils import *
 
 
@@ -20,6 +20,34 @@ class FeatureType(Enum):
     MULTI_AVG_FFT_POW = 'multi_avg_fft_pow'
 
 
+eeg_bands = {
+    'theta': dict(
+        feature_type=FeatureType.AVG_FFT_POWER,
+        fft_low=4, fft_high=7
+    ),
+    'alpha': dict(
+        feature_type=FeatureType.AVG_FFT_POWER,
+        fft_low=7, fft_high=14
+    ),
+    'beta': dict(
+        feature_type=FeatureType.AVG_FFT_POWER,
+        fft_low=14, fft_high=30
+    ),
+    'gamma': dict(
+        feature_type=FeatureType.AVG_FFT_POWER,
+        fft_low=30, fft_high=40
+    ),
+    'range30': dict(
+        feature_type=FeatureType.FFT_RANGE,
+        fft_low=4, fft_high=30
+    ),
+    'range40': dict(
+        feature_type=FeatureType.FFT_RANGE,
+        fft_low=2, fft_high=40
+    ),
+}
+
+
 def to_micro_volt(data):
     return data * 1e6
 
@@ -29,7 +57,7 @@ def get_hugines_transfromer():
     return FeatureUnion([(fun.__name__, FunctionTransformer(fun)) for fun in features])
 
 
-def get_feature_extractor(feature_type, fs=None, scale=True, norm=True, **kwargs):
+def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, **kwargs):
     pipeline_steps = []
     if scale:
         pipeline_steps.append(FunctionTransformer(to_micro_volt))
@@ -41,7 +69,8 @@ def get_feature_extractor(feature_type, fs=None, scale=True, norm=True, **kwargs
         pipeline_steps.append(get_hugines_transfromer())
     elif feature_type in [FeatureType.AVG_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_AVG_FFT_POW]:
         assert isinstance(fs, (int, float)), 'Sampling frequency must be defined!'
-        pipeline_steps.append(get_avg_fft_transformer(feature_type, fs, **kwargs))
+        # pipeline_steps.append(get_avg_fft_transformer(feature_type, fs, **kwargs))
+        pipeline_steps.append(get_multi_fft_transformer(fs, get_fft_ranges(feature_type.value, **kwargs)))
     else:
         pass
 

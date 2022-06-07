@@ -10,9 +10,10 @@ from ..utils import standardize_eeg_channel_names, filter_mne_obj, balance_epoch
     window_epochs
 
 
-def generate_eeg_db(db_name, db_filename, f_type=FeatureType.HUGINES,
+def generate_eeg_db(db_name, db_filename, f_type=FeatureType.RAW,
                     epoch_tmin=0, epoch_tmax=4,
                     window_length=2, window_step=.1,
+                    feature_kwargs=None,
                     use_drop_subject_list=True,
                     filter_params=None,
                     do_artefact_rejection=True,
@@ -21,12 +22,15 @@ def generate_eeg_db(db_name, db_filename, f_type=FeatureType.HUGINES,
                     base_dir='.', fast_load=True):
     if filter_params is None:
         filter_params = {}
+    if feature_kwargs is None:
+        feature_kwargs = {}
 
     feature_params = locals()
     feature_params.pop('fast_load')
 
     loader = DataLoader(use_drop_subject_list=use_drop_subject_list,
-                        subject_handle=subject_handle)
+                        subject_handle=subject_handle,
+                        base_config_path=base_dir)
     loader.use_db(db_name)
 
     database = HDF5Dataset(db_filename, feature_params)
@@ -80,6 +84,6 @@ def generate_eeg_db(db_name, db_filename, f_type=FeatureType.HUGINES,
             labels = [ep_labels[i // windowed_data.shape[1]] for i in range(len(groups))]
             windowed_data = np.vstack(windowed_data)
 
-            windowed_data = generate_features(windowed_data, f_type)
+            windowed_data = generate_features(windowed_data, fs, f_type, **feature_kwargs)
             database.add_data(windowed_data, labels, [subj] * len(labels), groups)
         database.close()
