@@ -158,7 +158,7 @@ def init_base_config(path='.'):
         cfg_dict = load_pickle_data(file)
         base_directory = cfg_dict[BASE_DIR]
     except FileNotFoundError:
-        from handlers.gui import select_base_dir
+        from .handlers.gui import select_base_dir
         base_directory = select_base_dir()
         cfg_dict = {BASE_DIR: base_directory}
         save_pickle_data(file, cfg_dict)
