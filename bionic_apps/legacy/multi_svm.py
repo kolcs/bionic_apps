@@ -216,18 +216,7 @@ def train_test_model(x, y, groups, fs, fft_ranges, norm=StandardScaler, method='
 
         clf = get_classifier(fs, fft_ranges, norm, method)
         clf.fit(train_x, train_y)
-        y_pred = clf.predict(test_x)
-
-        y_pred = label_encoder.inverse_transform(y_pred)
-        test_y = label_encoder.inverse_transform(test_y)
-
-        # https://scikit-learn.org/stable/modules/model_evaluation.html#precision-recall-and-f-measures
-        class_report = classification_report(test_y, y_pred)
-        conf_matrix = confusion_matrix(test_y, y_pred)
-        acc = accuracy_score(test_y, y_pred)
-        print(class_report)
-        print("Confusion matrix:\n%s\n" % conf_matrix)
-        print("Accuracy score: {}\n".format(acc))
+        acc = test_classifier(clf, test_x, test_y, label_encoder)
 
         cross_acc.append(acc)
     print("Accuracy scores for k-fold crossvalidation: {}\n".format(cross_acc))
