@@ -1,5 +1,6 @@
 from enum import Enum
 
+from sklearn.base import TransformerMixin
 from sklearn.pipeline import FeatureUnion, make_pipeline, Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
@@ -82,7 +83,7 @@ def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, **kwarg
 def generate_features(x, fs=None, f_type=FeatureType.RAW, scale=True, norm=False,
                       pipeline=None, **kwargs):
     if f_type is FeatureType.USER_PIPELINE:
-        assert isinstance(pipeline, (Pipeline, FeatureUnion)), \
+        assert isinstance(pipeline, (Pipeline, FeatureUnion, TransformerMixin)), \
             f'In case of user defined feature extractor only sklearn transformers accepted.'
         feature_ext = pipeline
     else:

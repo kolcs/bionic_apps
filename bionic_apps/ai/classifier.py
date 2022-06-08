@@ -26,7 +26,8 @@ class ClassifierType(Enum):
     EEG_NET = auto()
 
 
-def init_classifier(classifier_type, input_shape, classes, **kwargs):
+def init_classifier(classifier_type, input_shape, classes,
+                    *, classifier=None, **kwargs):
     if classifier_type is ClassifierType.VOTING_SVM:
         classifier = VotingSVM(**kwargs)
     elif classifier_type is ClassifierType.ENSEMBLE:
@@ -49,7 +50,8 @@ def init_classifier(classifier_type, input_shape, classes, **kwargs):
         classifier = BasicNet(input_shape, classes)
     elif classifier_type is ClassifierType.EEG_NET:
         classifier = EEGNet(input_shape, classes, **kwargs)
-
+    elif classifier_type is ClassifierType.USER_DEFINED:
+        assert classifier is not None, f'classifier must be defined!'
     else:
         raise NotImplementedError('Classifier {} is not implemented.'.format(classifier_type.name))
     return classifier

@@ -10,7 +10,7 @@ from ..utils import standardize_eeg_channel_names, filter_mne_obj, balance_epoch
     window_epochs
 
 
-def generate_eeg_db(db_name, db_filename, f_type=FeatureType.RAW,
+def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     epoch_tmin=0, epoch_tmax=4,
                     window_length=2, window_step=.1,
                     feature_kwargs=None,
@@ -83,6 +83,6 @@ def generate_eeg_db(db_name, db_filename, f_type=FeatureType.RAW,
             labels = [ep_labels[i // windowed_data.shape[1]] for i in range(len(groups))]
             windowed_data = np.vstack(windowed_data)
 
-            windowed_data = generate_features(windowed_data, fs, f_type, **feature_kwargs)
+            windowed_data = generate_features(windowed_data, fs, feature_type, **feature_kwargs)
             database.add_data(windowed_data, labels, [subj] * len(labels), groups)
         database.close()

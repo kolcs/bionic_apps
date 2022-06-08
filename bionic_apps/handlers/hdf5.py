@@ -31,7 +31,8 @@ class HDF5Dataset:
             if isinstance(val, Enum):
                 validated_f_pars[key] = val.name
             elif isinstance(val, dict):
-                validated_f_pars.update(val)
+                for k, v in val.items():
+                    validated_f_pars[k] = str(v) if not isinstance(v, (int, float)) else v
             elif isinstance(val, (int, float, str)):
                 validated_f_pars[key] = val
             else:
