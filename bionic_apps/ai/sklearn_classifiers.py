@@ -26,3 +26,29 @@ class VotingSVM(ClassifierInterface):
 
     def predict(self, x):
         return self._model.predict(x)
+
+
+def get_ensemble_clf(mode='ensemble'):
+    level0 = [
+        ('SVM', SVC(C=15, gamma=.01, cache_size=512, probability=True)),
+        ('nuSVM', NuSVC(nu=.32, gamma=.015, cache_size=512, probability=True)),
+        ('Extra Tree', ExtraTreesClassifier(n_estimators=500, criterion='gini')),
+        ('Random Forest', RandomForestClassifier(n_estimators=500, criterion='gini')),
+        ('Naive Bayes', GaussianNB()),
+        ('KNN', KNeighborsClassifier())
+    ]
+
+    if mode == 'ensemble':
+        level1 = LinearDiscriminantAnalysis()
+        final_clf = StackingClassifier(level0, level1, n_jobs=len(level0))
+    elif mode == 'voting':
+        final_clf = VotingClassifier(level0, voting='soft', n_jobs=len(level0))
+    else:
+        raise ValueError(f'Mode {mode} is not an ensemble mode.')
+
+    clf = make_pipeline(
+        # PCA(n_components=.97),
+        StandardScaler(),
+        final_clf
+    )
+    return clf
