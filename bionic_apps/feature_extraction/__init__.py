@@ -3,7 +3,7 @@ from enum import Enum
 from sklearn.pipeline import FeatureUnion, make_pipeline, Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
-from .frequency.fft_methods import get_avg_fft_transformer, get_multi_fft_transformer, get_fft_ranges
+from .frequency.fft_methods import get_multi_fft_transformer, get_fft_ranges
 from .time.utils import *
 
 
@@ -69,8 +69,7 @@ def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, **kwarg
         pipeline_steps.append(get_hugines_transfromer())
     elif feature_type in [FeatureType.AVG_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_AVG_FFT_POW]:
         assert isinstance(fs, (int, float)), 'Sampling frequency must be defined!'
-        # pipeline_steps.append(get_avg_fft_transformer(feature_type, fs, **kwargs))
-        pipeline_steps.append(get_multi_fft_transformer(fs, get_fft_ranges(feature_type.value, **kwargs)))
+        pipeline_steps.append(get_multi_fft_transformer(feature_type, fs, **kwargs))
     else:
         raise NotImplementedError(f'{feature_type.name} feature extraction is not implemented.')
 

@@ -6,50 +6,20 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.ensemble import VotingClassifier
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import make_pipeline, FeatureUnion
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.preprocessing import LabelEncoder, StandardScaler, Normalizer, MinMaxScaler
 from sklearn.svm import SVC
 
+from ..ai.classifier import test_classifier
 from ..artifact_filtering.faster import ArtefactFilter
 from ..databases import EEG_Databases
-from ..feature_extraction import to_micro_volt, FeatureType
+from ..feature_extraction import to_micro_volt, FeatureType, eeg_bands
 from ..feature_extraction.frequency.fft_methods import FFTCalc, AvgFFTCalc, get_fft_ranges
 from ..preprocess.io import DataLoader, get_epochs_from_raw, SubjectHandle
 from ..utils import window_epochs, filter_mne_obj, balance_epoch_nums, _create_binary_label, \
     standardize_eeg_channel_names
-
-
-def get_fft_ranges_dict():
-    feat_par_list = {
-        'theta': dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=4, fft_high=7
-        ),
-        'alpha': dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=7, fft_high=14
-        ),
-        'beta': dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=14, fft_high=30
-        ),
-        'gamma': dict(
-            feature_type=FeatureType.AVG_FFT_POWER,
-            fft_low=30, fft_high=40
-        ),
-        'range30': dict(
-            feature_type=FeatureType.FFT_RANGE,
-            fft_low=4, fft_high=30
-        ),
-        'range40': dict(
-            feature_type=FeatureType.FFT_RANGE,
-            fft_low=2, fft_high=40
-        ),
-    }
-    return feat_par_list
 
 
 def new_multi_svm(fs, fft_ranges, *, method='psd2', norm=StandardScaler):
@@ -104,7 +74,7 @@ def band_comb_multi_svm(fs, fft_ranges):
 
 def norm_test_svm(fs, *, norm=StandardScaler):
     fft_ranges = []
-    for fft_par in get_fft_ranges_dict().values():
+    for fft_par in eeg_bands.values():
         fft_ranges.extend(get_fft_ranges(**fft_par))
     fft_ranges = sorted(set(fft_ranges), key=lambda tup: tup[0])
 
@@ -130,7 +100,7 @@ def norm_test_svm(fs, *, norm=StandardScaler):
 
 def norm_test_multi_svm(fs, *, norm=StandardScaler):
     fft_ranges = []
-    for fft_par in get_fft_ranges_dict().values():
+    for fft_par in eeg_bands.values():
         fft_ranges.extend(get_fft_ranges(**fft_par))
     fft_ranges = sorted(set(fft_ranges), key=lambda tup: tup[0])
 
@@ -154,7 +124,7 @@ def norm_test_multi_svm(fs, *, norm=StandardScaler):
 
 def fft_test_svm(fs, method='psd2'):
     fft_ranges = []
-    for fft_par in get_fft_ranges_dict().values():
+    for fft_par in eeg_bands.values():
         fft_ranges.extend(get_fft_ranges(**fft_par))
     fft_ranges = sorted(set(fft_ranges), key=lambda tup: tup[0])
 
@@ -178,7 +148,7 @@ def fft_test_svm(fs, method='psd2'):
 
 def fft_test_multi_svm(fs, method='psd2'):
     fft_ranges = []
-    for fft_par in get_fft_ranges_dict().values():
+    for fft_par in eeg_bands.values():
         fft_ranges.extend(get_fft_ranges(**fft_par))
     fft_ranges = sorted(set(fft_ranges), key=lambda tup: tup[0])
 
@@ -353,7 +323,7 @@ def multi_svm_test(db_name):
     path = Path(db_name.name, 'multi')
     path.mkdir(parents=True, exist_ok=True)
 
-    for band, feature_params in get_fft_ranges_dict().items():
+    for band, feature_params in eeg_bands.items():
         test_db(
             feature_params=feature_params,
             db_name=db_name,
@@ -372,7 +342,7 @@ def band_comb_test(db_name):
     path = Path(db_name.name, 'band')
     path.mkdir(parents=True, exist_ok=True)
 
-    for band, feature_params in get_fft_ranges_dict().items():
+    for band, feature_params in eeg_bands.items():
         test_db(
             feature_params=feature_params,
             db_name=db_name,
@@ -391,7 +361,7 @@ def band_comb_test_old(db_name):
     path = Path(db_name.name, 'band_old')
     path.mkdir(parents=True, exist_ok=True)
 
-    for band, feature_params in get_fft_ranges_dict().items():
+    for band, feature_params in eeg_bands.items():
         test_db(
             feature_params=feature_params,
             db_name=db_name,
@@ -412,7 +382,7 @@ def band_comb_test_old2(db_name, cp_subj=0):
     path = Path(db_name.name, 'band_old')
     path.mkdir(parents=True, exist_ok=True)
 
-    for band, feature_params in get_fft_ranges_dict().items():
+    for band, feature_params in eeg_bands.items():
         if band in ['gamma', 'range30', 'range40']:
             test_db(
                 feature_params=feature_params,

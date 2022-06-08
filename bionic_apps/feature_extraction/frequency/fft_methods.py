@@ -1,6 +1,8 @@
 import numpy as np
+from joblib import Parallel, delayed
 from scipy import signal
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import FeatureUnion, _fit_transform_one, _transform_one, make_pipeline
 
 
 def _get_fft(data, fs, method='pow', n=512):
@@ -65,45 +67,45 @@ class AvgFFTCalc(BaseEstimator, TransformerMixin):
         return fft_power
 
 
-class MultiAvgFFTCalc(BaseEstimator, TransformerMixin):
-
-    def __init__(self, fft_ranges, fs, method='psd2', nfft=None):
-        self.fft_ranges = fft_ranges
-        self.fs = fs
-        self.method = method
-        self.nfft = nfft
-
-    def fit(self, x, y=None):
-        return self
-
-    def transform(self, data, y=None):
-        if 'fft' in self.method:
-            freqs, fft_res = _get_fft(data, self.fs, self.method.strip('fft'), n=self.nfft)
-        elif 'psd' in self.method:
-            div = int(self.method.strip('psd'))
-            freqs, fft_res = signal.welch(data, self.fs, nperseg=np.size(data, -1) // div,
-                                          nfft=self.nfft)
-        else:
-            raise NotImplementedError(f'{self.method} is not implemetned for FFT calculation.')
-
-        data_list = list()
-        for fft_low, fft_high in self.fft_ranges:
-            fft_width = fft_high - fft_low
-            assert all(fft_width >= freqs[i] - freqs[i - 1]
-                       for i in range(1, len(freqs))), \
-                'Not enough feature points between {} and {} Hz'.format(fft_low, fft_high)
-            fft_mask = (freqs >= fft_low) & (freqs <= fft_high)
-            fft_power = np.average(fft_res[..., fft_mask], axis=-1)
-            data_list.append(fft_power)
-
-        if len(data.shape) == 4:
-            data = np.transpose(data_list, (1, 0, 2, 3))
-        elif len(data.shape) == 3:
-            data = np.transpose(data_list, (1, 0, 2))
-        else:
-            raise ValueError(f'Input data must be 3 or 4 dimensional. '
-                             f'Got {data.shape} instead.')
-        return data
+# class MultiAvgFFTCalc(BaseEstimator, TransformerMixin):
+#
+#     def __init__(self, fft_ranges, fs, method='psd2', nfft=None):
+#         self.fft_ranges = fft_ranges
+#         self.fs = fs
+#         self.method = method
+#         self.nfft = nfft
+#
+#     def fit(self, x, y=None):
+#         return self
+#
+#     def transform(self, data, y=None):
+#         if 'fft' in self.method:
+#             freqs, fft_res = _get_fft(data, self.fs, self.method.strip('fft'), n=self.nfft)
+#         elif 'psd' in self.method:
+#             div = int(self.method.strip('psd'))
+#             freqs, fft_res = signal.welch(data, self.fs, nperseg=np.size(data, -1) // div,
+#                                           nfft=self.nfft)
+#         else:
+#             raise NotImplementedError(f'{self.method} is not implemetned for FFT calculation.')
+#
+#         data_list = list()
+#         for fft_low, fft_high in self.fft_ranges:
+#             fft_width = fft_high - fft_low
+#             assert all(fft_width >= freqs[i] - freqs[i - 1]
+#                        for i in range(1, len(freqs))), \
+#                 'Not enough feature points between {} and {} Hz'.format(fft_low, fft_high)
+#             fft_mask = (freqs >= fft_low) & (freqs <= fft_high)
+#             fft_power = np.average(fft_res[..., fft_mask], axis=-1)
+#             data_list.append(fft_power)
+#
+#         if len(data.shape) == 4:
+#             data = np.transpose(data_list, (1, 0, 2, 3))
+#         elif len(data.shape) == 3:
+#             data = np.transpose(data_list, (1, 0, 2))
+#         else:
+#             raise ValueError(f'Input data must be 3 or 4 dimensional. '
+#                              f'Got {data.shape} instead.')
+#         return data
 
 
 def get_fft_ranges(feature_type, fft_low=None, fft_high=None,
@@ -128,15 +130,11 @@ def get_fft_ranges(feature_type, fft_low=None, fft_high=None,
     return fft_ranges
 
 
-def get_avg_fft_transformer(feature_type, fs, fft_low=None, fft_high=None,
-                            fft_method='psd2', fft_width=2, fft_step=2,
-                            fft_ranges=None):
-    fft_ranges = get_fft_ranges(feature_type, fft_low, fft_high, fft_width, fft_step, fft_ranges)
-    return MultiAvgFFTCalc(fft_ranges, fs, fft_method)
-
-
-from sklearn.pipeline import FeatureUnion, _fit_transform_one, _transform_one, make_pipeline
-from joblib import Parallel, delayed
+# def get_avg_fft_transformer(feature_type, fs, fft_low=None, fft_high=None,
+#                             fft_method='psd2', fft_width=2, fft_step=2,
+#                             fft_ranges=None):
+#     fft_ranges = get_fft_ranges(feature_type, fft_low, fft_high, fft_width, fft_step, fft_ranges)
+#     return MultiAvgFFTCalc(fft_ranges, fs, fft_method)
 
 
 class FFTUnion(FeatureUnion):

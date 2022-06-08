@@ -36,7 +36,6 @@ def generate_eeg_db(db_name, db_filename, f_type=FeatureType.RAW,
     database = HDF5Dataset(db_filename, feature_params)
 
     # TODO: handle error
-    # Fast load
     if not (database.exists() and fast_load):
         for subj in loader.get_subject_list():
             files = loader.get_filenames_for_subject(subj)
