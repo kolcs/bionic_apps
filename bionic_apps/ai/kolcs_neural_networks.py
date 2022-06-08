@@ -1,8 +1,9 @@
 from enum import Enum, auto
 
 import tensorflow as tf
-from ai.interface import BaseNet
 from tensorflow import keras
+
+from ..ai.interface import BaseNet
 
 
 class VggType(Enum):

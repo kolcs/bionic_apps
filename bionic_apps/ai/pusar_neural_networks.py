@@ -1,8 +1,9 @@
 from enum import Enum, auto
 
 import tensorflow as tf
-from ai.interface import BaseNet
 from tensorflow import keras
+
+from .interface import BaseNet
 
 
 # CNNType = Enum('CNNType', 'CNN QNet EEGNet')

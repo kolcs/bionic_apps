@@ -3,7 +3,6 @@ from pathlib import Path
 
 from numpy import argmax as np_argmax
 from tensorflow import keras
-from tensorflow.keras.callbacks import ModelCheckpoint
 
 TF_LOG = 'tf_log/'
 
@@ -59,7 +58,7 @@ class BaseNet(ClassifierInterface):
             best_model_cp_file.unlink(missing_ok=True)
 
             callbacks.append(
-                ModelCheckpoint(
+                keras.callbacks.ModelCheckpoint(
                     str(best_model_cp_file),
                     save_weights_only=True,
                     monitor='val_accuracy',
