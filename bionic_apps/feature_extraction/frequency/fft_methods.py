@@ -196,7 +196,10 @@ class FFTUnion(FeatureUnion):
         return np.array(Xs).transpose((1, 0, 2))
 
 
-def get_multi_fft_transformer(fs, fft_ranges, *, method='psd2'):
+def get_multi_fft_transformer(feature_type, fs, *, method='psd2',
+                              fft_low=None, fft_high=None,
+                              fft_width=2, fft_step=2, fft_ranges=None):
+    fft_ranges = get_fft_ranges(feature_type.value, fft_low, fft_high, fft_width, fft_step, fft_ranges)
     inner_ffts = [(f'unit{i}', make_pipeline(AvgFFTCalc(fft_low, fft_high)))
                   for i, (fft_low, fft_high) in enumerate(fft_ranges)]
 
