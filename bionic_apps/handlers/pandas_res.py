@@ -39,3 +39,7 @@ class ResultHandler:
 
     def __len__(self):
         return len(self.res)
+
+    def print_db_res(self, col='Avg. Acc'):
+        print(f'\nDatabase accuracy: {self.res[col].mean():.3f} '
+              f'+/- {self.res[col].std():.3f} for {len(self.res)} subjects.')
