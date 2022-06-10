@@ -2,7 +2,7 @@
 
 # folders
 __pycache__/
-tflog/
+tf_log/
 .idea/
 tmp/
 log/
