@@ -81,8 +81,11 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
     if feature_kwargs is None:
         feature_kwargs = {}
 
-    feature_params = locals()
+    # removing data which does not affect fast_load
+    feature_params = locals().copy()
+    feature_params.pop('db_filename')
     feature_params.pop('fast_load')
+    feature_params.pop('base_dir')
 
     loader = DataLoader(use_drop_subject_list=use_drop_subject_list,
                         subject_handle=subject_handle,
