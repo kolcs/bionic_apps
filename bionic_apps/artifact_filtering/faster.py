@@ -577,7 +577,7 @@ def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=Tr
 
     # Data is clean, apply average reference
     if apply_avg_reference:
-        data.info['custom_ref_applied'] = False
+        # data.info['custom_ref_applied'] = False
         epochs, _ = mne.io.set_eeg_reference(data, verbose=verbose)
         epochs.apply_proj()
 
