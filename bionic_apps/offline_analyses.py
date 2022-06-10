@@ -1,4 +1,6 @@
 import numpy as np
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.pipeline import Pipeline
 
 from .ai.classifier import test_classifier, init_classifier, ClassifierType
 from .ai.interface import TFBaseNet
@@ -38,7 +40,9 @@ def train_test_data(classifier_type, x, y, groups, lab_enc,
         cross_acc.append(acc)
 
         if save_classifiers:
-            if not isinstance(clf, TFBaseNet):
+            if isinstance(clf, TFBaseNet):
+                raise NotImplementedError()
+            elif isinstance(clf, (BaseEstimator, Pipeline, ClassifierMixin)):
                 save_path = SAVE_PATH.joinpath('sklearn', f'clf{i}.pkl')
                 save_path.parent.mkdir(parents=True, exist_ok=True)
                 save_pickle_data(save_path, clf)
