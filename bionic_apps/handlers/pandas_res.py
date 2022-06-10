@@ -34,7 +34,7 @@ class ResultHandler:
 
     def save(self, filename=None, sep=';', encoding='utf-8', index=False):
         assert filename is not None or self.filename is not None, 'filename must be defined!'
-        if isinstance(filename, str):
+        if isinstance(filename, (str, Path)):
             self.filename = filename
         Path(self.filename).parent.mkdir(parents=True, exist_ok=True)
         self.res.to_csv(self.filename, sep=sep, encoding=encoding, index=index)

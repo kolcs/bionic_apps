@@ -1,3 +1,4 @@
+from sklearn.base import ClassifierMixin
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import StackingClassifier, ExtraTreesClassifier, RandomForestClassifier, VotingClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -13,7 +14,7 @@ def _select_fft(x, i):
     return x[:, i, :]
 
 
-class VotingSVM(ClassifierInterface):
+class VotingSVM(ClassifierInterface, ClassifierMixin):
 
     def __init__(self, norm=StandardScaler):
         self.norm = norm
