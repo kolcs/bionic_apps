@@ -58,7 +58,7 @@ def train_test_data(classifier_type, x, y, groups, lab_enc,
 
 
 def make_within_subject_classification(db_filename, classifier_type, classifier_kwargs=None,
-                                       n_splits=5, res_handler=None):
+                                       n_splits=5, res_handler=None, save_res=True):
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
@@ -79,9 +79,11 @@ def make_within_subject_classification(db_filename, classifier_type, classifier_
                              'Accuracy list': [cross_acc],
                              'Std of Avg. Acc': [np.std(cross_acc)],
                              'Avg. Acc': [np.mean(cross_acc)]})
-            res_handler.save()
+            if save_res:
+                res_handler.save()
 
-    res_handler.print_db_res()
+    if res_handler is not None:
+        res_handler.print_db_res()
     db.close()
 
 
@@ -101,6 +103,7 @@ def test_eegdb_within_subject(
         classifier_kwargs=None,
         # ch_mode='all', ep_mode='distinct',
         db_file=DB_FILE, log_file='out.csv', base_dir='.',
+        save_res=True,
         fast_load=True,
 ):
     if classifier_kwargs is None:
@@ -128,7 +131,7 @@ def test_eegdb_within_subject(
                     subject_handle=subject_handle,
                     base_dir=base_dir, fast_load=fast_load)
 
-    make_within_subject_classification(
-        db_file, classifier_type, classifier_kwargs=classifier_kwargs,
-        n_splits=n_splits,
-        res_handler=results)
+    make_within_subject_classification(db_file, classifier_type,
+                                       classifier_kwargs=classifier_kwargs,
+                                       n_splits=n_splits, res_handler=results,
+                                       save_res=save_res)
