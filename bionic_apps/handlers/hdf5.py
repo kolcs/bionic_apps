@@ -12,7 +12,7 @@ class HDF5Dataset:
         if feature_params is None:
             feature_params = {}
 
-        self.filename = filename
+        self.filename = Path(filename)
 
         self.mode = None
         self.file = None
@@ -44,9 +44,9 @@ class HDF5Dataset:
 
     def _open(self, mode):
         self.mode = mode
-        self.file = h5py.File(self.filename, self.mode, libver='latest')
+        self.file = h5py.File(str(self.filename), self.mode, libver='latest')
 
-    def add_data(self, data, label, subj, ep_group):
+    def add_data(self, data, label, subj, ep_group, fs):
         if self.mode is None:
             self._open('w')
             self.dset_x = self.file.create_dataset('x', data=data,
@@ -102,12 +102,12 @@ class HDF5Dataset:
         return self.file.attrs['subject'], self.file.attrs['ep_group'], self.file.attrs['y'].astype('U')
 
     def exists(self):
-        if not Path(self.filename).exists():
+        if not self.filename.exists():
             return False
         try:
             self._open('r')
         except OSError:
-            Path(self.filename).unlink(missing_ok=True)
+            self.filename.unlink(missing_ok=True)
             self.mode = None
             self.file = None
             return False

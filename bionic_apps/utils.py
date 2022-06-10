@@ -118,24 +118,24 @@ def check_path_limit(path):
 
 
 def load_pickle_data(filename):
-    with open(filename, 'rb') as fin:
+    with open(str(filename), 'rb') as fin:
         data = pkl_load(fin)
     return data
 
 
 def save_pickle_data(filename, data):
-    with open(filename, 'wb') as f:
+    with open(str(filename), 'wb') as f:
         pkl_dump(data, f)
 
 
-def load_from_json(file):
-    with open(file) as json_file:
+def load_from_json(filename):
+    with open(str(filename)) as json_file:
         data_dict = json_load(json_file)
     return data_dict
 
 
-def save_to_json(file, data_dict):
-    with open(file, 'w') as outfile:
+def save_to_json(filename, data_dict):
+    with open(str(filename), 'w') as outfile:
         json_dump(data_dict, outfile, indent='\t')
 
 

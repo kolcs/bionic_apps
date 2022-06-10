@@ -1,4 +1,5 @@
 from enum import Enum
+from pathlib import Path
 
 from .eeg.offline import *
 from .eeg.online_braindriver import *
@@ -22,6 +23,7 @@ class EEG_Databases(Enum):
 
 
 def get_eeg_db_name_by_filename(filename):
+    filename = Path(filename).as_posix()
     if Game_ParadigmC().DIR in filename:
         db_name = EEG_Databases.GAME_PAR_C
     elif Game_ParadigmD().DIR in filename:
