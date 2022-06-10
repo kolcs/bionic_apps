@@ -28,24 +28,6 @@ def train_test_data(classifier_type, x, y, groups, lab_enc,
         y_test = y[test]
 
         clf = init_classifier(classifier_type, x[0].shape, len(lab_enc.classes_), **classifier_kwargs)
-        # if isinstance(classifier_type, str):
-        #     if classifier_type == 'eegnet':
-        #         from ai import init_classifier, ClassifierType
-        #         clf = init_classifier(ClassifierType.EEG_NET, x[0].shape, len(lab_enc.classes_))
-        #     elif classifier_type == 'ensemble':
-        #         clf = get_ensemble_clf()
-        #     elif classifier_type == 'voting':
-        #         clf = get_ensemble_clf(mode='voting')
-        #     else:
-        #         raise NotImplementedError(f'{classifier_type} is not implemented')
-        # elif issubclass(classifier_type, ClassifierMixin):
-        #     clf = make_pipeline(
-        #         # PCA(n_components=.97),
-        #         StandardScaler(),
-        #         classifier_type(**classifier_kwargs)
-        #     )
-        # else:
-        #     raise TypeError(f'Object {type(classifier_type)} is not a classifier.')
 
         if epochs is None:
             clf.fit(x_train, y_train)
