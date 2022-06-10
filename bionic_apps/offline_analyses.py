@@ -1,6 +1,8 @@
 import numpy as np
 
 from .ai.classifier import test_classifier, init_classifier, ClassifierType
+from .ai.interface import TFBaseNet
+from .config import SAVE_PATH
 from .databases import EEG_Databases
 from .feature_extraction import FeatureType
 from .handlers import init_hdf5_db, ResultHandler
