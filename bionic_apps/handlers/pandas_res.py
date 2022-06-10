@@ -6,6 +6,8 @@ import pandas as pd
 class ResultHandler:
     def __init__(self, fix_params, changing_params, to_beginning=(), filename=None):
         self._fix = fix_params.copy()
+        if 'classifier' in self._fix and not isinstance(self._fix['classifier'], str):
+            self._fix['classifier'] = type(self._fix['classifier']).__name__
         self._changing = changing_params
         self.res = pd.DataFrame(columns=list(fix_params) + changing_params)
         self.filename = filename

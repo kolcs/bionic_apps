@@ -35,7 +35,7 @@ class HDF5Dataset:
             elif isinstance(val, dict):
                 for k, v in val.items():
                     if k == 'pipeline':
-                        validated_f_pars[k] = type(v)
+                        validated_f_pars[k] = type(v).__name__
                     else:
                         validated_f_pars[k] = str(v) if not isinstance(v, (int, float)) else v
             elif isinstance(val, (int, float, str)):
