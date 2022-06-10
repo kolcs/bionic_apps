@@ -21,8 +21,9 @@ from bionic_apps.utils import init_base_config, load_pickle_data, is_platform, s
 from bionic_apps.validations import validate_feature_classifier_pair
 
 CMD_IN = 1.5  # sec
-DB_FILENAME = 'brain_driver_db.hdf5'
 SUBJ = 0
+DB_FILENAME = 'brain_driver_db.hdf5'
+AR_FILTER = 'ar_filter.pkl'
 
 FILTER_PARAMS = dict(
     order=5, l_freq=1, h_freq=45
@@ -37,14 +38,25 @@ CLF_TYPE = ClassifierType.VOTING_SVM
 CLF_KWARGS = dict(
     # C=309.27089776753826, gamma=0.3020223611011116
 )
-AR_FILTER = 'ar_filter.pkl'
 
 
-def start_brain_driver_control_system(epoch_tmin=0, epoch_tmax=4, window_length=2, window_step=.1,
+def start_brain_driver_control_system(feature_type, classifier_type,
+                                      epoch_tmin=0, epoch_tmax=4,
+                                      window_length=2, window_step=.1, *,
+                                      feature_kwargs=None, filter_params=None,
                                       do_artefact_rejection=True, balance_data=True,
-                                      use_best_clf=True, make_opponents=True, use_game_logger=True,
+                                      classifier_kwargs=None,
+                                      use_best_clf=True, make_opponents=True,
+                                      use_game_logger=True,
                                       eeg_files=None, time_out=None):
-    feature_type, classifier_type = validate_feature_classifier_pair(F_TYPE, CLF_TYPE)
+    if classifier_kwargs is None:
+        classifier_kwargs = {}
+    if filter_params is None:
+        filter_params = {}
+    if feature_kwargs is None:
+        feature_kwargs = {}
+
+    feature_type, classifier_type = validate_feature_classifier_pair(feature_type, classifier_type)
     print('Starting BCI System for BrainDriver game...')
 
     if eeg_files is None:
@@ -59,8 +71,8 @@ def start_brain_driver_control_system(epoch_tmin=0, epoch_tmax=4, window_length=
 
     feature_params = dict(
         feature_type=feature_type,
-        feature_kwargs=F_KWARGS,
-        filter_params=FILTER_PARAMS,
+        feature_kwargs=feature_kwargs,
+        filter_params=filter_params,
         epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
         window_length=window_length, window_step=window_step,
         balance_data=balance_data,
@@ -96,7 +108,8 @@ def start_brain_driver_control_system(epoch_tmin=0, epoch_tmax=4, window_length=
     groups = ep_ind[subj_ind == SUBJ]
 
     cross_acc, clf_filenames = train_test_data(classifier_type, x, y, groups=groups, lab_enc=le,
-                                               n_splits=5, shuffle=True, save_classifiers=True, **CLF_KWARGS)
+                                               n_splits=5, shuffle=True, save_classifiers=True,
+                                               **classifier_kwargs)
 
     if use_best_clf:
         best = np.argmax(cross_acc)
@@ -104,10 +117,11 @@ def start_brain_driver_control_system(epoch_tmin=0, epoch_tmax=4, window_length=
         classifier = load_pickle_data(file)
     else:
         try:
-            epochs = CLF_KWARGS.pop('epochs')
+            epochs = classifier_kwargs.pop('epochs')
         except KeyError:
             epochs = None
-        classifier = init_classifier(classifier_type, x[0].shape, len(le.classes_), **CLF_KWARGS)
+        classifier = init_classifier(classifier_type, x[0].shape, len(le.classes_),
+                                     **classifier_kwargs)
         if epochs is None:
             classifier.fit(x, y)
         else:
@@ -125,13 +139,13 @@ def start_brain_driver_control_system(epoch_tmin=0, epoch_tmax=4, window_length=
     if make_opponents:
         create_opponents(main_player=1, game_logger=game_log, reaction=CMD_IN)
 
-    dsp = DSP(use_filter=len(FILTER_PARAMS) > 0, **FILTER_PARAMS)
+    dsp = DSP(use_filter=len(filter_params) > 0, **filter_params)
     assert dsp.fs == fs, 'Sampling rate frequency must be equal for preprocessed and lsl data.'
 
     controller = GameControl(make_log=True, log_to_stream=True, game_logger=game_log)
     command_converter = loader.get_command_converter() if not make_binary_classification else None
 
-    feature_extractor = get_feature_extractor(feature_type, fs, **F_KWARGS)
+    feature_extractor = get_feature_extractor(feature_type, fs, **feature_kwargs)
 
     print("Starting game braindriver...")
     simplefilter('always', UserWarning)
@@ -164,5 +178,16 @@ def start_brain_driver_control_system(epoch_tmin=0, epoch_tmax=4, window_length=
             tic = time.time()
 
 
+def main():
+    start_brain_driver_control_system(F_TYPE, CLF_TYPE,
+                                      epoch_tmin=0, epoch_tmax=4,
+                                      window_length=2, window_step=.1,
+                                      feature_kwargs=F_KWARGS, filter_params=FILTER_PARAMS,
+                                      do_artefact_rejection=True, balance_data=True,
+                                      classifier_kwargs=CLF_KWARGS, use_best_clf=True,
+                                      make_opponents=True, use_game_logger=True
+                                      )
+
+
 if __name__ == '__main__':
-    start_brain_driver_control_system()
+    main()
