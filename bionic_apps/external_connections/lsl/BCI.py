@@ -53,7 +53,7 @@ class SignalReceiver:
 
 class DSP(SignalReceiver):
 
-    def __init__(self, use_filter=False, order=5, l_freq=1):
+    def __init__(self, use_filter=False, order=5, l_freq=1, h_freq=None):
         super(DSP, self).__init__()
         self._eeg = list()
         self._filt_eeg = list()  # change it to deque + copy()?
@@ -61,7 +61,13 @@ class DSP(SignalReceiver):
         self._filter_signal = use_filter
 
         if use_filter:
-            self._sos = signal.butter(order, l_freq, btype='high', output='sos', fs=self.fs)
+            if h_freq is None:
+                self._sos = signal.butter(order, l_freq, btype='high', output='sos', fs=self.fs)
+            elif l_freq is None:
+                self._sos = signal.butter(order, h_freq, btype='low', output='sos', fs=self.fs)
+            else:
+                self._sos = signal.butter(order, [l_freq, h_freq], btype='band', output='sos', fs=self.fs)
+
             self._zi = np.array([signal.sosfilt_zi(self._sos) for _ in range(len(self.electrodes))])
             self._zi = np.transpose(self._zi, (1, 2, 0))
 
