@@ -13,7 +13,7 @@ from ..utils import standardize_eeg_channel_names, filter_mne_obj, balance_epoch
 def generate_subject_data(files, loader, subj, filter_params,
                           epoch_tmin, epoch_tmax, window_length, window_step,
                           feature_type, feature_kwargs=None,
-                          do_artefact_rejection=True, balance_data=True,
+                          artifact_filter=None, balance_data=True,
                           binarize_labels=False):
     if feature_kwargs is None:
         feature_kwargs = {}
@@ -41,8 +41,8 @@ def generate_subject_data(files, loader, subj, filter_params,
                                  event_id=event_id)
     del raw
 
-    if do_artefact_rejection:
-        epochs = ArtefactFilter(apply_frequency_filter=False).offline_filter(epochs)
+    if artifact_filter is not None:
+        epochs = artifact_filter.offline_filter(epochs)
 
     ep_labels = [list(epochs[i].event_id)[0] for i in range(len(epochs))]
 
@@ -95,11 +95,12 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
     if not (database.exists() and fast_load):
         for subj in loader.get_subject_list():
             files = loader.get_filenames_for_subject(subj)
+            artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
             subj_data = generate_subject_data(
                 files, loader, subj, filter_params,
                 epoch_tmin, epoch_tmax, window_length, window_step,
                 feature_type, feature_kwargs,
-                do_artefact_rejection, balance_data,
+                artifact_filter, balance_data,
                 binarize_labels=db_name is EEG_Databases.GAME_PAR_D
             )
             database.add_data(*subj_data)
