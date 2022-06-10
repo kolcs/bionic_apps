@@ -12,6 +12,8 @@ from .preprocess.io import SubjectHandle
 from .utils import save_pickle_data
 from .validations import validate_feature_classifier_pair
 
+DB_FILE = SAVE_PATH.joinpath('database.hdf5')
+
 
 def train_test_data(classifier_type, x, y, groups, lab_enc,
                     *, n_splits=5, shuffle=False,
@@ -111,8 +113,8 @@ def test_eegdb_within_subject(
         n_splits=5,
         classifier_type=ClassifierType.ENSEMBLE,
         classifier_kwargs=None,
-        ch_mode='all', ep_mode='distinct',
-        db_file='database.hdf5', log_file='out.csv', base_dir='.',
+        # ch_mode='all', ep_mode='distinct',
+        db_file=DB_FILE, log_file='out.csv', base_dir='.',
         fast_load=True,
 ):
     if classifier_kwargs is None:
@@ -122,7 +124,7 @@ def test_eegdb_within_subject(
 
     fix_params = dict(window_len=window_len, window_step=window_step,
                       n_splits=n_splits,
-                      ch_mode=ch_mode, ep_mode=ep_mode,
+                      # ch_mode=ch_mode, ep_mode=ep_mode,
                       classifier=classifier_type.name)
     fix_params.update(classifier_kwargs)
 
