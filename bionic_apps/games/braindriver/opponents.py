@@ -3,11 +3,11 @@ from random import shuffle
 from threading import Thread
 from time import sleep
 
-from config import ACTIVE, ControlCommand
 from numpy.random import randint
 
-from control import GameControl
-from logger import GameLogger
+from .control import ControlCommand, GameControl
+from .logger import GameLogger
+from ...databases.eeg.defaults import ACTIVE
 
 
 class PlayerType(Enum):

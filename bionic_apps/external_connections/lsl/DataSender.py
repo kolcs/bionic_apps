@@ -5,8 +5,9 @@ import time
 
 import numpy as np
 from mne.io import read_raw, concatenate_raws
-from preprocess.ioprocess import init_base_config
 from pylsl import StreamInfo, StreamOutlet, local_clock
+
+from bionic_apps.utils import init_base_config
 
 M_BRAIN_TRAIN = 'mBrainTrain'
 
@@ -146,7 +147,7 @@ def run(filenames, get_labels=False, eeg_type='', use_artificial_data=False, hos
 
 
 if __name__ == '__main__':
-    from gui_handler import select_files_in_explorer
+    from bionic_apps.handlers import select_files_in_explorer
 
     base_dir = init_base_config('../../../')
     files = select_files_in_explorer(base_dir)
