@@ -66,7 +66,7 @@ def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, **kwarg
     if feature_type is FeatureType.RAW:
         pipeline_steps.append(FunctionTransformer())
         norm = False
-    if feature_type is FeatureType.HUGINES:
+    elif feature_type is FeatureType.HUGINES:
         pipeline_steps.append(get_hugines_transfromer())
     elif feature_type in [FeatureType.AVG_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_AVG_FFT_POW]:
         assert isinstance(fs, (int, float)), 'Sampling frequency must be defined!'
