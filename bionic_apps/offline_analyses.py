@@ -9,15 +9,17 @@ from .handlers import init_hdf5_db, ResultHandler
 from .model_selection import BalancedKFold
 from .preprocess import generate_eeg_db
 from .preprocess.io import SubjectHandle
+from .utils import save_pickle_data
 from .validations import validate_feature_classifier_pair
 
 
 def train_test_data(classifier_type, x, y, groups, lab_enc,
                     *, n_splits=5, shuffle=False,
-                    epochs=None, **classifier_kwargs):
+                    epochs=None, save_classifiers=False, **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
     cross_acc = list()
-    for train, test in kfold.split(y=y, groups=groups):
+    saved_clf_names = list()
+    for i, (train, test) in enumerate(kfold.split(y=y, groups=groups)):
         x_train = x[train]
         y_train = y[train]
         x_test = x[test]
@@ -51,8 +53,19 @@ def train_test_data(classifier_type, x, y, groups, lab_enc,
         acc = test_classifier(clf, x_test, y_test, lab_enc)
         cross_acc.append(acc)
 
+        if save_classifiers:
+            if not isinstance(clf, TFBaseNet):
+                save_path = SAVE_PATH.joinpath('sklearn', f'clf{i}.pkl')
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                save_pickle_data(save_path, clf)
+                saved_clf_names.append(save_path)
+            else:
+                raise NotImplementedError()
+
     print(f"Accuracy scores for k-fold crossvalidation: {cross_acc}\n")
     print(f"Avg accuracy: {np.mean(cross_acc):.4f}   +/- {np.std(cross_acc):.4f}")
+    if save_classifiers:
+        return cross_acc, saved_clf_names
     return cross_acc
 
 
