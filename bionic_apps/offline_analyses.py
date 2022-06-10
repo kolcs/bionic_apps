@@ -61,7 +61,7 @@ def make_within_subject_classification(db_filename, classifier_type, classifier_
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
-    db, y_all, subj_ind, ep_ind, le = init_hdf5_db(db_filename)
+    db, y_all, subj_ind, ep_ind, le, _ = init_hdf5_db(db_filename)
 
     for subj in np.unique(subj_ind):
         print(f'Subject{subj}')

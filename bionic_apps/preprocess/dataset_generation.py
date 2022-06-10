@@ -63,7 +63,7 @@ def generate_subject_data(files, loader, subj, filter_params,
     windowed_data = np.vstack(windowed_data)
 
     windowed_data = generate_features(windowed_data, fs, feature_type, **feature_kwargs)
-    return windowed_data, labels, [subj] * len(labels), groups
+    return windowed_data, labels, [subj] * len(labels), groups, fs
 
 
 def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,

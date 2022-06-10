@@ -21,6 +21,7 @@ class HDF5Dataset:
         self.subj_meta = []
         self.ep_meta = []
         self._last_ep_num = 0
+        self._fs = None
 
         self.feature_params = feature_params.copy()
         self._validate_feat_params()
@@ -67,6 +68,10 @@ class HDF5Dataset:
         ep_group = np.array(ep_group)
         self.ep_meta.extend(ep_group + self._last_ep_num)
         self._last_ep_num += np.max(ep_group) + 1
+        if self._fs is None:
+            self._fs = fs
+        else:
+            assert fs == self._fs, 'Sampling frequency has changed'
 
     def close(self):
         if self.mode == 'w':
@@ -74,6 +79,7 @@ class HDF5Dataset:
             if y.dtype.kind in ['U', 'S']:
                 y = np.char.encode(y, encoding='utf-8')
             self.file.attrs.create('y', y)
+            self.file.attrs.create('fs', self._fs)
             self.file.attrs.create('subject', np.array(self.subj_meta))
             self.file.attrs.create('ep_group', np.array(self.ep_meta))
             for key, val in self.feature_params.items():
@@ -99,7 +105,8 @@ class HDF5Dataset:
     def get_meta(self):
         if self.mode is None:
             self._open('a')
-        return self.file.attrs['subject'], self.file.attrs['ep_group'], self.file.attrs['y'].astype('U')
+        return self.file.attrs['subject'], self.file.attrs['ep_group'], \
+               self.file.attrs['y'].astype('U'), self.file.attrs['fs']
 
     def exists(self):
         if not self.filename.exists():
@@ -125,7 +132,7 @@ class HDF5Dataset:
 
 def init_hdf5_db(db_filename):
     db = HDF5Dataset(db_filename)
-    subj_ind, ep_ind, y = db.get_meta()
+    subj_ind, ep_ind, y, fs = db.get_meta()
     le = LabelEncoder()
     y = le.fit_transform(y)
-    return db, y, subj_ind, ep_ind, le
+    return db, y, subj_ind, ep_ind, le, fs
