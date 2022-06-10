@@ -18,7 +18,7 @@ class ClassifierInterface(ABC):
         raise NotImplementedError
 
 
-class BaseNet(ClassifierInterface):
+class TFBaseNet(ClassifierInterface):
 
     def __init__(self, input_shape, output_shape):
         self._input_shape = input_shape

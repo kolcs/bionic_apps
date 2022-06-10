@@ -3,7 +3,7 @@ from enum import Enum, auto
 import tensorflow as tf
 from tensorflow import keras
 
-from .interface import BaseNet
+from .interface import TFBaseNet
 
 
 # CNNType = Enum('CNNType', 'CNN QNet EEGNet')
@@ -15,7 +15,7 @@ class CNNType(Enum):
     PCNN = auto()
 
 
-class CNN(BaseNet):
+class CNN(TFBaseNet):
 
     def __init__(self, net_type, input_shape, classes, weights="imagenet"):
         self._net_type = net_type
@@ -42,7 +42,7 @@ class CNN(BaseNet):
 
 
 #  https://github.com/vlawhern/arl-eegmodels
-class EEGNet(BaseNet):
+class EEGNet(TFBaseNet):
 
     def __init__(self, input_shape, classes, dropoutRate=0.5, kernLength=.5, F1=8,
                  D=2, F2=16, norm_rate=0.25, dropoutType='Dropout'):
@@ -103,7 +103,7 @@ class EEGNet(BaseNet):
         return input_tensor, softmax
 
 
-class QNet(BaseNet):
+class QNet(TFBaseNet):
 
     def __init__(self, net_type, input_shape, classes, weights="imagenet"):
         self._net_type = net_type
@@ -283,7 +283,7 @@ class QNet(BaseNet):
         )
 
 
-class PCNN(BaseNet):
+class PCNN(TFBaseNet):
 
     def __init__(self, net_type, input_shape, classes, weights=None):
         self._net_type = net_type

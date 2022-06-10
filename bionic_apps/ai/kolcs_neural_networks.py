@@ -3,7 +3,7 @@ from enum import Enum, auto
 import tensorflow as tf
 from tensorflow import keras
 
-from ..ai.interface import BaseNet
+from ..ai.interface import TFBaseNet
 
 
 class VggType(Enum):
@@ -11,7 +11,7 @@ class VggType(Enum):
     VGG19 = auto()
 
 
-class VGG(BaseNet):
+class VGG(TFBaseNet):
 
     def __init__(self, net_type, input_shape, classes, weights="imagenet"):
         self._net_type = net_type
@@ -56,7 +56,7 @@ class DenseNetType(Enum):
     DN201 = auto()
 
 
-class DenseNet(BaseNet):
+class DenseNet(TFBaseNet):
 
     def __init__(self, net_type, input_shape, classes, weights="imagenet"):
         # tf.compat.v1.reset_default_graph()
@@ -94,7 +94,7 @@ class DenseNet(BaseNet):
         return input_tensor, x
 
 
-class CascadeConvRecNet(BaseNet):  # https://github.com/Kearlay/research/blob/master/py/eeg_main.py
+class CascadeConvRecNet(TFBaseNet):  # https://github.com/Kearlay/research/blob/master/py/eeg_main.py
 
     def __init__(self, input_shape, classes, conv_2d_filters=None, lstm_layers=2):
         if conv_2d_filters is None:
@@ -141,7 +141,7 @@ class CascadeConvRecNet(BaseNet):  # https://github.com/Kearlay/research/blob/ma
         return input_tensor, outputs
 
 
-class BasicNet(BaseNet):
+class BasicNet(TFBaseNet):
 
     def __init__(self, input_shape, classes, resize_shape=(64, 64), resize_method='bilinear'):
         self._resize_shape = resize_shape
