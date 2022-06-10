@@ -13,6 +13,7 @@ class HDF5Dataset:
             feature_params = {}
 
         self.filename = Path(filename)
+        self.filename.parent.mkdir(parents=True, exist_ok=True)
 
         self.mode = None
         self.file = None
