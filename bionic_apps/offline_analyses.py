@@ -51,14 +51,16 @@ def train_test_subject_data(db, subj_ind, classifier_type,
 
         if save_classifiers:
             if isinstance(clf, TFBaseNet):
-                raise NotImplementedError()
+                save_path = SAVE_PATH.joinpath('tensorflow', f'clf{i}.h5')
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                clf.save(save_path)
             elif isinstance(clf, (BaseEstimator, Pipeline, ClassifierMixin)):
                 save_path = SAVE_PATH.joinpath('sklearn', f'clf{i}.pkl')
                 save_path.parent.mkdir(parents=True, exist_ok=True)
                 save_pickle_data(save_path, clf)
-                saved_clf_names.append(save_path)
             else:
                 raise NotImplementedError()
+            saved_clf_names.append(save_path)
 
     print(f"Accuracy scores for k-fold crossvalidation: {cross_acc}\n")
     print(f"Avg accuracy: {np.mean(cross_acc):.4f}   +/- {np.std(cross_acc):.4f}")

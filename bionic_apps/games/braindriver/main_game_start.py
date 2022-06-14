@@ -116,7 +116,10 @@ def start_brain_driver_control_system(feature_type, classifier_type,
     if use_best_clf:
         best = np.argmax(cross_acc)
         file = clf_filenames[best]
-        classifier = load_pickle_data(file)
+        if Path(file).suffix == '.h5':
+            classifier = keras.models.load_model(file)
+        else:
+            classifier = load_pickle_data(file)
     else:
         try:
             epochs = classifier_kwargs.pop('epochs')
