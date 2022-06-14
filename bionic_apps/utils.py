@@ -194,3 +194,7 @@ def _create_binary_label(label):
     if label != REST:
         label = CALM if CALM in label else ACTIVE
     return label
+
+
+def mask_to_ind(mask):
+    return np.arange(len(mask))[mask]

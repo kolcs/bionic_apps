@@ -90,3 +90,9 @@ class TFBaseNet(ClassifierInterface):
         filename = dirname.joinpath(f'{filename}.txt')
         with open(filename, 'w') as fh:
             self._model.summary(print_fn=lambda x: fh.write(x + '\n'))
+
+    def save(self, filename):
+        self._model.save(filename)
+
+    # def load_model(self, filename):
+    #     self._model = keras.models.load_model(filename)

@@ -1,6 +1,8 @@
 import time
+from pathlib import Path
 from warnings import warn, simplefilter
 
+import keras.models
 import numpy as np
 
 from bionic_apps.ai import ClassifierType, init_classifier
@@ -14,10 +16,10 @@ from bionic_apps.games.braindriver.logger import GameLogger
 from bionic_apps.games.braindriver.opponents import create_opponents
 from bionic_apps.handlers.gui import select_files_in_explorer
 from bionic_apps.handlers.hdf5 import HDF5Dataset, init_hdf5_db
-from bionic_apps.offline_analyses import train_test_data
+from bionic_apps.offline_analyses import train_test_subject_data
 from bionic_apps.preprocess.dataset_generation import generate_subject_data
 from bionic_apps.preprocess.io import DataLoader
-from bionic_apps.utils import init_base_config, load_pickle_data, is_platform, save_pickle_data
+from bionic_apps.utils import init_base_config, load_pickle_data, is_platform, save_pickle_data, mask_to_ind
 from bionic_apps.validations import validate_feature_classifier_pair
 
 CMD_IN = 1.5  # sec
@@ -101,16 +103,16 @@ def start_brain_driver_control_system(feature_type, classifier_type,
     else:
         artifact_filter = load_pickle_data(SAVE_PATH.joinpath(AR_FILTER))
 
-    db, y_all, subj_ind, ep_ind, le, fs = init_hdf5_db(SAVE_PATH.joinpath(DB_FILENAME))
+    db, y_all, all_subj, ep_ind, le, fs = init_hdf5_db(SAVE_PATH.joinpath(DB_FILENAME))
 
-    x = db.get_data(subj_ind == SUBJ)
-    y = y_all[subj_ind == SUBJ]
-    groups = ep_ind[subj_ind == SUBJ]
+    subj_ind = mask_to_ind(all_subj == SUBJ)
+    x = db.get_data(subj_ind)
+    y = y_all[subj_ind]
 
-    cross_acc, clf_filenames = train_test_data(classifier_type, x, y, groups=groups, lab_enc=le,
-                                               n_splits=5, shuffle=True, save_classifiers=True,
-                                               **classifier_kwargs)
-
+    cross_acc, clf_filenames = train_test_subject_data(db, subj_ind, classifier_type,
+                                                       n_splits=5, shuffle=True,
+                                                       save_classifiers=True, label_encoder=le,
+                                                       **classifier_kwargs)
     if use_best_clf:
         best = np.argmax(cross_acc)
         file = clf_filenames[best]

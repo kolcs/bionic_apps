@@ -1,42 +1,52 @@
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import LabelEncoder
 
 from .ai.classifier import test_classifier, init_classifier, ClassifierType
 from .ai.interface import TFBaseNet
 from .config import SAVE_PATH
 from .databases import EEG_Databases
 from .feature_extraction import FeatureType
-from .handlers import init_hdf5_db, ResultHandler
+from .handlers import ResultHandler, HDF5Dataset
 from .model_selection import BalancedKFold
 from .preprocess import generate_eeg_db
 from .preprocess.io import SubjectHandle
-from .utils import save_pickle_data
+from .utils import save_pickle_data, mask_to_ind
 from .validations import validate_feature_classifier_pair
 
 DB_FILE = SAVE_PATH.joinpath('database.hdf5')
 
 
-def train_test_data(classifier_type, x, y, groups, lab_enc,
-                    *, n_splits=5, shuffle=False,
-                    epochs=None, save_classifiers=False, **classifier_kwargs):
+def train_test_subject_data(db, subj_ind, classifier_type,
+                            *, n_splits=5, shuffle=False,
+                            epochs=None, save_classifiers=False,
+                            label_encoder=None, **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
+
+    x = db.get_data(subj_ind)
+    y = db.get_meta('y')[subj_ind]
+    ep_ind = db.get_meta('ep_group')[subj_ind]
+    if label_encoder is None:
+        label_encoder = LabelEncoder().fit(y)
+    y = label_encoder.transform(y)
+
     cross_acc = list()
     saved_clf_names = list()
-    for i, (train, test) in enumerate(kfold.split(y=y, groups=groups)):
+    for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
         x_train = x[train]
         y_train = y[train]
         x_test = x[test]
         y_test = y[test]
 
-        clf = init_classifier(classifier_type, x[0].shape, len(lab_enc.classes_), **classifier_kwargs)
+        clf = init_classifier(classifier_type, x[0].shape, len(label_encoder.classes_), **classifier_kwargs)
 
         if epochs is None:
             clf.fit(x_train, y_train)
         else:
             clf.fit(x_train, y_train, epochs=epochs)
 
-        acc = test_classifier(clf, x_test, y_test, lab_enc)
+        acc = test_classifier(clf, x_test, y_test, label_encoder)
         cross_acc.append(acc)
 
         if save_classifiers:
@@ -62,17 +72,15 @@ def make_within_subject_classification(db_filename, classifier_type, classifier_
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
-    db, y_all, subj_ind, ep_ind, le, _ = init_hdf5_db(db_filename)
+    # db, y_all, subj_ind, ep_ind, le, _ = init_hdf5_db(db_filename)
+    db = HDF5Dataset(db_filename)
+    all_subj = db.get_meta('subj')
 
-    for subj in np.unique(subj_ind):
+    for subj in np.unique(all_subj):
         print(f'Subject{subj}')
-
-        x = db.get_data(subj_ind == subj)
-        y = y_all[subj_ind == subj]
-        groups = ep_ind[subj_ind == subj]
-
-        cross_acc = train_test_data(classifier_type, x, y, groups=groups, lab_enc=le,
-                                    n_splits=n_splits, shuffle=True, **classifier_kwargs)
+        subj_ind = mask_to_ind(subj == all_subj)
+        cross_acc = train_test_subject_data(db, subj_ind, classifier_type, n_splits=n_splits,
+                                            shuffle=True, **classifier_kwargs)
 
         if res_handler is not None:
             res_handler.add({'Subject': [f'Subject{subj}'],

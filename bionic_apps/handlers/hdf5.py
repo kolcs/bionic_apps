@@ -103,11 +103,16 @@ class HDF5Dataset:
             ind = np.arange(len(ind))[ind]
         return self.file['x'][ind]
 
-    def get_meta(self):
+    def get_meta(self, key='all'):
         if self.mode is None:
             self._open('a')
-        return self.file.attrs['subject'], self.file.attrs['ep_group'], \
-               self.file.attrs['y'].astype('U'), self.file.attrs['fs']
+        if key == 'all':
+            return self.file.attrs['subject'], self.file.attrs['ep_group'], \
+                   self.file.attrs['y'].astype('U'), self.file.attrs['fs']
+        elif key == 'y':
+            return self.file.attrs['y'].astype('U')
+        else:
+            return self.file.attrs[key]
 
     def exists(self):
         if not self.filename.exists():
