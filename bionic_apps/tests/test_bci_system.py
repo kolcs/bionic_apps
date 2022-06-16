@@ -66,6 +66,7 @@ class TestBrainDriverBci(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cleanup_fastload_data()
         cls._path = cls._path.joinpath('Game', 'paradigmD', 'subject2')
         cls._live_eeg_emulator = Process(target=send_online_data,
                                          kwargs=dict(filenames=str(cls._path.joinpath('game01.vhdr')), get_labels=False,
@@ -84,7 +85,8 @@ class TestBrainDriverBci(unittest.TestCase):
                                           use_game_logger=False, make_opponents=False,
                                           use_best_clf=use_best_clf,
                                           feature_kwargs=feature_kwargs,
-                                          classifier_kwargs=classifier_kwargs)
+                                          classifier_kwargs=classifier_kwargs,
+                                          do_artefact_rejection=False)
 
     def test_play_game_multi_svm_best_clf(self):
         feature_type = FeatureType.FFT_RANGE
