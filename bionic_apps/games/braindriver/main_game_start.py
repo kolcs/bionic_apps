@@ -161,6 +161,7 @@ def start_brain_driver_control_system(feature_type, classifier_type,
         timestamp, eeg = dsp.get_eeg_window_in_chunk(window_length)
         if timestamp is not None:
             eeg = np.delete(eeg, -1, axis=0)  # removing last unwanted channel
+            eeg = np.array([eeg])
 
             if do_artefact_rejection:
                 eeg = artifact_filter.online_filter(eeg)
