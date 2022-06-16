@@ -114,6 +114,8 @@ def start_brain_driver_control_system(feature_type, classifier_type,
                                                        n_splits=5, shuffle=True,
                                                        save_classifiers=True, label_encoder=le,
                                                        **classifier_kwargs)
+    db.close()
+
     if use_best_clf:
         best = np.argmax(cross_acc)
         file = clf_filenames[best]

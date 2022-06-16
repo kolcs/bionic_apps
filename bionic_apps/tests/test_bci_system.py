@@ -108,12 +108,16 @@ class TestBrainDriverBci(unittest.TestCase):
     def test_play_game_eeg_net_best_clf(self):
         feature_type = FeatureType.RAW
         classifier_type = ClassifierType.EEG_NET
-        self._test_play_game(feature_type, classifier_type)
+        classifier_kwargs = dict(epochs=1)
+        self._test_play_game(feature_type, classifier_type,
+                             classifier_kwargs=classifier_kwargs)
 
     def test_play_game_eeg_net(self):
         feature_type = FeatureType.RAW
         classifier_type = ClassifierType.EEG_NET
-        self._test_play_game(feature_type, classifier_type, use_best_clf=False)
+        classifier_kwargs = dict(epochs=1)
+        self._test_play_game(feature_type, classifier_type, use_best_clf=False,
+                             classifier_kwargs=classifier_kwargs)
 
 
 if __name__ == '__main__':
