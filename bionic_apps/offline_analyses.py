@@ -14,6 +14,8 @@ from .preprocess import generate_eeg_db
 from .preprocess.io import SubjectHandle
 from .utils import save_pickle_data, mask_to_ind
 from .validations import validate_feature_classifier_pair
+from .handlers.tf import get_tf_dataset
+from tensorflow import data as tf_data
 
 DB_FILE = SAVE_PATH.joinpath('database.hdf5')
 
@@ -21,10 +23,10 @@ DB_FILE = SAVE_PATH.joinpath('database.hdf5')
 def train_test_subject_data(db, subj_ind, classifier_type,
                             *, n_splits=5, shuffle=False,
                             epochs=None, save_classifiers=False,
-                            label_encoder=None, **classifier_kwargs):
+                            label_encoder=None, batch_size=32,
+                            **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
 
-    x = db.get_data(subj_ind)
     y = db.get_meta('y')[subj_ind]
     ep_ind = db.get_meta('ep_group')[subj_ind]
     if label_encoder is None:
@@ -34,17 +36,23 @@ def train_test_subject_data(db, subj_ind, classifier_type,
     cross_acc = list()
     saved_clf_names = list()
     for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
-        x_train = x[train]
         y_train = y[train]
-        x_test = x[test]
         y_test = y[test]
 
-        clf = init_classifier(classifier_type, x[0].shape, len(label_encoder.classes_), **classifier_kwargs)
+        clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
+                              **classifier_kwargs)
 
         if epochs is None:
+            x = db.get_data(subj_ind)
+            x_train = x[train]
+            x_test = x[test]
             clf.fit(x_train, y_train)
         else:
-            clf.fit(x_train, y_train, epochs=epochs)
+            tf_dataset = get_tf_dataset(db, y, subj_ind[train]).batch(batch_size)
+            tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+            clf.fit(tf_dataset, epochs=epochs)
+            x_test = db.get_data(subj_ind[test])
+            clf.evaluate(x_test, y_test)
 
         acc = test_classifier(clf, x_test, y_test, label_encoder)
         cross_acc.append(acc)

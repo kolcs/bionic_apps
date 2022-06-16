@@ -39,6 +39,7 @@ F_KWARGS = dict(
 CLF_TYPE = ClassifierType.VOTING_SVM
 CLF_KWARGS = dict(
     # C=309.27089776753826, gamma=0.3020223611011116
+    # epochs=150, batch_size=32
 )
 
 
