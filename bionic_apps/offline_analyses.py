@@ -20,10 +20,31 @@ from .validations import validate_feature_classifier_pair
 DB_FILE = SAVE_PATH.joinpath('database.hdf5')
 
 
+def _get_train_val_ind(validation_split, train_groups):
+    groups = np.unique(train_groups)
+    val_num = int(groups.size * validation_split)
+    if validation_split > 0 and val_num == 0:
+        val_num = 1
+    np.random.shuffle(groups)
+    val_mask = np.in1d(train_groups, groups[:val_num])
+    val_ind = mask_to_ind(val_mask)
+    tr_ind = mask_to_ind(~val_mask)
+    return tr_ind, val_ind
+
+
+def _get_balanced_train_val_ind(validation_split, train_labels, train_groups):
+    assert validation_split > 0, 'Validation split must be greater than 0!'
+    min_split = min([len(np.unique(train_groups[label == train_labels])) for label in np.unique(train_labels)])
+    n_splits = min(int(1 / validation_split), min_split)
+    tr_ind, val_ind = next(BalancedKFold(n_splits, shuffle=True).split(y=train_labels, groups=train_groups))
+    return tr_ind, val_ind
+
+
 def train_test_subject_data(db, subj_ind, classifier_type,
                             *, n_splits=5, shuffle=False,
                             epochs=None, save_classifiers=False,
                             label_encoder=None, batch_size=32,
+                            validation_split=.0,
                             **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
 
@@ -36,6 +57,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
     cross_acc = list()
     saved_clf_names = list()
     for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
+        y_train = y[train]
         y_test = y[test]
 
         clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
@@ -45,13 +67,20 @@ def train_test_subject_data(db, subj_ind, classifier_type,
             x = db.get_data(subj_ind)
             x_train = x[train]
             x_test = x[test]
-            y_train = y[train]
             clf.fit(x_train, y_train)
         else:
             y = label_encoder.transform(db.get_meta('y'))
-            tf_dataset = get_tf_dataset(db, y, subj_ind[train]).batch(batch_size)
-            tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-            clf.fit(tf_dataset, epochs=epochs)
+            if validation_split > 0:
+                tr, val = _get_balanced_train_val_ind(validation_split, y_train, ep_ind[train])
+                train_tf_ds = get_tf_dataset(db, y, subj_ind[train[tr]]).batch(batch_size)
+                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+                val_tf_ds = get_tf_dataset(db, y, subj_ind[train[val]]).batch(batch_size)
+                val_tf_ds = val_tf_ds.cache()
+                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds)
+            else:
+                tf_dataset = get_tf_dataset(db, y, subj_ind[train]).batch(batch_size)
+                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+                clf.fit(tf_dataset, epochs=epochs)
             x_test = db.get_data(subj_ind[test])
             clf.evaluate(x_test, y_test)
 
@@ -158,6 +187,7 @@ def test_eegdb_within_subject(
 def make_cross_subject_classification(db_filename, classifier_type,
                                       leave_out_n_subjects=10, res_handler=None,
                                       save_res=True, epochs=None, batch_size=32,
+                                      validation_split=.0,
                                       **classifier_kwargs):
     db = HDF5Dataset(db_filename)
     all_subj = db.get_meta('subject')
@@ -165,7 +195,6 @@ def make_cross_subject_classification(db_filename, classifier_type,
     label_encoder = LabelEncoder().fit(y)
     y = label_encoder.transform(y)
 
-    # todo: validation - subj / epoch level?, leave_out_n == 1 ?
     for train_ind, test_ind in LeavePSubjectGroupsOutSequentially(leave_out_n_subjects).split(groups=all_subj):
         clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
                               len(label_encoder.classes_), **classifier_kwargs)
@@ -175,9 +204,23 @@ def make_cross_subject_classification(db_filename, classifier_type,
             y_train = y[train_ind]
             clf.fit(x_train, y_train)
         else:
-            tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
-            tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-            clf.fit(tf_dataset, epochs=epochs)
+            if validation_split > 0:
+                # # subject level
+                # tr, val = _get_train_val_ind(validation_split, all_subj[train_ind])
+
+                # epoch level
+                tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
+                                                      db.get_meta('ep_group')[train_ind])
+
+                train_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[tr]]).batch(batch_size)
+                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+                val_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[val]]).batch(batch_size)
+                val_tf_ds = val_tf_ds.cache()
+                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds)
+            else:
+                tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
+                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+                clf.fit(tf_dataset, epochs=epochs)
 
         # test subjects individually - check network generalization capability
         for subj in np.unique(all_subj[test_ind]):
