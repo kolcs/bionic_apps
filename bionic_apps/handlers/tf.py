@@ -14,7 +14,7 @@ def get_tf_dataset(db, y, indexes):
     db : HDF5Dataset
         HDF5 database from where data can be loaded.
     y : ndarray
-        Labels converted to integer numbers
+        Labels converted to integer numbers corresponding to the whole dataset.
     indexes : ndarray or list
         Iterable index order, which specifies the loadin order of the data
 
@@ -23,6 +23,10 @@ def get_tf_dataset(db, y, indexes):
     tf.data.Dataset
         Tensorflow Dataset
     """
+    assert len(y) > max(indexes), \
+        'Some indexes are higher than the length of the y variable. ' \
+        'This error may occur when the indexes are correspond to the whole database ' \
+        'and the y are filtered to a subject.'
 
     def generate_data():
         for i in indexes:

@@ -49,6 +49,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
             x_test = x[test]
             clf.fit(x_train, y_train)
         else:
+            y = label_encoder.transform(db.get_meta('y'))
             tf_dataset = get_tf_dataset(db, y, subj_ind[train]).batch(batch_size)
             tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
             clf.fit(tf_dataset, epochs=epochs)
