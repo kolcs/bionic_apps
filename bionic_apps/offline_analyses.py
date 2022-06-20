@@ -1,6 +1,5 @@
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.model_selection import LeavePGroupsOut
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import LabelEncoder
 from tensorflow import data as tf_data
@@ -12,7 +11,7 @@ from .databases import EEG_Databases
 from .feature_extraction import FeatureType
 from .handlers import ResultHandler, HDF5Dataset
 from .handlers.tf import get_tf_dataset
-from .model_selection import BalancedKFold
+from .model_selection import BalancedKFold, LeavePSubjectGroupsOutSequentially
 from .preprocess import generate_eeg_db
 from .preprocess.io import SubjectHandle
 from .utils import save_pickle_data, mask_to_ind
@@ -28,16 +27,15 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                             **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
 
-    y = db.get_meta('y')[subj_ind]
+    y = db.get_meta('y')
     ep_ind = db.get_meta('ep_group')[subj_ind]
     if label_encoder is None:
         label_encoder = LabelEncoder().fit(y)
-    y = label_encoder.transform(y)
+    y = label_encoder.transform(y[subj_ind])
 
     cross_acc = list()
     saved_clf_names = list()
     for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
-        y_train = y[train]
         y_test = y[test]
 
         clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
@@ -47,6 +45,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
             x = db.get_data(subj_ind)
             x_train = x[train]
             x_test = x[test]
+            y_train = y[train]
             clf.fit(x_train, y_train)
         else:
             y = label_encoder.transform(db.get_meta('y'))
@@ -101,9 +100,9 @@ def make_within_subject_classification(db_filename, classifier_type, classifier_
             if save_res:
                 res_handler.save()
 
+    db.close()
     if res_handler is not None:
         res_handler.print_db_res()
-    db.close()
 
 
 def test_eegdb_within_subject(
@@ -167,7 +166,7 @@ def make_cross_subject_classification(db_filename, classifier_type,
     y = label_encoder.transform(y)
 
     # todo: validation - subj / epoch level?, leave_out_n == 1 ?
-    for train_ind, test_ind in LeavePGroupsOut(leave_out_n_subjects).split(np.arange(len(all_subj)), y, all_subj):
+    for train_ind, test_ind in LeavePSubjectGroupsOutSequentially(leave_out_n_subjects).split(groups=all_subj):
         clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
                               len(label_encoder.classes_), **classifier_kwargs)
 
@@ -196,9 +195,9 @@ def make_cross_subject_classification(db_filename, classifier_type,
                 if save_res:
                     res_handler.save()
 
-    if res_handler is not None:
-        res_handler.print_db_res()
     db.close()
+    if res_handler is not None:
+        res_handler.print_db_res(col='Accuracy')
 
 
 def test_eegdb_cross_subject(

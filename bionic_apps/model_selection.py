@@ -42,3 +42,24 @@ class BalancedKFold:
         for train, test in ps.split():
             assert not any(item in train for item in test), 'Splitting error.'
             yield train, test
+
+
+class LeavePSubjectGroupsOutSequentially:
+
+    def __init__(self, n_subjects=10, add_rest=True):
+        self._n_subj = n_subjects
+        self._add_rest = add_rest
+
+    def split(self, x=None, y=None, groups=None):
+        assert groups is not None, 'groups must be defined!'
+        subjs = np.unique(groups)
+        from_ = np.arange(0, len(subjs), self._n_subj)
+        to_ = np.arange(self._n_subj, len(subjs), self._n_subj)
+        test_subjs = [np.array(subjs[f:t]) for f, t in zip(from_, to_)]
+        if self._add_rest:
+            test_subjs.append(subjs[to_[-1]:])
+
+        inds = np.arange(groups.size)
+        for leave_out in test_subjs:
+            test_mask = np.in1d(groups, leave_out)
+            yield inds[~test_mask], inds[test_mask]
