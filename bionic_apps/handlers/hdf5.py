@@ -103,7 +103,7 @@ class HDF5Dataset:
             ind = np.arange(len(ind))[ind]
         return self.file['x'][ind]
 
-    def get_meta(self, key='all'):
+    def _get_meta(self, key='all'):
         if self.mode is None:
             self._open('a')
         if key == 'all':
@@ -113,6 +113,18 @@ class HDF5Dataset:
             return self.file.attrs['y'].astype('U')
         else:
             return self.file.attrs[key]
+
+    def get_subject_group(self):
+        return self._get_meta('subject')
+
+    def get_epoch_group(self):
+        return self._get_meta('ep_group')
+
+    def get_y(self):
+        return self._get_meta('y')
+
+    def get_fs(self):
+        return self._get_meta('fs')
 
     def exists(self):
         if not self.filename.exists():
@@ -129,7 +141,13 @@ class HDF5Dataset:
             if key not in self.file.attrs:
                 self.close()
                 return False
-            if self.file.attrs[key] != val:
+            if key == 'n_subjects':
+                if self.file.attrs[key] == 'all':
+                    pass
+                elif self.file.attrs[key] != val:
+                    self.close()
+                    return False
+            elif self.file.attrs[key] != val:
                 self.close()
                 return False
         self.close()
@@ -138,7 +156,7 @@ class HDF5Dataset:
 
 def init_hdf5_db(db_filename):
     db = HDF5Dataset(db_filename)
-    subj_ind, ep_ind, y, fs = db.get_meta()
+    subj_ind, ep_ind, y, fs = db._get_meta()
     le = LabelEncoder()
     y = le.fit_transform(y)
     return db, y, subj_ind, ep_ind, le, fs

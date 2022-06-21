@@ -48,8 +48,8 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                             **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
 
-    y = db.get_meta('y')
-    ep_ind = db.get_meta('ep_group')[subj_ind]
+    y = db.get_y()
+    ep_ind = db.get_epoch_group()[subj_ind]
     if label_encoder is None:
         label_encoder = LabelEncoder().fit(y)
     y = label_encoder.transform(y[subj_ind])
@@ -69,7 +69,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
             x_test = x[test]
             clf.fit(x_train, y_train)
         else:
-            y = label_encoder.transform(db.get_meta('y'))
+            y = label_encoder.transform(db.get_y())
             if validation_split > 0:
                 tr, val = _get_balanced_train_val_ind(validation_split, y_train, ep_ind[train])
                 train_tf_ds = get_tf_dataset(db, y, subj_ind[train[tr]]).batch(batch_size)
@@ -113,7 +113,7 @@ def make_within_subject_classification(db_filename, classifier_type, classifier_
         classifier_kwargs = {}
 
     db = HDF5Dataset(db_filename)
-    all_subj = db.get_meta('subject')
+    all_subj = db.get_subject_group()
 
     for subj in np.unique(all_subj):
         print(f'Subject{subj}')
@@ -151,7 +151,7 @@ def test_eegdb_within_subject(
         # ch_mode='all', ep_mode='distinct',
         db_file=DB_FILE, log_file='out.csv', base_dir='.',
         save_res=True,
-        fast_load=True,
+        fast_load=True, n_subjects='all'
 ):
     if classifier_kwargs is None:
         classifier_kwargs = {}
@@ -176,7 +176,8 @@ def test_eegdb_within_subject(
                     do_artefact_rejection=do_artefact_rejection,
                     balance_data=balance_data,
                     subject_handle=subject_handle,
-                    base_dir=base_dir, fast_load=fast_load)
+                    base_dir=base_dir, fast_load=fast_load,
+                    n_subjects=n_subjects)
 
     make_within_subject_classification(db_file, classifier_type,
                                        classifier_kwargs=classifier_kwargs,
@@ -190,8 +191,8 @@ def make_cross_subject_classification(db_filename, classifier_type,
                                       validation_split=.0,
                                       **classifier_kwargs):
     db = HDF5Dataset(db_filename)
-    all_subj = db.get_meta('subject')
-    y = db.get_meta('y')
+    all_subj = db.get_subject_group()
+    y = db.get_y()
     label_encoder = LabelEncoder().fit(y)
     y = label_encoder.transform(y)
 
@@ -210,7 +211,7 @@ def make_cross_subject_classification(db_filename, classifier_type,
 
                 # epoch level
                 tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
-                                                      db.get_meta('ep_group')[train_ind])
+                                                      db.get_epoch_group()[train_ind])
 
                 train_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[tr]]).batch(batch_size)
                 train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
@@ -260,6 +261,7 @@ def test_eegdb_cross_subject(
         db_file=DB_FILE, log_file='out.csv', base_dir='.',
         save_res=True,
         fast_load=True,
+        n_subjects='all'
 ):
     if classifier_kwargs is None:
         classifier_kwargs = {}
@@ -283,7 +285,8 @@ def test_eegdb_cross_subject(
                     do_artefact_rejection=do_artefact_rejection,
                     balance_data=balance_data,
                     subject_handle=subject_handle,
-                    base_dir=base_dir, fast_load=fast_load)
+                    base_dir=base_dir, fast_load=fast_load,
+                    n_subjects=n_subjects)
 
     make_cross_subject_classification(db_file, classifier_type,
                                       leave_out_n_subjects=leave_out_n_subjects,
