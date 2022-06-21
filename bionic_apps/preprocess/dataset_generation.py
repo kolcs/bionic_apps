@@ -75,7 +75,8 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     do_artefact_rejection=True,
                     balance_data=True,
                     subject_handle=SubjectHandle.INDEPENDENT_DAYS,
-                    base_dir='.', fast_load=True):
+                    base_dir='.', fast_load=True,
+                    n_subjects='all'):
     if filter_params is None:
         filter_params = {}
     if feature_kwargs is None:
@@ -94,9 +95,14 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
 
     database = HDF5Dataset(db_filename, feature_params)
 
-    # TODO: handle error
     if not (database.exists() and fast_load):
-        for subj in loader.get_subject_list():
+        if n_subjects == 'all':
+            subject_list = loader.get_subject_list()
+        else:
+            assert isinstance(n_subjects, int), 'n_subject must be an integer'
+            subject_list = loader.get_subject_list()[:n_subjects]
+
+        for subj in subject_list:
             files = loader.get_filenames_for_subject(subj)
             artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
             subj_data = generate_subject_data(
