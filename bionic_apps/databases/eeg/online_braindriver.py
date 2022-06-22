@@ -29,7 +29,7 @@ class GameDB:
             BOTH_LEGS: ControlCommand.HEADLIGHT
         }
 
-        self.TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = []
 
@@ -65,7 +65,7 @@ class Game_ParadigmC:
             BOTH_LEGS: ControlCommand.HEADLIGHT
         }
 
-        self.TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = []
 
@@ -94,7 +94,7 @@ class ParadigmC:
             BOTH_LEGS: ControlCommand.HEADLIGHT
         }
 
-        self.TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = [1]
 
@@ -124,7 +124,7 @@ class Game_ParadigmD:
             CALM + '2': 11
         }
 
-        self.TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = []
 
@@ -154,7 +154,7 @@ class PilotDB_ParadigmA:
             LEFT_LEG: 11
         }
 
-        self.TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = []
 
@@ -184,7 +184,7 @@ class PilotDB_ParadigmB:
             BOTH_LEGS: 11
         }
 
-        self.TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = []
 
@@ -223,7 +223,7 @@ class TTK_DB:
             LEFT_LEG: 11
         }
 
-        self.TRIGGER_EVENT_ID = {'Stimulus/S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
 
 class EmotivParC:
@@ -244,6 +244,6 @@ class EmotivParC:
             BOTH_LEGS: 11
         }
 
-        self.TRIGGER_EVENT_ID = {'S ' + (2 - len(str(i + 1))) * ' ' + str(i + 1): i + 1 for i in range(16)}
+        self.TRIGGER_EVENT_ID = {f'S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = [1, 2, 3]

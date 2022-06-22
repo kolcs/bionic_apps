@@ -12,12 +12,14 @@ UDP_IP = '127.0.0.1'
 UDP_PORT = 8053
 BUFFER_SIZE = 36
 
+TRIGGER_FORMAT = 'S {:>2}'
+
 
 class Trigger(Enum):
-    SESSION_START = 'S 16'
-    SESSION_END = 'S 12'
-    ACTIVE = 'S  5'
-    CALM = 'S  7'
+    SESSION_START = TRIGGER_FORMAT.format(16)
+    SESSION_END = TRIGGER_FORMAT.format(12)
+    ACTIVE = TRIGGER_FORMAT.format(5)
+    CALM = TRIGGER_FORMAT.format(7)
 
 
 PLAYER = 'player'
@@ -30,24 +32,35 @@ class STATE(Enum):
     RUN = 2
 
 
+def _build_cmd_trigger_conv(data_loader):
+    if data_loader is None:
+        return None
+    cmd_trigger_conv = dict()
+    trigger_task = data_loader.get_trigger_task_conv()
+    for task, command in data_loader.get_command_converter().items():
+        cmd_trigger_conv[command] = TRIGGER_FORMAT.format(trigger_task[task])
+    return cmd_trigger_conv
+
+
 class GameLogger(Thread):
 
-    def __init__(self, bv_rcc=None, player=1, daemon=True):
+    def __init__(self, bv_rcc=None, player=1, daemon=True, data_loader=None):
         Thread.__init__(self, daemon=daemon)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.bind((UDP_IP, UDP_PORT))
         self._player = player
         self._bv_rcc = bv_rcc
         self._game_state = STATE.INIT
-        self._prev_state = int()
+        self._prev_state = ''
         self._command_reached = bool()
         self._players_state = tuple()
         # self._players_prev_state = tuple()
+        self._cmd_trigger_conv = _build_cmd_trigger_conv(data_loader)
         self._init_game()
 
     def _init_game(self):
         # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
-        self._prev_state = -1
+        self._prev_state = ''
         self._game_state = STATE.INIT
         self._command_reached = False
         self._players_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
@@ -111,6 +124,12 @@ class GameLogger(Thread):
             # else:
             #     print("Wrong command!")
 
+    def _log_track_changes(self):
+        if self._cmd_trigger_conv is not None:
+            exp_sig = self.get_expected_signal(self._player)
+            exp_cmd = ControlCommand(exp_sig)
+            self._log_exp_sig(self._cmd_trigger_conv[exp_cmd])
+
     def run(self):
         """ Thread function for self._player """
         while True:
@@ -124,8 +143,9 @@ class GameLogger(Thread):
 
                 # self._players_prev_state = self._players_state
                 self._players_state = unpack('ffifififi', data)
-                exp_sig = self.get_expected_signal(self._player)
+                # exp_sig = self.get_expected_signal(self._player)
                 # self._log_exp_sig(exp_sig)
+                self._log_track_changes()
 
             except socket.timeout:
                 self._log_exp_sig(Trigger.SESSION_END.value)
@@ -137,7 +157,8 @@ class GameLogger(Thread):
         self._sock.close()
 
 
-def setup_logger(logger_name, log_file='', log_dir='log/', verbose=True, log_to_stream=False):
+def setup_logger(logger_name, log_to_stream=True, log_file=None, log_dir='log/',
+                 verbose=True):
     """Logger creation function.
 
     This function creates a logger, which has a separated log file, where it will append the logs.
@@ -146,6 +167,8 @@ def setup_logger(logger_name, log_file='', log_dir='log/', verbose=True, log_to_
     ----------
     logger_name : str
         Name of logger.
+    log_to_stream : bool
+        Log info to the stream.
     log_file : str
         This string will be added to the filename. By default the filename contains
         the creation time and the .log extension
@@ -153,20 +176,20 @@ def setup_logger(logger_name, log_file='', log_dir='log/', verbose=True, log_to_
         The path where to save the .log files.
     verbose : bool
         The level of log. If true: info
-    log_to_stream : bool
-        Log info to the stream also.
 
     """
     level = logging.INFO if verbose else logging.WARNING
     Path(log_dir).mkdir(exist_ok=True)
     logger = logging.getLogger(logger_name)
     formatter = logging.Formatter('%(asctime)s : %(name)s %(levelname)s: %(message)s')
-    file_handler = logging.FileHandler(
-        log_dir + '{}_{}.log'.format(log_file, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'), mode='a'))
-    file_handler.setFormatter(formatter)
 
     logger.setLevel(level)
-    logger.addHandler(file_handler)
+
+    if log_file is not None:
+        file_handler = logging.FileHandler(
+            log_dir + '{}_{}.log'.format(log_file, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M'), mode='a'))
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
     if log_to_stream:
         stream_handler = logging.StreamHandler()
@@ -189,11 +212,3 @@ def log_info(logger_name, msg):
     """
     logger = logging.getLogger(logger_name)
     logger.info(msg)
-
-
-if __name__ == '__main__':
-    # rcc = RemoteControlClient()
-    # rcc.open_recorder()
-    # rcc.check_impedance()
-    logger = GameLogger(bv_rcc=None, daemon=False)
-    logger.start()

@@ -337,11 +337,9 @@ class DataLoader:
         self._validate_db_type()
         return subject in self._drop_subject
 
-    def _convert_task(self, record_number=None):
+    def get_trigger_task_conv(self):
         self._validate_db_type()
-        if record_number is None:
-            return self._db_type.TRIGGER_TASK_CONVERTER
-        return self._db_type.TRIGGER_CONV_REC_TO_TASK.get(record_number)
+        return self._db_type.TRIGGER_TASK_CONVERTER
 
     def get_command_converter(self):
         self._validate_db_type()

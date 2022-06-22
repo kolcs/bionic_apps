@@ -22,7 +22,7 @@ class GameControl(object):
         self._command_menu = cycle([ControlCommand.LEFT, ControlCommand.RIGHT, ControlCommand.HEADLIGHT])
         self._game_logger = game_logger
         if make_log:
-            setup_logger(LOGGER_NAME, log_file='game', log_to_stream=log_to_stream)
+            setup_logger(LOGGER_NAME, log_to_stream=log_to_stream)
 
     def _send_message(self, message):
         self.socket.sendto(message, (self.udp_ip, self.udp_port))
@@ -62,15 +62,15 @@ class GameControl(object):
         else:
             raise NotImplementedError('Command {} is not implemented'.format(command))
 
-        if self._log and self._game_logger is not None:
-            self._game_logger.log_toggle_switch(command)
-
     def control_game_with_2_opt(self, switch_cmd=False):
         if switch_cmd:
             cmd = next(self._command_menu)
         else:
             cmd = ControlCommand.STRAIGHT
         self.control_game(cmd)
+
+        if self._log and self._game_logger is not None:
+            self._game_logger.log_toggle_switch(cmd)
 
 
 def run_demo(make_log=False):

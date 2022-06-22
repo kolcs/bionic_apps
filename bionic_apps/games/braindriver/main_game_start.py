@@ -141,7 +141,7 @@ def start_brain_driver_control_system(feature_type, classifier_type,
         rcc = RemoteControlClient(print_received_messages=False)
         rcc.open_recorder()
         rcc.check_impedance()
-        game_log = GameLogger(bv_rcc=rcc)
+        game_log = GameLogger(bv_rcc=rcc, data_loader=loader)
         game_log.start()
 
     if make_opponents:
@@ -150,7 +150,7 @@ def start_brain_driver_control_system(feature_type, classifier_type,
     dsp = DSP(use_filter=len(filter_params) > 0, **filter_params)
     assert dsp.fs == fs, 'Sampling rate frequency must be equal for preprocessed and lsl data.'
 
-    controller = GameControl(make_log=True, log_to_stream=True, game_logger=game_log)
+    controller = GameControl(make_log=True, log_to_stream=True, game_logger=None)
     command_converter = loader.get_command_converter() if not make_binary_classification else None
 
     feature_extractor = get_feature_extractor(feature_type, fs, **feature_kwargs)
