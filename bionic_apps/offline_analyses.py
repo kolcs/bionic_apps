@@ -57,6 +57,8 @@ def train_test_subject_data(db, subj_ind, classifier_type,
     cross_acc = list()
     saved_clf_names = list()
     for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
+        if shuffle:
+            np.random.shuffle(train)
         y_train = y[train]
         y_test = y[test]
 
