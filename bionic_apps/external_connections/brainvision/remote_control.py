@@ -78,7 +78,7 @@ class RemoteControlClient(object):
         self._send_message('O')
 
     def view_data(self):
-        self._send_message('M')
+        self._send_message('M', APPLICATION_SATE, 1)
 
     def check_impedance(self):
         self._send_message('I', APPLICATION_SATE, 1)
