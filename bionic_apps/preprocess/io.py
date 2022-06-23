@@ -147,6 +147,26 @@ def get_epochs_from_raw_with_gui(epoch_tmin=0, epoch_tmax=4, baseline=(None, .1)
     return get_epochs_from_raw(raw, task_dict, epoch_tmin, epoch_tmax, baseline, event_id)
 
 
+def generate_mne_epoch(data, info):
+    """Generates mne.Epoch from 2D or 3D array.
+
+    Parameters
+    ----------
+    data : ndarray
+        EEG data. shape should be like (n_epoch, n_channel, n_time_points)
+        or (n_channel, n_time_points)
+    info : mne.Info
+        mne info object
+
+    Returns
+    -------
+    mne.Epochs
+    """
+    if len(data.shape) == 2:
+        data = np.expand_dims(data, 0)
+    return mne.EpochsArray(data, info)
+
+
 class SubjectHandle(Enum):
     INDEPENDENT_DAYS = 1
     BCI_COMP = 2
@@ -173,7 +193,6 @@ class DataLoader:
             - BCI_COMP: BCI competition setup, train and test sets are given.
         """
         self._base_dir = Path(init_base_config(base_config_path))
-        self.info = mne.Info()
 
         self._data_path = Path()
         self._db_type = None  # Physionet / TTK / ect...
@@ -287,26 +306,6 @@ class DataLoader:
     def use_giga(self, config_ver=-1):
         self._use_db(Giga(config_ver))
         return self
-
-    @property
-    def fs(self):
-        return self.info['sfreq']
-
-    def generate_mne_epoch(self, data):
-        """Generates mne.Epoch from 3D array.
-
-        Parameters
-        ----------
-        data : np.ndarray
-            EEG data. shape should be like (n_epoch, n_channel, n_time_points)
-
-        Returns
-        -------
-        mne.Epochs
-        """
-        if len(data.shape) == 2:
-            data = np.expand_dims(data, 0)
-        return mne.EpochsArray(data, self.info)
 
     def validate_make_binary_classification_use(self):
         self._validate_db_type()
