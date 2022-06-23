@@ -184,6 +184,13 @@ class PilotDB_ParadigmB:
             BOTH_LEGS: 11
         }
 
+        self.COMMAND_CONV = {
+            BOTH_HANDS: ControlCommand.STRAIGHT,
+            RIGHT_HAND: ControlCommand.RIGHT,
+            LEFT_HAND: ControlCommand.LEFT,
+            BOTH_LEGS: ControlCommand.HEADLIGHT
+        }
+
         self.TRIGGER_EVENT_ID = {f'Stimulus/S {i + 1:>2}': i + 1 for i in range(16)}
 
         self.DROP_SUBJECTS = []
