@@ -56,7 +56,6 @@ class GameLogger(Thread):
         self._players_state = tuple()
         # self._players_prev_state = tuple()
         self._cmd_trigger_conv = _build_cmd_trigger_conv(data_loader)
-        self._init_game()
 
     def _init_game(self):
         # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
@@ -132,6 +131,7 @@ class GameLogger(Thread):
 
     def run(self):
         """ Thread function for self._player """
+        self._init_game()
         while True:
             try:
                 data = self._sock.recv(BUFFER_SIZE)
@@ -143,9 +143,14 @@ class GameLogger(Thread):
 
                 # self._players_prev_state = self._players_state
                 self._players_state = unpack('ffifififi', data)
+
                 # exp_sig = self.get_expected_signal(self._player)
                 # self._log_exp_sig(exp_sig)
-                self._log_track_changes()
+
+                if self.get_progress(self._player) > 499.9:
+                    self._log_exp_sig(Trigger.SESSION_END.value)
+                else:
+                    self._log_track_changes()
 
             except socket.timeout:
                 self._log_exp_sig(Trigger.SESSION_END.value)
