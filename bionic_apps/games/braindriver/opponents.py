@@ -1,4 +1,5 @@
 from enum import Enum, auto
+from multiprocessing import Pipe
 from random import shuffle
 from threading import Thread
 from time import sleep
@@ -18,8 +19,8 @@ class PlayerType(Enum):
 
 class Player(GameControl, Thread):
 
-    def __init__(self, player_num, game_logger, reaction_time=1.0, *, daemon=True):
-        GameControl.__init__(self, player_num=player_num, game_logger=game_logger)
+    def __init__(self, player_num, game_log_conn, reaction_time=1.0, *, daemon=True):
+        GameControl.__init__(self, player_num=player_num, game_log_conn=game_log_conn)
         Thread.__init__(self, daemon=daemon)
         self._reaction_time = reaction_time
 
@@ -35,8 +36,11 @@ class Player(GameControl, Thread):
 class MasterPlayer(Player):
 
     def _control_protocol(self):
-        assert self._game_logger is not None, 'GameLogger must be defined for MasterPlayer!'
-        cmd = ControlCommand(self._game_logger.get_expected_signal(self.player_num))
+        assert self._game_log_conn is not None, 'GameLogger connection must be defined for MasterPlayer!'
+        # exp_sig = self._game_logger.get_expected_signal(self.player_num)
+        self._game_log_conn.send(['exp_sig', self.player_num])
+        exp_sig = self._game_log_conn.recv()
+        cmd = ControlCommand(exp_sig)
         self.control_game(cmd)
 
 
@@ -58,10 +62,10 @@ class RandomBinaryPlayer(RandomPlayer):
         self.control_game_with_2_opt(cmd)
 
 
-def create_opponents(main_player=1, players=None, game_logger=None, reaction=1.0, *, daemon=True):
+def create_opponents(main_player=1, players=None, game_log_conn=None, reaction=1.0, *, daemon=True):
     """ Function for player creation.
 
-    Creating required type of bot players.
+    Creating required types of bot players.
 
     Parameters
     ----------
@@ -69,11 +73,11 @@ def create_opponents(main_player=1, players=None, game_logger=None, reaction=1.0
         the number of main player
     players: list of string, list of PlayerType, None
         List of player types. Should contain 4 values.
-    game_logger: GameLogger, None
-        Optional predefined GameLogger object
+    game_log_conn: multiprocessing.connection.Connection, None
+        Optional predefined multiprocessing connection object
+        to communicate between GameLogger and Players.
     reaction: float
         Player reaction time in seconds.
-
     """
     if players is None:
         players = [PlayerType.MASTER, PlayerType.RANDOM, PlayerType.RANDOM_BINARY]
@@ -85,10 +89,10 @@ def create_opponents(main_player=1, players=None, game_logger=None, reaction=1.0
 
     for num, pl_type in zip(player_numbers, players):
         if pl_type is PlayerType.MASTER:
-            if game_logger is None:
-                game_logger = GameLogger(daemon=daemon)
-                game_logger.start()
-            bot = MasterPlayer(num, game_logger, daemon=daemon)
+            if game_log_conn is None:
+                game_log_conn, child_conn = Pipe()
+                GameLogger(daemon=daemon, connection=child_conn).start()
+            bot = MasterPlayer(num, game_log_conn, daemon=daemon)
         elif pl_type is PlayerType.RANDOM:
             bot = RandomPlayer(num, reaction_time=reaction, daemon=daemon)
         elif pl_type is PlayerType.RANDOM_BINARY:
@@ -96,7 +100,3 @@ def create_opponents(main_player=1, players=None, game_logger=None, reaction=1.0
         else:
             raise NotImplementedError('{} player is not implemented'.format(pl_type))
         bot.start()
-
-
-if __name__ == '__main__':
-    create_opponents(reaction=2, daemon=False)

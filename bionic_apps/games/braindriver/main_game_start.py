@@ -1,4 +1,5 @@
 import time
+from multiprocessing import Pipe
 from pathlib import Path
 from warnings import warn, simplefilter
 
@@ -135,22 +136,17 @@ def start_brain_driver_control_system(feature_type, classifier_type,
         else:
             classifier.fit(x, y, epochs=epochs)
 
-    game_log = None
+    parent_conn, child_conn = Pipe()
     if use_game_logger and is_platform('windows'):
-        from bionic_apps.external_connections.brainvision import RemoteControlClient
-        rcc = RemoteControlClient(print_received_messages=False)
-        rcc.open_recorder()
-        rcc.check_impedance()
-        game_log = GameLogger(bv_rcc=rcc, data_loader=loader)
-        game_log.start()
+        GameLogger(annotator='bv_rcc', data_loader=loader, connection=child_conn).start()
 
     if make_opponents:
-        create_opponents(main_player=1, game_logger=game_log, reaction=CMD_IN)
+        create_opponents(main_player=1, game_log_conn=parent_conn, reaction=CMD_IN)
 
     dsp = DSP(use_filter=len(filter_params) > 0, **filter_params)
     assert dsp.fs == fs, 'Sampling rate frequency must be equal for preprocessed and lsl data.'
 
-    controller = GameControl(make_log=True, log_to_stream=True, game_logger=None)
+    controller = GameControl(make_log=True, log_to_stream=True)
     command_converter = loader.get_command_converter() if not make_binary_classification else None
 
     feature_extractor = get_feature_extractor(feature_type, fs, **feature_kwargs)

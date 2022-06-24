@@ -5,8 +5,10 @@ from enum import Enum
 from pathlib import Path
 from struct import unpack
 from threading import Thread
+from multiprocessing import Process
 
 from .commands import ControlCommand
+from ...external_connections.brainvision import RemoteControlClient
 
 UDP_IP = '127.0.0.1'
 UDP_PORT = 8053
@@ -42,20 +44,34 @@ def _build_cmd_trigger_conv(data_loader):
     return cmd_trigger_conv
 
 
-class GameLogger(Thread):
+class GameLogger(Process):
 
-    def __init__(self, bv_rcc=None, player=1, daemon=True, data_loader=None):
-        Thread.__init__(self, daemon=daemon)
+    def __init__(self, player=1, annotator=None, data_loader=None, connection=None, daemon=True):
+        Process.__init__(self, daemon=daemon)
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.bind((UDP_IP, UDP_PORT))
         self._player = player
-        self._bv_rcc = bv_rcc
+        self._annotator = annotator
         self._game_state = STATE.INIT
         self._prev_state = ''
         self._command_reached = bool()
         self._players_state = tuple()
         # self._players_prev_state = tuple()
         self._cmd_trigger_conv = _build_cmd_trigger_conv(data_loader)
+
+        self._connection = connection
+        self._init_game()
+
+    def _init_connection_handler(self):
+        if self._connection is not None:
+            Thread(target=self._handle_connection, daemon=True).start()
+
+    def _init_annotator(self):
+        if self._annotator == 'bv_rcc':
+            rcc = RemoteControlClient(print_received_messages=False)
+            rcc.open_recorder()
+            rcc.check_impedance()
+            self._annotator = rcc
 
     def _init_game(self):
         # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
@@ -64,6 +80,17 @@ class GameLogger(Thread):
         self._command_reached = False
         self._players_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
         # self._players_prev_state = (.0, .0, 0, .0, 0, .0, 0, .0, 0)
+
+    def _handle_connection(self):
+        while True:
+            msg = self._connection.recv()
+            if msg[0] == 'exp_sig':
+                ans = self.get_expected_signal(msg[1])
+                self._connection.send(ans)
+            elif msg[0] == 'log':
+                self.log_toggle_switch(msg[1])
+            else:
+                raise ValueError()
 
     def get_game_time(self):
         return self._players_state[0]
@@ -93,8 +120,8 @@ class GameLogger(Thread):
 
     def log(self, msg):
         if self._game_state != STATE.INIT:
-            if self._bv_rcc is not None:
-                self._bv_rcc.send_annotation(msg)
+            if self._annotator is not None:
+                self._annotator.send_annotation(msg)
             else:
                 print(msg)
 
@@ -131,7 +158,8 @@ class GameLogger(Thread):
 
     def run(self):
         """ Thread function for self._player """
-        self._init_game()
+        self._init_connection_handler()
+        self._init_annotator()
         while True:
             try:
                 data = self._sock.recv(BUFFER_SIZE)
@@ -158,7 +186,10 @@ class GameLogger(Thread):
                 self._sock.settimeout(None)
 
     def __del__(self):
-        del self._bv_rcc
+        if self._annotator is not None:
+            del self._annotator
+        if self._connection is not None:
+            self._connection.close()
         self._sock.close()
 
 

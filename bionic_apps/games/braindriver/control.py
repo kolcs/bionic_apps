@@ -3,24 +3,24 @@ from itertools import cycle
 
 from numpy import uint8
 
-from .commands import ControlCommand
-from .logger import setup_logger, log_info
+from bionic_apps.games.braindriver.commands import ControlCommand
+from bionic_apps.games.braindriver.logger import setup_logger, log_info
 
 GAME_CONTROL_PORT = 5555
 LOGGER_NAME = 'GameControl'
 
 
-class GameControl(object):
+class GameControl:
 
     def __init__(self, player_num=1, udp_ip='localhost', udp_port=GAME_CONTROL_PORT,
-                 make_log=False, log_to_stream=False, game_logger=None):
+                 make_log=False, log_to_stream=False, game_log_conn=None):
         self.udp_ip = udp_ip
         self.udp_port = udp_port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.player_num = player_num
         self._log = make_log
         self._command_menu = cycle([ControlCommand.LEFT, ControlCommand.RIGHT, ControlCommand.HEADLIGHT])
-        self._game_logger = game_logger
+        self._game_log_conn = game_log_conn
         if make_log:
             setup_logger(LOGGER_NAME, log_to_stream=log_to_stream)
 
@@ -44,7 +44,7 @@ class GameControl(object):
         self._log_message('Command: Light on')
 
     def go_straight(self):
-        # do not sed anything because it will registered as wrong command...
+        # do not sed anything because it will be registered as wrong command...
         self._log_message('Command: Go straight')
 
     def game_started(self):
@@ -69,8 +69,9 @@ class GameControl(object):
             cmd = ControlCommand.STRAIGHT
         self.control_game(cmd)
 
-        if self._log and self._game_logger is not None:
-            self._game_logger.log_toggle_switch(cmd)
+        if self._log and self._game_log_conn is not None:
+            # self._game_logger.log_toggle_switch(cmd)
+            self._game_log_conn.send(['log', cmd])
 
 
 def run_demo(make_log=False):
