@@ -101,6 +101,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
             else:
                 raise NotImplementedError()
             saved_clf_names.append(save_path)
+        del clf
 
     print(f"Accuracy scores for k-fold crossvalidation: {cross_acc}\n")
     print(f"Avg accuracy: {np.mean(cross_acc):.4f}   +/- {np.std(cross_acc):.4f}")

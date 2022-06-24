@@ -117,11 +117,13 @@ def start_brain_driver_control_system(feature_type, classifier_type,
                                                        **classifier_kwargs)
     db.close()
 
+    one_hot_output = False
     if use_best_clf:
         best = np.argmax(cross_acc)
         file = clf_filenames[best]
         if Path(file).suffix == '.h5':
             classifier = keras.models.load_model(file)
+            one_hot_output = True
         else:
             classifier = load_pickle_data(file)
     else:
@@ -129,12 +131,16 @@ def start_brain_driver_control_system(feature_type, classifier_type,
             epochs = classifier_kwargs.pop('epochs')
         except KeyError:
             epochs = None
+        try:
+            batch_size = classifier_kwargs.pop('batch_size')
+        except KeyError:
+            batch_size = None
         classifier = init_classifier(classifier_type, x[0].shape, len(le.classes_),
                                      **classifier_kwargs)
         if epochs is None:
             classifier.fit(x, y)
         else:
-            classifier.fit(x, y, epochs=epochs)
+            classifier.fit(x, y, epochs=epochs, batch_size=batch_size)
 
     parent_conn, child_conn = Pipe()
     if use_game_logger and is_platform('windows'):
@@ -167,6 +173,8 @@ def start_brain_driver_control_system(feature_type, classifier_type,
 
             data = feature_extractor.transform(eeg)
             y_pred = classifier.predict(data)
+            if one_hot_output:
+                y_pred = np.argmax(y_pred, axis=-1)
             y_pred = le.inverse_transform(y_pred)[0]
 
             if make_binary_classification:
