@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.model_selection import KFold, StratifiedGroupKFold, PredefinedSplit
+from .utils import mask_to_ind
 
 
 class BalancedKFold:
@@ -23,12 +24,11 @@ class BalancedKFold:
         y_uniqe = np.unique(y)
         label_test_folds = {label: [] for label in y_uniqe}
         for label in y_uniqe:
-            ind = np.arange(len(y))[y == label]
+            ind = mask_to_ind(y == label)
             lb_group = groups[ind] if groups is not None else None
             kfold = KFold if groups is None else StratifiedGroupKFold
             kfold = kfold(self.n_splits, shuffle=self.shuffle, random_state=self.random_state)
-            lb_y = lb_group if groups is not None else ind
-            for _, test in kfold.split(ind, lb_y, groups=lb_group):
+            for _, test in kfold.split(ind, y[ind], groups=lb_group):
                 label_test_folds[label].append(ind[test])
 
         test_fold = np.zeros_like(y)
