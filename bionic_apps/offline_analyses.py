@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.pipeline import Pipeline
@@ -159,6 +161,7 @@ def test_eegdb_within_subject(
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
+    db_file = Path(db_file)
     feature_type, classifier_type = validate_feature_classifier_pair(feature_type, classifier_type)
 
     fix_params = dict(window_len=window_len, window_step=window_step,
@@ -269,6 +272,7 @@ def test_eegdb_cross_subject(
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
+    db_file = Path(db_file)
     feature_type, classifier_type = validate_feature_classifier_pair(feature_type, classifier_type)
 
     fix_params = dict(window_len=window_len, window_step=window_step,

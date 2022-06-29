@@ -2,12 +2,10 @@ from pathlib import Path
 
 import mne
 import numpy as np
-
 from joblib import Parallel, delayed
 
 from .io import DataLoader, SubjectHandle, get_epochs_from_raw
 from ..artifact_filtering.faster import ArtefactFilter
-from ..config import SAVE_PATH
 from ..databases import EEG_Databases
 from ..feature_extraction import FeatureType, generate_features
 from ..handlers.hdf5 import HDF5Dataset
@@ -69,8 +67,9 @@ def generate_subject_data(files, loader, subj, filter_params,
 def _save_one_subject_data(feature_type, feature_kwargs, db_loader, subj, epoch_tmin, epoch_tmax, window_length,
                            window_step,
                            filter_params, balance_data, binarize_labels,
-                           do_artefact_rejection):
-    db_filename = SAVE_PATH.joinpath(f'subject{subj}_db.hdf5')
+                           do_artefact_rejection,
+                           db_path):
+    db_filename = db_path.joinpath(f'subject{subj}_db.hdf5')
     database = HDF5Dataset(db_filename)
     files = db_loader.get_filenames_for_subject(subj)
     artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
@@ -87,7 +86,8 @@ def _save_one_subject_data(feature_type, feature_kwargs, db_loader, subj, epoch_
 
 
 def _merge_database(base_db, subject_files):
-    for file in subject_files:
+    for i, file in enumerate(subject_files):
+        print(f'\rMerging subject databases: {i * 100. / len(subject_files):.2f}%', end='')
         subj_db = HDF5Dataset(file)
         labels = subj_db.get_y()
         subj_ind = subj_db.get_subject_group()
@@ -97,6 +97,7 @@ def _merge_database(base_db, subject_files):
         base_db.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
         subj_db.close()
         Path(file).unlink()
+    print()
 
 
 def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
@@ -152,6 +153,8 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                                             epoch_tmin, epoch_tmax, window_length, window_step,
                                             filter_params, balance_data,
                                             db_name is EEG_Databases.GAME_PAR_D,
-                                            do_artefact_rejection) for subj in subject_list)
+                                            do_artefact_rejection,
+                                            db_filename.parent) for subj in subject_list)
         _merge_database(database, subj_db_files)
+
         database.close()
