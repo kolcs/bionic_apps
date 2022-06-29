@@ -12,11 +12,8 @@ from ..utils import standardize_eeg_channel_names, filter_mne_obj, balance_epoch
 
 def generate_subject_data(files, loader, subj, filter_params,
                           epoch_tmin, epoch_tmax, window_length, window_step,
-                          feature_type, feature_kwargs=None,
                           artifact_filter=None, balance_data=True,
                           binarize_labels=False):
-    if feature_kwargs is None:
-        feature_kwargs = {}
 
     task_dict = loader.get_task_dict()
     event_id = loader.get_event_id()
@@ -62,9 +59,7 @@ def generate_subject_data(files, loader, subj, filter_params,
     groups = [i // windowed_data.shape[1] for i in range(windowed_data.shape[0] * windowed_data.shape[1])]
     labels = [ep_labels[i // windowed_data.shape[1]] for i in range(len(groups))]
     windowed_data = np.vstack(windowed_data)
-
-    windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
-    return windowed_data, labels, [subj] * len(labels), groups, fs
+    return windowed_data, labels, [subj] * len(labels), groups, fs, info
 
 
 def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
@@ -106,12 +101,12 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
         for subj in subject_list:
             files = loader.get_filenames_for_subject(subj)
             artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
-            subj_data = generate_subject_data(
+            windowed_data, labels, subj_ind, ep_ind, fs, info = generate_subject_data(
                 files, loader, subj, filter_params,
                 epoch_tmin, epoch_tmax, window_length, window_step,
-                feature_type, feature_kwargs,
                 artifact_filter, balance_data,
                 binarize_labels=db_name is EEG_Databases.GAME_PAR_D
             )
-            database.add_data(*subj_data)
+            windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
+            database.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
         database.close()
