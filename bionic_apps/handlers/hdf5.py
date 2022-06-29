@@ -87,9 +87,10 @@ class HDF5Dataset:
                 assert isinstance(val, (str, int, float)), f'Can not save meta data with type {type(val)}.'
                 self.file.attrs.create(key, val)
 
-        self.file.close()
-        self.mode = None
-        self.file = None
+        if self.mode is not None:
+            self.file.close()
+            self.mode = None
+            self.file = None
 
     def get_data(self, ind):
         if self.mode is None:
