@@ -11,7 +11,7 @@ from bionic_apps.artifact_filtering.faster import ArtefactFilter
 from bionic_apps.config import SAVE_PATH
 from bionic_apps.databases import get_eeg_db_name_by_filename, EEG_Databases
 from bionic_apps.external_connections.lsl.BCI import DSP
-from bionic_apps.feature_extraction import FeatureType, get_feature_extractor
+from bionic_apps.feature_extraction import FeatureType, get_feature_extractor, generate_features
 from bionic_apps.games.braindriver.control import GameControl
 from bionic_apps.games.braindriver.logger import GameLogger
 from bionic_apps.games.braindriver.opponents import create_opponents
@@ -73,21 +73,19 @@ def start_brain_driver_control_system(feature_type, classifier_type,
     db_name = get_eeg_db_name_by_filename(eeg_files[0])
     make_binary_classification = db_name is EEG_Databases.GAME_PAR_D
 
-    feature_params = dict(
+    loader = DataLoader()
+    loader.use_db(db_name)
+
+    hdf5_f_params = dict(
         feature_type=feature_type,
         feature_kwargs=feature_kwargs,
         filter_params=filter_params,
         epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
         window_length=window_length, window_step=window_step,
         balance_data=balance_data,
-        binarize_labels=make_binary_classification
+        binarize_labels=make_binary_classification,
+        do_artefact_rejection=do_artefact_rejection
     )
-
-    loader = DataLoader()
-    loader.use_db(db_name)
-
-    hdf5_f_params = feature_params.copy()
-    hdf5_f_params['do_artefact_rejection'] = do_artefact_rejection
     for i, file in enumerate(eeg_files):
         hdf5_f_params[f'eegfile{i}'] = file
 
@@ -96,10 +94,14 @@ def start_brain_driver_control_system(feature_type, classifier_type,
 
     if not database.exists():
         artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
-        subj_data = generate_subject_data(
-            eeg_files, loader, SUBJ, artifact_filter=artifact_filter, **feature_params
+        windowed_data, labels, subj_ind, ep_ind, fs, info = generate_subject_data(
+            eeg_files, loader, SUBJ, filter_params,
+            epoch_tmin, epoch_tmax, window_length, window_step,
+            artifact_filter, balance_data,
+            binarize_labels=make_binary_classification
         )
-        database.add_data(*subj_data)
+        windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
+        database.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
         database.close()
         save_pickle_data(SAVE_PATH.joinpath(AR_FILTER), artifact_filter)
     else:
