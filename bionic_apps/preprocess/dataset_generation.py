@@ -70,6 +70,7 @@ def _save_one_subject_data(feature_type, feature_kwargs, db_loader, subj, epoch_
                            do_artefact_rejection,
                            db_path):
     db_filename = db_path.joinpath(f'subject{subj}_db.hdf5')
+    db_filename.unlink(missing_ok=True)
     database = HDF5Dataset(db_filename)
     files = db_loader.get_filenames_for_subject(subj)
     artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
