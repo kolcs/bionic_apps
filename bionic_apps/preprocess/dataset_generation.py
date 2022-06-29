@@ -56,13 +56,14 @@ def generate_subject_data(files, loader, subj, filter_params,
     windowed_data = window_epochs(epochs.get_data(),
                                   window_length=window_length, window_step=window_step,
                                   fs=fs)
+    info = epochs.info
     del epochs
 
     groups = [i // windowed_data.shape[1] for i in range(windowed_data.shape[0] * windowed_data.shape[1])]
     labels = [ep_labels[i // windowed_data.shape[1]] for i in range(len(groups))]
     windowed_data = np.vstack(windowed_data)
 
-    windowed_data = generate_features(windowed_data, fs, feature_type, **feature_kwargs)
+    windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
     return windowed_data, labels, [subj] * len(labels), groups, fs
 
 

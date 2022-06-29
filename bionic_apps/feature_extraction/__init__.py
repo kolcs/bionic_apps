@@ -1,5 +1,6 @@
 from enum import Enum
 
+from mne.decoding import Scaler
 from sklearn.base import TransformerMixin
 from sklearn.pipeline import FeatureUnion, make_pipeline, Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
@@ -58,14 +59,14 @@ def get_hugines_transfromer():
     return FeatureUnion([(fun.__name__, FunctionTransformer(fun)) for fun in features])
 
 
-def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, **kwargs):
+def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, info=None, **kwargs):
     pipeline_steps = []
     if scale:
         pipeline_steps.append(FunctionTransformer(to_micro_volt))
 
     if feature_type is FeatureType.RAW:
         pipeline_steps.append(FunctionTransformer())
-        norm = False
+        norm = info is not None and norm
     elif feature_type is FeatureType.HUGINES:
         pipeline_steps.append(get_hugines_transfromer())
     elif feature_type in [FeatureType.AVG_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_AVG_FFT_POW]:
@@ -75,18 +76,22 @@ def get_feature_extractor(feature_type, fs=None, scale=True, norm=False, **kwarg
         raise NotImplementedError(f'{feature_type.name} feature extraction is not implemented.')
 
     if norm:
-        pipeline_steps.append(StandardScaler())
+        if feature_type is FeatureType.RAW:
+            scaler = Scaler(info, scalings='mean')
+        else:
+            scaler = StandardScaler()
+        pipeline_steps.append(scaler)
 
     return make_pipeline(*pipeline_steps)
 
 
 def generate_features(x, fs=None, f_type=FeatureType.RAW, scale=True, norm=False,
-                      pipeline=None, **kwargs):
+                      info=None, pipeline=None, **kwargs):
     if f_type is FeatureType.USER_PIPELINE:
         assert isinstance(pipeline, (Pipeline, FeatureUnion, TransformerMixin)), \
             f'In case of user defined feature extractor only sklearn transformers accepted.'
         feature_ext = pipeline
     else:
-        feature_ext = get_feature_extractor(f_type, fs, scale, norm, **kwargs)
+        feature_ext = get_feature_extractor(f_type, fs, scale, norm, info=info, **kwargs)
     x = feature_ext.fit_transform(x)
     return x
