@@ -1,8 +1,13 @@
+from pathlib import Path
+
 import mne
 import numpy as np
 
+from joblib import Parallel, delayed
+
 from .io import DataLoader, SubjectHandle, get_epochs_from_raw
 from ..artifact_filtering.faster import ArtefactFilter
+from ..config import SAVE_PATH
 from ..databases import EEG_Databases
 from ..feature_extraction import FeatureType, generate_features
 from ..handlers.hdf5 import HDF5Dataset
@@ -14,7 +19,6 @@ def generate_subject_data(files, loader, subj, filter_params,
                           epoch_tmin, epoch_tmax, window_length, window_step,
                           artifact_filter=None, balance_data=True,
                           binarize_labels=False):
-
     task_dict = loader.get_task_dict()
     event_id = loader.get_event_id()
     print(f'\nSubject{subj}')
@@ -62,6 +66,39 @@ def generate_subject_data(files, loader, subj, filter_params,
     return windowed_data, labels, [subj] * len(labels), groups, fs, info
 
 
+def _save_one_subject_data(feature_type, feature_kwargs, db_loader, subj, epoch_tmin, epoch_tmax, window_length,
+                           window_step,
+                           filter_params, balance_data, binarize_labels,
+                           do_artefact_rejection):
+    db_filename = SAVE_PATH.joinpath(f'subject{subj}_db.hdf5')
+    database = HDF5Dataset(db_filename)
+    files = db_loader.get_filenames_for_subject(subj)
+    artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
+    windowed_data, labels, subj_ind, ep_ind, fs, info = generate_subject_data(
+        files, db_loader, subj, filter_params,
+        epoch_tmin, epoch_tmax, window_length, window_step,
+        artifact_filter, balance_data,
+        binarize_labels=binarize_labels
+    )
+    windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
+    database.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
+    database.close()
+    return db_filename
+
+
+def _merge_database(base_db, subject_files):
+    for file in subject_files:
+        subj_db = HDF5Dataset(file)
+        labels = subj_db.get_y()
+        subj_ind = subj_db.get_subject_group()
+        ep_ind = subj_db.get_epoch_group()
+        fs = subj_db.get_fs()
+        windowed_data = subj_db.get_data(np.arange(len(labels)))
+        base_db.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
+        subj_db.close()
+        Path(file).unlink()
+
+
 def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     epoch_tmin=0, epoch_tmax=4,
                     window_length=2, window_step=.1,
@@ -72,7 +109,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     balance_data=True,
                     subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                     base_dir='.', fast_load=True,
-                    n_subjects='all'):
+                    n_subjects='all', n_jobs=-3):
     if filter_params is None:
         filter_params = {}
     if feature_kwargs is None:
@@ -83,6 +120,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
     feature_params.pop('db_filename')
     feature_params.pop('fast_load')
     feature_params.pop('base_dir')
+    feature_params.pop('n_jobs')
 
     loader = DataLoader(use_drop_subject_list=use_drop_subject_list,
                         subject_handle=subject_handle,
@@ -98,15 +136,22 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
             assert isinstance(n_subjects, int), 'n_subject must be an integer'
             subject_list = loader.get_subject_list()[:n_subjects]
 
-        for subj in subject_list:
-            files = loader.get_filenames_for_subject(subj)
-            artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
-            windowed_data, labels, subj_ind, ep_ind, fs, info = generate_subject_data(
-                files, loader, subj, filter_params,
-                epoch_tmin, epoch_tmax, window_length, window_step,
-                artifact_filter, balance_data,
-                binarize_labels=db_name is EEG_Databases.GAME_PAR_D
-            )
-            windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
-            database.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
+        # for subj in subject_list:
+        #     files = loader.get_filenames_for_subject(subj)
+        #     artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
+        #     windowed_data, labels, subj_ind, ep_ind, fs, info = generate_subject_data(
+        #         files, loader, subj, filter_params,
+        #         epoch_tmin, epoch_tmax, window_length, window_step,
+        #         artifact_filter, balance_data,
+        #         binarize_labels=db_name is EEG_Databases.GAME_PAR_D
+        #     )
+        #     windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
+        #     database.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
+        subj_db_files = Parallel(n_jobs)(
+            delayed(_save_one_subject_data)(feature_type, feature_kwargs, loader, subj,
+                                            epoch_tmin, epoch_tmax, window_length, window_step,
+                                            filter_params, balance_data,
+                                            db_name is EEG_Databases.GAME_PAR_D,
+                                            do_artefact_rejection) for subj in subject_list)
+        _merge_database(database, subj_db_files)
         database.close()
