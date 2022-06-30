@@ -119,7 +119,8 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                                       classifier_type=classifier_type, epochs=epochs,
                                       batch_size=batch_size,
                                       validation_split=validation_split,
-                                      save_classifiers=save_classifiers, i=i,
+                                      save_classifier=save_classifiers, i=i,
+                                      save_path=db.filename.parent,
                                       **classifier_kwargs))
         if save_classifiers:
             acc, saved_clf_name = acc
