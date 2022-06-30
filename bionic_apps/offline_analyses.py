@@ -16,7 +16,7 @@ from .handlers.tf import get_tf_dataset
 from .model_selection import BalancedKFold, LeavePSubjectGroupsOutSequentially
 from .preprocess import generate_eeg_db
 from .preprocess.io import SubjectHandle
-from .utils import save_pickle_data, mask_to_ind
+from .utils import mask_to_ind, process_run, save_pickle_data
 from .validations import validate_feature_classifier_pair
 
 DB_FILE = SAVE_PATH.joinpath('database.hdf5')
@@ -42,6 +42,59 @@ def _get_balanced_train_val_ind(validation_split, train_labels, train_groups):
     return tr_ind, val_ind
 
 
+def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
+              *, shuffle, label_encoder, classifier_type,
+              epochs=None, batch_size=32, validation_split=0.,
+              save_classifier=False, i, save_path, **classifier_kwargs):
+    if shuffle:
+        np.random.shuffle(train_ind)
+    y_train = y[train_ind]
+    y_test = y[test_ind]
+
+    clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
+                          **classifier_kwargs)
+
+    if epochs is None:
+        x = db.get_data(subj_ind)
+        x_train = x[train_ind]
+        x_test = x[test_ind]
+        clf.fit(x_train, y_train)
+    else:
+        y = label_encoder.transform(db.get_y())
+        if validation_split > 0:
+            tr, val = _get_balanced_train_val_ind(validation_split, y_train, ep_ind[train_ind])
+            train_tf_ds = get_tf_dataset(db, y, subj_ind[train_ind[tr]]).batch(batch_size)
+            train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+            val_tf_ds = get_tf_dataset(db, y, subj_ind[train_ind[val]]).batch(batch_size)
+            val_tf_ds = val_tf_ds.cache()
+            clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds)
+        else:
+            tf_dataset = get_tf_dataset(db, y, subj_ind[train_ind]).batch(batch_size)
+            tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+            clf.fit(tf_dataset, epochs=epochs)
+        x_test = db.get_data(subj_ind[test_ind])
+        clf.evaluate(x_test, y_test)
+
+    acc = test_classifier(clf, x_test, y_test, label_encoder)
+    ans = acc
+
+    if save_classifier:
+        if isinstance(clf, TFBaseNet):
+            file = save_path.joinpath('tensorflow', f'clf{i}.h5')
+            file.parent.mkdir(parents=True, exist_ok=True)
+            clf.save(file)
+        elif isinstance(clf, (BaseEstimator, Pipeline, ClassifierMixin)):
+            file = SAVE_PATH.joinpath('sklearn', f'clf{i}.pkl')
+            file.parent.mkdir(parents=True, exist_ok=True)
+            save_pickle_data(file, clf)
+        else:
+            raise NotImplementedError()
+        ans = (acc, file)
+
+    db.close()
+    return ans
+
+
 def train_test_subject_data(db, subj_ind, classifier_type,
                             *, n_splits=5, shuffle=False,
                             epochs=None, save_classifiers=False,
@@ -59,51 +112,19 @@ def train_test_subject_data(db, subj_ind, classifier_type,
     cross_acc = list()
     saved_clf_names = list()
     for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
-        if shuffle:
-            np.random.shuffle(train)
-        y_train = y[train]
-        y_test = y[test]
-
-        clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
-                              **classifier_kwargs)
-
-        if epochs is None:
-            x = db.get_data(subj_ind)
-            x_train = x[train]
-            x_test = x[test]
-            clf.fit(x_train, y_train)
-        else:
-            y = label_encoder.transform(db.get_y())
-            if validation_split > 0:
-                tr, val = _get_balanced_train_val_ind(validation_split, y_train, ep_ind[train])
-                train_tf_ds = get_tf_dataset(db, y, subj_ind[train[tr]]).batch(batch_size)
-                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
-                val_tf_ds = get_tf_dataset(db, y, subj_ind[train[val]]).batch(batch_size)
-                val_tf_ds = val_tf_ds.cache()
-                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds)
-            else:
-                tf_dataset = get_tf_dataset(db, y, subj_ind[train]).batch(batch_size)
-                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-                clf.fit(tf_dataset, epochs=epochs)
-            x_test = db.get_data(subj_ind[test])
-            clf.evaluate(x_test, y_test)
-
-        acc = test_classifier(clf, x_test, y_test, label_encoder)
-        cross_acc.append(acc)
-
+        db.close()
+        acc = process_run(_one_fold,
+                          args=(train, test, subj_ind, ep_ind, y, db),
+                          kwargs=dict(shuffle=shuffle, label_encoder=label_encoder,
+                                      classifier_type=classifier_type, epochs=epochs,
+                                      batch_size=batch_size,
+                                      validation_split=validation_split,
+                                      save_classifiers=save_classifiers, i=i,
+                                      **classifier_kwargs))
         if save_classifiers:
-            if isinstance(clf, TFBaseNet):
-                save_path = SAVE_PATH.joinpath('tensorflow', f'clf{i}.h5')
-                save_path.parent.mkdir(parents=True, exist_ok=True)
-                clf.save(save_path)
-            elif isinstance(clf, (BaseEstimator, Pipeline, ClassifierMixin)):
-                save_path = SAVE_PATH.joinpath('sklearn', f'clf{i}.pkl')
-                save_path.parent.mkdir(parents=True, exist_ok=True)
-                save_pickle_data(save_path, clf)
-            else:
-                raise NotImplementedError()
-            saved_clf_names.append(save_path)
-        del clf
+            acc, saved_clf_name = acc
+            saved_clf_names.append(saved_clf_name)
+        cross_acc.append(acc)
 
     print(f"Accuracy scores for k-fold crossvalidation: {cross_acc}\n")
     print(f"Avg accuracy: {np.mean(cross_acc):.4f}   +/- {np.std(cross_acc):.4f}")

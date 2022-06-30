@@ -1,4 +1,6 @@
+import sys
 from json import dump as json_dump, load as json_load
+from multiprocessing import Queue, Process
 from pathlib import Path
 from pickle import dump as pkl_dump, load as pkl_load
 from sys import platform
@@ -198,3 +200,42 @@ def _create_binary_label(label):
 
 def mask_to_ind(mask):
     return np.arange(len(mask))[mask]
+
+
+"""Helpers for memory management.
+
+    Tensorflow does not free up GPU after training.
+    Issue: https://github.com/tensorflow/tensorflow/issues/36465
+"""
+
+
+class _ExceptionWrapper:
+
+    def __init__(self, ee):
+        self.ee = ee
+        __, __, self.tb = sys.exc_info()
+
+    def re_raise(self):
+        raise self.ee.with_traceback(self.tb)
+
+
+def __wrapper_func(func, queue, *args, **kwargs):
+    try:
+        ans = func(*args, **kwargs)
+    except Exception as e:
+        ans = _ExceptionWrapper(e)
+    queue.put(ans)
+
+
+def process_run(func, args=(), kwargs=None):
+    """Helper function for memory usage management"""
+    if kwargs is None:
+        kwargs = {}
+    queue = Queue()
+    p = Process(target=__wrapper_func, args=(func, queue) + args, kwargs=kwargs)
+    p.start()
+    ans = queue.get()
+    p.join()
+    if isinstance(ans, _ExceptionWrapper):
+        ans.re_raise()
+    return ans
