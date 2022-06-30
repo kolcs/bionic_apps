@@ -137,6 +137,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
         else:
             assert isinstance(n_subjects, int), 'n_subject must be an integer'
             subject_list = loader.get_subject_list()[:n_subjects]
+
         tic = time()
         # for subj in subject_list:
         #     files = loader.get_filenames_for_subject(subj)
@@ -161,4 +162,3 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
 
         database.close()
         print(f'DB generated under {(time() - tic) / 60:.2f} minutes')
-        exit(12)
