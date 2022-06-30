@@ -102,6 +102,20 @@ class EEGNet(TFBaseNet):
 
         return input_tensor, softmax
 
+    # def _create_model(self, input_tensor, outputs):
+    #     lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(
+    #         0.001,
+    #         decay_steps=1,
+    #         decay_rate=.5,
+    #         staircase=False)
+    #
+    #     self._model = keras.Model(inputs=input_tensor, outputs=outputs)
+    #     self._model.compile(
+    #         optimizer=keras.optimizers.Adam(lr_schedule),
+    #         loss=keras.losses.SparseCategoricalCrossentropy(from_logits=False),
+    #         metrics=['accuracy']
+    #     )
+
 
 class QNet(TFBaseNet):
 
