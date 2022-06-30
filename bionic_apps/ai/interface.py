@@ -57,15 +57,24 @@ class TFBaseNet(ClassifierInterface):
             best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')
             best_model_cp_file.unlink(missing_ok=True)
 
-            callbacks.append(
+            monitor = 'val_accuracy'
+            mode = 'max'
+
+            callbacks.extend((
                 keras.callbacks.ModelCheckpoint(
                     str(best_model_cp_file),
                     save_weights_only=True,
-                    monitor='val_accuracy',
-                    mode='max',
+                    monitor=monitor,
+                    mode=mode,
                     save_best_only=True
+                ),
+                keras.callbacks.EarlyStopping(
+                    monitor=monitor,
+                    min_delta=0,
+                    patience=20,
+                    mode=mode,
                 )
-            )
+            ))
 
         self._model.fit(
             x, y,
