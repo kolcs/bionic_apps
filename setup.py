@@ -15,5 +15,5 @@ setup(
     author_email='kollod.csaba@itk.ppke.hu',
     description='Bionic Applications dependencies install',
     install_requires=['tensorflow', 'scikit-learn', 'pandas', 'matplotlib', 'pylsl', 'mne', 'numpy', 'joblib',
-                      'h5py', 'scipy'],
+                      'h5py', 'scipy', 'psutil'],
 )
