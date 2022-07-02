@@ -55,17 +55,23 @@ def generate_subject_data(files, loader, subj, filter_params,
     if binarize_labels:
         ep_labels = [_create_binary_label(label) for label in ep_labels]
 
-    # window the epochs
-    windowed_data = window_epochs(epochs.get_data(),
-                                  window_length=window_length, window_step=window_step,
-                                  fs=fs)
+    from bionic_apps.preprocess.data_augmentation import do_augmentation
+    ep_data, ep_labels, ep_ind, orig_ind = do_augmentation(epochs.get_data(), ep_labels)
+
     info = epochs.info
     del epochs
 
-    groups = [i // windowed_data.shape[1] for i in range(windowed_data.shape[0] * windowed_data.shape[1])]
-    labels = [ep_labels[i // windowed_data.shape[1]] for i in range(len(groups))]
+    # window the epochs
+    windowed_data = window_epochs(ep_data,
+                                  window_length=window_length, window_step=window_step,
+                                  fs=fs)
+
+    num = windowed_data.shape[0] * windowed_data.shape[1]
+    groups = [ep_ind[i // windowed_data.shape[1]] for i in range(num)]
+    labels = [ep_labels[i // windowed_data.shape[1]] for i in range(num)]
+    orig_ind = [orig_ind[i // windowed_data.shape[1]] for i in range(num)]
     windowed_data = np.vstack(windowed_data)
-    return windowed_data, labels, [subj] * len(labels), groups, fs, info
+    return windowed_data, labels, [subj] * len(labels), groups, orig_ind, fs, info
 
 
 def _save_one_subject_data(feature_type, feature_kwargs, db_loader, subj,
