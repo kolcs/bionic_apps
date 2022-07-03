@@ -23,6 +23,7 @@ class HDF5Dataset:
         self.ep_meta = []
         self._last_ep_num = 0
         self._fs = None
+        self._orig_mask = []
 
         self.feature_params = feature_params.copy()
         self._validate_feat_params()
@@ -48,7 +49,7 @@ class HDF5Dataset:
         self.mode = mode
         self.file = h5py.File(str(self.filename), self.mode, libver='latest')
 
-    def add_data(self, data, label, subj, ep_group, fs):
+    def add_data(self, data, label, subj, ep_group, orig_mask, fs):
         if self.mode is None:
             self._open('w')
             self.dset_x = self.file.create_dataset('x', data=data,
@@ -68,6 +69,7 @@ class HDF5Dataset:
         self.subj_meta.extend(subj)
         ep_group = np.array(ep_group)
         self.ep_meta.extend(ep_group + self._last_ep_num)
+        self._orig_mask.extend(orig_mask)
         self._last_ep_num += np.max(ep_group) + 1
         if self._fs is None:
             self._fs = fs
@@ -83,6 +85,7 @@ class HDF5Dataset:
             self.file.attrs.create('fs', self._fs)
             self.file.attrs.create('subject', np.array(self.subj_meta))
             self.file.attrs.create('ep_group', np.array(self.ep_meta))
+            self.file.attrs.create('orig_mask', np.array(self._orig_mask))
             for key, val in self.feature_params.items():
                 assert isinstance(val, (str, int, float)), f'Can not save meta data with type {type(val)}.'
                 self.file.attrs.create(key, val)
@@ -126,6 +129,9 @@ class HDF5Dataset:
 
     def get_fs(self):
         return self._get_meta('fs')
+
+    def get_orig_mask(self):
+        return self._get_meta('orig_mask')
 
     def exists(self):
         if not self.filename.exists():

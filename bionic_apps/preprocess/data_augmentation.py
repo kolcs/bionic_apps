@@ -1,17 +1,17 @@
 import numpy as np
 
 
-def do_augmentation(ep_data, labels, n_iter=9, include_orig=True):
-    aug_epochs, aug_labels, aug_ep_ind, orig_ind = [], [], [], []
+def do_augmentation(ep_data, labels, n_iter=9, include_origin=True):
+    aug_epochs, aug_labels, aug_ep_ind, orig_mask = [], [], [], []
     ep_ind = np.arange(len(labels))
 
     def add_aug(data, orig=False):
         aug_epochs.append(data)
-        aug_labels.append(labels)
-        aug_ep_ind.append(ep_ind)
-        orig_ind.append(np.array([orig] * len(labels)))
+        aug_labels.extend(labels)
+        aug_ep_ind.extend(ep_ind)
+        orig_mask.extend([orig] * len(labels))
 
-    if include_orig:
+    if include_origin:
         add_aug(ep_data, orig=True)
 
     #  1) Setting the mean value of each channel to zero
@@ -36,7 +36,4 @@ def do_augmentation(ep_data, labels, n_iter=9, include_orig=True):
         add_aug(aug)
 
     aug_epochs = np.vstack(aug_epochs)
-    aug_labels = np.hstack(aug_labels)
-    aug_ep_ind = np.hstack(aug_ep_ind)
-    orig_ind = np.hstack(orig_ind)
-    return aug_epochs, aug_labels, aug_ep_ind, orig_ind
+    return aug_epochs, aug_labels, aug_ep_ind, orig_mask
