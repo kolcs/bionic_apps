@@ -227,15 +227,18 @@ def __wrapper_func(func, queue, *args, **kwargs):
     queue.put(ans)
 
 
-def process_run(func, args=(), kwargs=None):
+def process_run(func, args=(), kwargs=None, debug=False):
     """Helper function for memory usage management"""
     if kwargs is None:
         kwargs = {}
-    queue = Queue()
-    p = Process(target=__wrapper_func, args=(func, queue) + args, kwargs=kwargs)
-    p.start()
-    ans = queue.get()
-    p.join()
-    if isinstance(ans, _ExceptionWrapper):
-        ans.re_raise()
+    if not debug:
+        queue = Queue()
+        p = Process(target=__wrapper_func, args=(func, queue) + args, kwargs=kwargs, daemon=True)
+        p.start()
+        ans = queue.get()
+        p.join()
+        if isinstance(ans, _ExceptionWrapper):
+            ans.re_raise()
+    else:
+        ans = func(*args, **kwargs)
     return ans
