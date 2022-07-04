@@ -257,9 +257,11 @@ def make_cross_subject_classification(db_filename, classifier_type,
         for subj in np.unique(all_subj[test_ind]):
             print(f'Subject{subj}')
             test_subj_ind = mask_to_ind(subj == all_subj)
+            orig_test_mask = db.get_orig_mask()[test_subj_ind]
+            orig_test_ind = test_subj_ind[orig_test_mask]
 
-            x_test = db.get_data(test_subj_ind)
-            y_test = y[test_subj_ind]
+            x_test = db.get_data(orig_test_ind)
+            y_test = y[orig_test_ind]
             acc = test_classifier(clf, x_test, y_test, label_encoder)
 
             if res_handler is not None:
