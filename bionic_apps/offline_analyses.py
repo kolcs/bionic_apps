@@ -51,7 +51,7 @@ def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
     orig_test_mask = db.get_orig_mask()[subj_ind][test_ind]
     orig_test_ind = test_ind[orig_test_mask]
     y_train = y[train_ind]
-    y_test = y[test_ind][orig_test_mask]
+    y_test = y[orig_test_ind]
 
     clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
                           **classifier_kwargs)
@@ -59,7 +59,7 @@ def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
     if epochs is None:
         x = db.get_data(subj_ind)
         x_train = x[train_ind]
-        x_test = x[test_ind][orig_test_mask]
+        x_test = x[orig_test_ind]
         clf.fit(x_train, y_train)
     else:
         y = label_encoder.transform(db.get_y())
@@ -74,7 +74,7 @@ def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
             tf_dataset = get_tf_dataset(db, y, subj_ind[train_ind]).batch(batch_size)
             tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
             clf.fit(tf_dataset, epochs=epochs)
-        x_test = db.get_data(subj_ind[test_ind][orig_test_mask])
+        x_test = db.get_data(subj_ind[orig_test_ind])
         clf.evaluate(x_test, y_test)
 
     acc = test_classifier(clf, x_test, y_test, label_encoder)
