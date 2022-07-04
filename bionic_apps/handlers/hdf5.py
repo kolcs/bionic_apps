@@ -76,7 +76,7 @@ class HDF5Dataset:
         else:
             assert fs == self._fs, 'Sampling frequency has changed'
 
-    def close(self):
+    def _close(self, delete=False):
         if self.mode == 'w':
             y = np.array(self.y)
             if y.dtype.kind in ['U', 'S']:
@@ -91,9 +91,17 @@ class HDF5Dataset:
                 self.file.attrs.create(key, val)
 
         if self.mode is not None:
-            self.file.close()
             self.mode = None
+
+        if self.file is not None:
+            self.file.close()
             self.file = None
+
+        if delete:
+            self.filename.unlink(missing_ok=True)
+
+    def close(self):
+        self._close()
 
     def get_data(self, ind):
         if self.mode is None:
@@ -139,26 +147,27 @@ class HDF5Dataset:
         try:
             self._open('r')
         except OSError:
-            self.filename.unlink(missing_ok=True)
-            self.mode = None
-            self.file = None
+            self._close(delete=True)
             return False
 
         for key, val in self.feature_params.items():
             if key not in self.file.attrs:
-                self.close()
+                self._close(delete=True)
                 return False
             if key == 'n_subjects':
                 if self.file.attrs[key] == 'all':
                     pass
                 elif self.file.attrs[key] != val:
-                    self.close()
+                    self._close(delete=True)
                     return False
             elif self.file.attrs[key] != val:
-                self.close()
+                self._close(delete=True)
                 return False
-        self.close()
+        self._close()
         return True
+
+    def __del__(self):
+        self.close()
 
 
 def init_hdf5_db(db_filename):
