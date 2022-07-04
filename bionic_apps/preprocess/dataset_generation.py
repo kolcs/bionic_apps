@@ -6,6 +6,7 @@ import numpy as np
 from joblib import Parallel, delayed
 from psutil import cpu_count
 
+from .data_augmentation import do_augmentation
 from .io import DataLoader, SubjectHandle, get_epochs_from_raw
 from ..artifact_filtering.faster import ArtefactFilter
 from ..databases import EEG_Databases
@@ -20,7 +21,7 @@ CPU_THRESHOLD = 10
 def generate_subject_data(files, loader, subj, filter_params,
                           epoch_tmin, epoch_tmax, window_length, window_step,
                           artifact_filter=None, balance_data=True,
-                          binarize_labels=False):
+                          binarize_labels=False, augment_data=False):
     task_dict = loader.get_task_dict()
     event_id = loader.get_event_id()
     print(f'\nSubject{subj}')
@@ -55,8 +56,12 @@ def generate_subject_data(files, loader, subj, filter_params,
     if binarize_labels:
         ep_labels = [_create_binary_label(label) for label in ep_labels]
 
-    from bionic_apps.preprocess.data_augmentation import do_augmentation
-    ep_data, ep_labels, ep_ind, orig_mask = do_augmentation(epochs.get_data(), ep_labels)
+    if augment_data:
+        ep_data, ep_labels, ep_ind, orig_mask = do_augmentation(epochs.get_data(), ep_labels)
+    else:
+        ep_data = epochs.get_data()
+        ep_ind = np.arange(len(ep_labels))
+        orig_mask = [True] * len(ep_labels)
 
     info = epochs.info
     del epochs
@@ -65,6 +70,7 @@ def generate_subject_data(files, loader, subj, filter_params,
     windowed_data = window_epochs(ep_data,
                                   window_length=window_length, window_step=window_step,
                                   fs=fs)
+    del ep_data
 
     num = windowed_data.shape[0] * windowed_data.shape[1]
     groups = [ep_ind[i // windowed_data.shape[1]] for i in range(num)]
@@ -77,7 +83,7 @@ def generate_subject_data(files, loader, subj, filter_params,
 def _save_one_subject_data(feature_type, feature_kwargs, db_loader, subj,
                            epoch_tmin, epoch_tmax, window_length, window_step,
                            filter_params, balance_data, binarize_labels,
-                           do_artefact_rejection, db_path):
+                           do_artefact_rejection, db_path, augment_data):
     db_filename = db_path.joinpath(f'subject{subj}_db.hdf5')
     db_filename.unlink(missing_ok=True)
     database = HDF5Dataset(db_filename)
@@ -87,7 +93,8 @@ def _save_one_subject_data(feature_type, feature_kwargs, db_loader, subj,
         files, db_loader, subj, filter_params,
         epoch_tmin, epoch_tmax, window_length, window_step,
         artifact_filter, balance_data,
-        binarize_labels=binarize_labels
+        binarize_labels=binarize_labels,
+        augment_data=augment_data
     )
     windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
     database.add_data(windowed_data, labels, subj_ind, ep_ind, orig_mask, fs)
@@ -121,7 +128,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     balance_data=True,
                     subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                     base_dir='.', fast_load=True,
-                    n_subjects='all', n_jobs=-2):
+                    n_subjects='all', augment_data=False, n_jobs=-2):
     if filter_params is None:
         filter_params = {}
     if feature_kwargs is None:
@@ -157,7 +164,8 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     files, loader, subj, filter_params,
                     epoch_tmin, epoch_tmax, window_length, window_step,
                     artifact_filter, balance_data,
-                    binarize_labels=db_name is EEG_Databases.GAME_PAR_D
+                    binarize_labels=db_name is EEG_Databases.GAME_PAR_D,
+                    augment_data=augment_data
                 )
                 windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
                 database.add_data(windowed_data, labels, subj_ind, ep_ind, orig_mask, fs)
@@ -168,7 +176,8 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                                                 filter_params, balance_data,
                                                 db_name is EEG_Databases.GAME_PAR_D,
                                                 do_artefact_rejection,
-                                                db_filename.parent) for subj in subject_list)
+                                                db_filename.parent,
+                                                augment_data) for subj in subject_list)
             _merge_database(database, subj_db_files)
 
         database.close()

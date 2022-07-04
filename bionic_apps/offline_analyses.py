@@ -180,7 +180,8 @@ def test_eegdb_within_subject(
         # ch_mode='all', ep_mode='distinct',
         db_file=DB_FILE, log_file='out.csv', base_dir='.',
         save_res=True,
-        fast_load=True, n_subjects='all'
+        fast_load=True, n_subjects='all',
+        augment_data=False
 ):
     if classifier_kwargs is None:
         classifier_kwargs = {}
@@ -207,7 +208,8 @@ def test_eegdb_within_subject(
                     balance_data=balance_data,
                     subject_handle=subject_handle,
                     base_dir=base_dir, fast_load=fast_load,
-                    n_subjects=n_subjects)
+                    n_subjects=n_subjects,
+                    augment_data=augment_data)
 
     make_within_subject_classification(db_file, classifier_type,
                                        classifier_kwargs=classifier_kwargs,
@@ -293,7 +295,8 @@ def test_eegdb_cross_subject(
         db_file=DB_FILE, log_file='out.csv', base_dir='.',
         save_res=True,
         fast_load=True,
-        n_subjects='all'
+        n_subjects='all',
+        augment_data=False
 ):
     if classifier_kwargs is None:
         classifier_kwargs = {}
@@ -319,7 +322,8 @@ def test_eegdb_cross_subject(
                     balance_data=balance_data,
                     subject_handle=subject_handle,
                     base_dir=base_dir, fast_load=fast_load,
-                    n_subjects=n_subjects)
+                    n_subjects=n_subjects,
+                    augment_data=augment_data)
 
     make_cross_subject_classification(db_file, classifier_type,
                                       leave_out_n_subjects=leave_out_n_subjects,
