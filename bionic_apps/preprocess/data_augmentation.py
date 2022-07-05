@@ -14,6 +14,7 @@ def do_augmentation(ep_data, labels, n_iter=9, include_origin=True):
     if include_origin:
         add_aug(ep_data, orig=True)
 
+    ampl = ep_data.std()
     #  1) Setting the mean value of each channel to zero
     ep_data -= ep_data.mean(axis=-1, keepdims=True)
 
@@ -30,7 +31,7 @@ def do_augmentation(ep_data, labels, n_iter=9, include_origin=True):
             aug = np.flip(aug, axis=-1)
 
         #  5) Add random noise
-        noise = np.random.normal(0, .01)
+        noise = np.random.normal(0, ampl, size=aug.shape)
         aug += noise
 
         add_aug(aug)
