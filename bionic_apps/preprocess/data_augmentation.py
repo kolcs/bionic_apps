@@ -15,7 +15,7 @@ def do_augmentation(ep_data, labels, n_iter=9, include_origin=True):
         add_aug(ep_data, orig=True)
 
     #  1) Setting the mean value of each channel to zero
-    ep_data -= ep_data.mean(axis=(0, -2), keepdims=True)
+    ep_data -= ep_data.mean(axis=-1, keepdims=True)
 
     for i in range(n_iter):
         #  2) Amplify by a random number
