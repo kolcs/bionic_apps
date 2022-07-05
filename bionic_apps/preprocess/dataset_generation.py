@@ -128,7 +128,8 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     balance_data=True,
                     subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                     base_dir='.', fast_load=True,
-                    n_subjects='all', augment_data=False, n_jobs=-2):
+                    n_subjects='all', augment_data=False,
+                    mode='auto', n_jobs=-3):
     if filter_params is None:
         filter_params = {}
     if feature_kwargs is None:
@@ -140,6 +141,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
     feature_params.pop('fast_load')
     feature_params.pop('base_dir')
     feature_params.pop('n_jobs')
+    feature_params.pop('mode')
 
     loader = DataLoader(use_drop_subject_list=use_drop_subject_list,
                         subject_handle=subject_handle,
@@ -156,7 +158,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
             subject_list = loader.get_subject_list()[:n_subjects]
 
         tic = time()
-        if cpu_count() < CPU_THRESHOLD:  # parallel db generation is slow if there is not enough cpu_cores
+        if cpu_count() < CPU_THRESHOLD or mode == 'sequential':  # parallel db generation is slow if there is not enough cpu_cores
             for subj in subject_list:
                 files = loader.get_filenames_for_subject(subj)
                 artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
@@ -178,6 +180,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                                                 do_artefact_rejection,
                                                 db_filename.parent,
                                                 augment_data) for subj in subject_list)
+            # subj_db_files = list(database.filename.parent.rglob('*_db.hdf5'))
             _merge_database(database, subj_db_files)
 
         database.close()
