@@ -1,7 +1,6 @@
 from pathlib import Path
 from shutil import rmtree
 
-from ..config import SAVE_PATH
 from ..databases import EEG_Databases, get_eeg_db_name_by_filename
 from ..utils import init_base_config
 
@@ -23,8 +22,8 @@ def get_available_databases():
 AVAILABLE_DBS = get_available_databases()
 
 
-def cleanup_fastload_data():
-    path = Path(init_base_config()).joinpath(SAVE_PATH)
+def cleanup_fastload_data(path='tmp/'):
+    path = Path(init_base_config()).joinpath(path)
     if path.exists():
         print('Removing old files. It may take for a while...')
         rmtree(str(path))

@@ -8,7 +8,6 @@ from tensorflow import data as tf_data
 
 from .ai.classifier import test_classifier, init_classifier, ClassifierType
 from .ai.interface import TFBaseNet
-from .config import SAVE_PATH
 from .databases import EEG_Databases
 from .feature_extraction import FeatureType
 from .handlers import ResultHandler, HDF5Dataset
@@ -18,8 +17,6 @@ from .preprocess import generate_eeg_db
 from .preprocess.io import SubjectHandle
 from .utils import mask_to_ind, process_run, save_pickle_data
 from .validations import validate_feature_classifier_pair
-
-DB_FILE = SAVE_PATH.joinpath('database.hdf5')
 
 
 def _get_train_val_ind(validation_split, train_groups):
@@ -45,9 +42,11 @@ def _get_balanced_train_val_ind(validation_split, train_labels, train_groups):
 def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
               *, shuffle, label_encoder, classifier_type,
               epochs=None, batch_size=32, validation_split=0., patience=15,
-              save_classifier=False, i, save_path, **classifier_kwargs):
+              save_classifier=False, i, **classifier_kwargs):
     if shuffle:
         np.random.shuffle(train_ind)
+    base_dir = db.filename.parent
+
     orig_test_mask = db.get_orig_mask()[subj_ind][test_ind]
     orig_test_ind = test_ind[orig_test_mask]
     y_train = y[train_ind]
@@ -83,11 +82,11 @@ def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
 
     if save_classifier:
         if isinstance(clf, TFBaseNet):
-            file = save_path.joinpath('tensorflow', f'clf{i}.h5')
+            file = base_dir.joinpath('tensorflow', f'clf{i}.h5')
             file.parent.mkdir(parents=True, exist_ok=True)
             clf.save(file)
         elif isinstance(clf, (BaseEstimator, Pipeline, ClassifierMixin)):
-            file = SAVE_PATH.joinpath('sklearn', f'clf{i}.pkl')
+            file = base_dir.joinpath('sklearn', f'clf{i}.pkl')
             file.parent.mkdir(parents=True, exist_ok=True)
             save_pickle_data(file, clf)
         else:
@@ -124,7 +123,6 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                                       validation_split=validation_split,
                                       patience=patience,
                                       save_classifier=save_classifiers, i=i,
-                                      save_path=db.filename.parent,
                                       **classifier_kwargs))
         if save_classifiers:
             acc, saved_clf_name = acc
@@ -180,7 +178,7 @@ def test_eegdb_within_subject(
         classifier_type=ClassifierType.ENSEMBLE,
         classifier_kwargs=None,
         # ch_mode='all', ep_mode='distinct',
-        db_file=DB_FILE, log_file='out.csv', base_dir='.',
+        db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
         save_res=True,
         fast_load=True, n_subjects='all',
         augment_data=False
@@ -295,7 +293,7 @@ def test_eegdb_cross_subject(
         leave_out_n_subjects=10,
         classifier_type=ClassifierType.EEG_NET,
         classifier_kwargs=None,
-        db_file=DB_FILE, log_file='out.csv', base_dir='.',
+        db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
         save_res=True,
         fast_load=True,
         n_subjects='all',

@@ -5,9 +5,6 @@ from pathlib import Path
 
 from numpy.random import randint
 
-from bionic_apps import config
-from bionic_apps.utils import load_from_json
-
 CHECKPOINT = 'checkpoint.json'
 FEATURE_DIR = 'feature_dir'
 SUBJECT_NUM = 'subj_num'
@@ -52,6 +49,10 @@ def _gen_save_path():
 #     os.remove(CHECKPOINT)
 
 
-def run_without_checkpoint(test_func, **test_kwargs):
-    config.SAVE_PATH = _gen_save_path()
-    test_func(**test_kwargs)
+def run_without_checkpoint(test_func):
+    def wrap(*args, **kwargs):
+        assert 'db_file' in kwargs, f'db_file param is not in kwargs of {test_func.__name__}()'
+        kwargs['db_file'] = _gen_save_path().joinpath('database.h5')
+        test_func(*args, **kwargs)
+
+    return wrap

@@ -8,7 +8,6 @@ import numpy as np
 
 from bionic_apps.ai import ClassifierType, init_classifier
 from bionic_apps.artifact_filtering.faster import ArtefactFilter
-from bionic_apps.config import SAVE_PATH
 from bionic_apps.databases import get_eeg_db_name_by_filename, EEG_Databases
 from bionic_apps.external_connections.lsl.BCI import DSP
 from bionic_apps.feature_extraction import FeatureType, get_feature_extractor, generate_features
@@ -25,7 +24,7 @@ from bionic_apps.validations import validate_feature_classifier_pair
 
 CMD_IN = 1.5  # sec
 SUBJ = 0
-DB_FILENAME = 'brain_driver_db.hdf5'
+DB_FILENAME = 'tmp/brain_driver_db.hdf5'
 AR_FILTER = 'ar_filter.pkl'
 
 FILTER_PARAMS = dict(
@@ -52,13 +51,17 @@ def start_brain_driver_control_system(feature_type, classifier_type,
                                       classifier_kwargs=None,
                                       use_best_clf=True, make_opponents=True,
                                       use_game_logger=True,
-                                      eeg_files=None, time_out=None):
+                                      eeg_files=None,
+                                      db_filename='tmp/brain_driver_db.hdf5',
+                                      time_out=None):
     if classifier_kwargs is None:
         classifier_kwargs = {}
     if filter_params is None:
         filter_params = {}
     if feature_kwargs is None:
         feature_kwargs = {}
+
+    db_filename = Path(db_filename)
 
     feature_type, classifier_type = validate_feature_classifier_pair(feature_type, classifier_type)
     print('Starting BCI System for BrainDriver game...')
@@ -89,8 +92,9 @@ def start_brain_driver_control_system(feature_type, classifier_type,
     for i, file in enumerate(eeg_files):
         hdf5_f_params[f'eegfile{i}'] = file
 
-    SAVE_PATH.mkdir(parents=True, exist_ok=True)
-    database = HDF5Dataset(SAVE_PATH.joinpath(DB_FILENAME), hdf5_f_params)
+    base_dir = db_filename.parent
+    base_dir.mkdir(parents=True, exist_ok=True)
+    database = HDF5Dataset(db_filename, hdf5_f_params)
 
     if not database.exists():
         artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
@@ -103,11 +107,11 @@ def start_brain_driver_control_system(feature_type, classifier_type,
         windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
         database.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
         database.close()
-        save_pickle_data(SAVE_PATH.joinpath(AR_FILTER), artifact_filter)
+        save_pickle_data(base_dir.joinpath(AR_FILTER), artifact_filter)
     else:
-        artifact_filter = load_pickle_data(SAVE_PATH.joinpath(AR_FILTER))
+        artifact_filter = load_pickle_data(base_dir.joinpath(AR_FILTER))
 
-    db, y_all, all_subj, ep_ind, le, fs = init_hdf5_db(SAVE_PATH.joinpath(DB_FILENAME))
+    db, y_all, all_subj, ep_ind, le, fs = init_hdf5_db(db_filename)
 
     subj_ind = mask_to_ind(all_subj == SUBJ)
     x = db.get_data(subj_ind)
@@ -200,7 +204,8 @@ def main():
                                       feature_kwargs=F_KWARGS, filter_params=FILTER_PARAMS,
                                       do_artefact_rejection=True, balance_data=True,
                                       classifier_kwargs=CLF_KWARGS, use_best_clf=True,
-                                      make_opponents=True, use_game_logger=True
+                                      make_opponents=True, use_game_logger=True,
+                                      db_filename=DB_FILENAME
                                       )
 
 
