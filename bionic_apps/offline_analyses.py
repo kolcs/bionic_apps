@@ -44,7 +44,7 @@ def _get_balanced_train_val_ind(validation_split, train_labels, train_groups):
 
 def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
               *, shuffle, label_encoder, classifier_type,
-              epochs=None, batch_size=32, validation_split=0.,
+              epochs=None, batch_size=32, validation_split=0., patience=15,
               save_classifier=False, i, save_path, **classifier_kwargs):
     if shuffle:
         np.random.shuffle(train_ind)
@@ -69,7 +69,8 @@ def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
             train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
             val_tf_ds = get_tf_dataset(db, y, subj_ind[train_ind[val]]).batch(batch_size)
             val_tf_ds = val_tf_ds.cache()
-            clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds)
+            clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
+                    patience=patience)
         else:
             tf_dataset = get_tf_dataset(db, y, subj_ind[train_ind]).batch(batch_size)
             tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
@@ -101,7 +102,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                             *, n_splits=5, shuffle=False,
                             epochs=None, save_classifiers=False,
                             label_encoder=None, batch_size=32,
-                            validation_split=.0,
+                            validation_split=.0, patience=15,
                             **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
 
@@ -121,6 +122,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                                       classifier_type=classifier_type, epochs=epochs,
                                       batch_size=batch_size,
                                       validation_split=validation_split,
+                                      patience=patience,
                                       save_classifier=save_classifiers, i=i,
                                       save_path=db.filename.parent,
                                       **classifier_kwargs))
@@ -220,7 +222,7 @@ def test_eegdb_within_subject(
 def make_cross_subject_classification(db_filename, classifier_type,
                                       leave_out_n_subjects=10, res_handler=None,
                                       save_res=True, epochs=None, batch_size=32,
-                                      validation_split=.0,
+                                      validation_split=.0, patience=15,
                                       **classifier_kwargs):
     db = HDF5Dataset(db_filename)
     all_subj = db.get_subject_group()
@@ -249,7 +251,8 @@ def make_cross_subject_classification(db_filename, classifier_type,
                 train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
                 val_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[val]]).batch(batch_size)
                 val_tf_ds = val_tf_ds.cache()
-                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds)
+                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
+                        patience=patience)
             else:
                 tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
                 tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)

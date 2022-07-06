@@ -42,7 +42,8 @@ class TFBaseNet(ClassifierInterface):
         predictions = self._model.predict(x)
         return np_argmax(predictions, axis=-1)
 
-    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=1, shuffle=False):
+    def fit(self, x, y=None, *, validation_data=None, batch_size=None, epochs=1,
+            shuffle=False, patience=15):
         callbacks = [
             # TensorBoard(
             #     log_dir=TF_LOG + '/fit/' + datetime.now().strftime("%Y%m%d-%H%M%S"),
@@ -71,7 +72,7 @@ class TFBaseNet(ClassifierInterface):
                 keras.callbacks.EarlyStopping(
                     monitor=monitor,
                     min_delta=0,
-                    patience=20,
+                    patience=patience,
                     mode=mode,
                 )
             ))
