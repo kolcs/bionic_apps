@@ -26,7 +26,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             with self.subTest(f'Database: {db_name.name}'):
                 test_eegdb_within_subject(db_name, do_artefact_rejection=True,
                                           fast_load=True, log_file='out.csv',
-                                          n_subjects=2,
+                                          subjects=2,
                                           **kwargs)
 
     def test_eegdb_within_subj_multi_svm(self):
@@ -61,7 +61,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             with self.subTest(f'Database: {db_name.name}'):
                 test_eegdb_cross_subject(db_name, do_artefact_rejection=True,
                                          fast_load=True, log_file='out.csv',
-                                         n_subjects=5, leave_out_n_subjects=2,
+                                         subjects=5, leave_out_n_subjects=2,
                                          **kwargs)
 
     def test_eegdb_cross_subj_eegnet_no_val(self):

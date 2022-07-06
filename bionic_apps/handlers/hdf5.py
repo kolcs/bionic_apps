@@ -41,6 +41,8 @@ class HDF5Dataset:
                         validated_f_pars[k] = str(v) if not isinstance(v, (int, float)) else v
             elif isinstance(val, (int, float, str)):
                 validated_f_pars[key] = val
+            elif isinstance(val, list):
+                validated_f_pars[key] = np.array(sorted(val))
             else:
                 raise ValueError(f'Can not save meta data with type {type(val)}.')
         self.feature_params = validated_f_pars
@@ -87,7 +89,7 @@ class HDF5Dataset:
             self.file.attrs.create('ep_group', np.array(self.ep_meta))
             self.file.attrs.create('orig_mask', np.array(self._orig_mask))
             for key, val in self.feature_params.items():
-                assert isinstance(val, (str, int, float)), f'Can not save meta data with type {type(val)}.'
+                assert isinstance(val, (str, int, float, np.ndarray)), f'Can not save meta data with type {type(val)}.'
                 self.file.attrs.create(key, val)
 
         if self.mode is not None:
@@ -154,15 +156,19 @@ class HDF5Dataset:
             if key not in self.file.attrs:
                 self._close(delete=True)
                 return False
-            if key == 'n_subjects':
-                if self.file.attrs[key] == 'all':
-                    pass
-                elif self.file.attrs[key] != val:
-                    self._close(delete=True)
-                    return False
-            elif self.file.attrs[key] != val:
+
+            if key == 'subjects':
+                assert isinstance(val, (str, np.ndarray)), f'type {type(val)} is not accepted for subjects'
+                subjects = self.file.attrs[key]
+                if isinstance(subjects, str) and subjects == 'all':
+                    continue
+                elif all([s in subjects for s in val]):
+                    continue
+
+            if self.file.attrs[key] != val:
                 self._close(delete=True)
                 return False
+
         self._close()
         return True
 

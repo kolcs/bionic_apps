@@ -136,7 +136,18 @@ def train_test_subject_data(db, subj_ind, classifier_type,
     return cross_acc
 
 
-def make_within_subject_classification(db_filename, classifier_type, classifier_kwargs=None,
+def _get_subject_list(subjects, all_subj):
+    subject_list = np.unique(all_subj)
+    if subjects == 'all':
+        pass
+    elif isinstance(subjects, int):
+        subject_list = subject_list[:subjects]
+    else:
+        subject_list = subjects
+    return subject_list
+
+
+def make_within_subject_classification(subjects, db_filename, classifier_type, classifier_kwargs=None,
                                        n_splits=5, res_handler=None, save_res=True):
     if classifier_kwargs is None:
         classifier_kwargs = {}
@@ -144,9 +155,14 @@ def make_within_subject_classification(db_filename, classifier_type, classifier_
     db = HDF5Dataset(db_filename)
     all_subj = db.get_subject_group()
 
-    for subj in np.unique(all_subj):
+    for subj in _get_subject_list(subjects, all_subj):
         print(f'Subject{subj}')
-        subj_ind = mask_to_ind(subj == all_subj)
+        s_mask = subj == all_subj
+        if not any(s_mask):
+            print(f'Subject{subj} is not in processed database')
+            continue
+
+        subj_ind = mask_to_ind(s_mask)
         cross_acc = train_test_subject_data(db, subj_ind, classifier_type, n_splits=n_splits,
                                             shuffle=True, **classifier_kwargs)
 
@@ -180,7 +196,7 @@ def test_eegdb_within_subject(
         # ch_mode='all', ep_mode='distinct',
         db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
         save_res=True,
-        fast_load=True, n_subjects='all',
+        fast_load=True, subjects='all',
         augment_data=False
 ):
     if classifier_kwargs is None:
@@ -208,10 +224,10 @@ def test_eegdb_within_subject(
                     balance_data=balance_data,
                     subject_handle=subject_handle,
                     base_dir=base_dir, fast_load=fast_load,
-                    n_subjects=n_subjects,
+                    subjects=subjects,
                     augment_data=augment_data)
 
-    make_within_subject_classification(db_file, classifier_type,
+    make_within_subject_classification(subjects, db_file, classifier_type,
                                        classifier_kwargs=classifier_kwargs,
                                        n_splits=n_splits, res_handler=results,
                                        save_res=save_res)
@@ -296,7 +312,7 @@ def test_eegdb_cross_subject(
         db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
         save_res=True,
         fast_load=True,
-        n_subjects='all',
+        subjects='all',
         augment_data=False
 ):
     if classifier_kwargs is None:
@@ -323,7 +339,7 @@ def test_eegdb_cross_subject(
                     balance_data=balance_data,
                     subject_handle=subject_handle,
                     base_dir=base_dir, fast_load=fast_load,
-                    n_subjects=n_subjects,
+                    subjects=subjects,
                     augment_data=augment_data)
 
     make_cross_subject_classification(db_file, classifier_type,

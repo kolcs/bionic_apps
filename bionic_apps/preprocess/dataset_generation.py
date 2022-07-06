@@ -128,7 +128,7 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                     balance_data=True,
                     subject_handle=SubjectHandle.INDEPENDENT_DAYS,
                     base_dir='.', fast_load=True,
-                    n_subjects='all', augment_data=False,
+                    subjects='all', augment_data=False,
                     mode='auto', n_jobs=-3):
     if filter_params is None:
         filter_params = {}
@@ -148,14 +148,20 @@ def generate_eeg_db(db_name, db_filename, feature_type=FeatureType.RAW,
                         base_config_path=base_dir)
     loader.use_db(db_name)
 
+    if subjects == 'all':
+        subject_list = loader.get_subject_list()
+    elif isinstance(subjects, list):
+        subject_list = [s for s in subjects if not loader.is_subject_in_drop_list(s)]
+        assert len(subject_list) > 0, f'All subjects {subjects} are in drop subject list'
+    elif isinstance(subjects, int):
+        subject_list = loader.get_subject_list()[:subjects]
+        feature_params['subjects'] = subject_list
+    else:
+        raise TypeError(f'subject either must be an integer, list or `all` string')
+
     database = HDF5Dataset(db_filename, feature_params)
 
-    if not (database.exists() and fast_load):
-        if n_subjects == 'all':
-            subject_list = loader.get_subject_list()
-        else:
-            assert isinstance(n_subjects, int), 'n_subject must be an integer'
-            subject_list = loader.get_subject_list()[:n_subjects]
+    if not (fast_load and database.exists()):
 
         tic = time()
         if cpu_count() < CPU_THRESHOLD or mode == 'sequential':  # parallel db generation is slow if there is not enough cpu_cores
