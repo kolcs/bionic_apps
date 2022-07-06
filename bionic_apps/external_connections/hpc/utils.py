@@ -1,5 +1,7 @@
+import importlib
 import os
 import subprocess
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -56,3 +58,44 @@ def run_without_checkpoint(test_func):
         test_func(*args, **kwargs)
 
     return wrap
+
+
+def make_one_test():
+    _, par_module, package, param_ind = sys.argv
+
+    par_module = importlib.import_module(par_module, package)
+
+    param_ind = int(param_ind)
+    test_func = run_without_checkpoint(par_module.test_func)
+    hpc_kwargs = par_module.default_kwargs
+    hpc_kwargs.update(par_module.test_kwargs[param_ind])
+
+    folder = Path(par_module.LOG_DIR).joinpath(hpc_kwargs['db_name'].value, par_module.TEST_NAME)
+    folder.mkdir(parents=True, exist_ok=True)
+    log_file = str(folder.joinpath('{}-{}.csv'.format(param_ind, datetime.now().strftime("%Y%m%d-%H%M%S"))))
+    hpc_kwargs['log_file'] = log_file
+
+    test_func(**hpc_kwargs)
+
+
+# stuff to main script:
+# python -c "from bionic_apps.external_connections.hpc.utils import start_test; start_test()"
+
+def start_test(par_module='example_params',
+               package='bionic_apps.external_connections.hpc'):  # call this from script of from python
+    par_module = importlib.import_module(par_module, package)
+    job_list = 'Submitted batch jobs:\n'
+    Path(par_module.LOG_DIR).joinpath('std', 'out').mkdir(parents=True, exist_ok=True)  # sdt out and error files
+    Path(par_module.LOG_DIR).joinpath('std', 'err').mkdir(parents=True, exist_ok=True)  # sdt out and error files
+    for i in range(len(par_module.test_params)):
+        cmd = f'sbatch {par_module.hpc_submit_script}'
+        cmd += f' {__file__} {par_module} {package} {i}'
+        ans = subprocess.check_output(cmd, shell=True)
+        job_list += ans.decode('utf-8').strip('\n').strip('\r').strip('Submitted batch job') + ' '
+    print(job_list)
+    job_file = Path(par_module.LOG_DIR).joinpath('hpc_jobs.txt')
+    job_file.write_text(job_list)
+
+
+if __name__ == '__main__':
+    make_one_test()
