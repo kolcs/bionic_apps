@@ -4,8 +4,6 @@ from pathlib import Path
 from numpy import argmax as np_argmax
 from tensorflow import keras
 
-TF_LOG = 'tf_log/'
-
 
 class ClassifierInterface(ABC):
 
@@ -20,9 +18,10 @@ class ClassifierInterface(ABC):
 
 class TFBaseNet(ClassifierInterface):
 
-    def __init__(self, input_shape, output_shape):
+    def __init__(self, input_shape, output_shape, save_path='tf_log/'):
         self._input_shape = input_shape
         self._output_shape = output_shape
+        self._save_path = Path(save_path)
 
         input_tensor, outputs = self._build_graph()
         self._create_model(input_tensor, outputs)
@@ -52,7 +51,7 @@ class TFBaseNet(ClassifierInterface):
             # EarlyStopping(monitor='loss', patience=3),
         ]
 
-        best_model_cp_file = Path(TF_LOG).joinpath('models')
+        best_model_cp_file = self._save_path.joinpath('models')
         if validation_data is not None:
             best_model_cp_file.mkdir(parents=True, exist_ok=True)
             best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')

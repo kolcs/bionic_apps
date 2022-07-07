@@ -5,10 +5,10 @@ from bionic_apps.offline_analyses import test_eegdb_within_subject
 from bionic_apps.preprocess.io import SubjectHandle
 import numpy as np
 
-LOG_DIR = 'eeg_net'
+LOG_DIR = 'tests/eeg_net'
 TEST_NAME = 'window_inv'
 
-hpc_submit_script = f'{LOG_DIR}/submit_gpu.sh'
+hpc_submit_script = f'py_gpu1.sh'
 
 test_func = test_eegdb_within_subject
 
@@ -38,13 +38,13 @@ default_kwargs = dict(
 # generating test params here...
 _windows = [(win_len, win_step)
             for win_len in np.arange(.5, 4.1, .5)
-            for win_step in [0, .01, .05]]
+            for win_step in [0, .01, .05] if win_len + win_step <= 4 and win_step <= win_len]
 
 test_kwargs = []
 
 for win_len, win_step in _windows:
     pars = dict(
-        window_length=win_len,
+        window_len=win_len,
         window_step=win_step,
     )
     test_kwargs.append(pars)

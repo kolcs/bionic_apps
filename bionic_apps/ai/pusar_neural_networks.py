@@ -44,26 +44,26 @@ class CNN(TFBaseNet):
 #  https://github.com/vlawhern/arl-eegmodels
 class EEGNet(TFBaseNet):
 
-    def __init__(self, input_shape, classes, dropoutRate=0.5, kernLength=.5, F1=8,
-                 D=2, F2=16, norm_rate=0.25, dropoutType='Dropout'):
-        self.dropout_rate = dropoutRate
-        if dropoutType == 'SpatialDropout2D':
-            dropoutType = tf.keras.layers.SpatialDropout2D
-        elif dropoutType == 'Dropout':
-            dropoutType = tf.keras.layers.Dropout
+    def __init__(self, input_shape, classes, dropout_rate=0.5, kernel_length=.5, f1=8,
+                 d=2, f2=16, norm_rate=0.25, dropout_type='Dropout', save_path='tf_log/'):
+        self.dropout_rate = dropout_rate
+        if dropout_type == 'SpatialDropout2D':
+            dropout_type = tf.keras.layers.SpatialDropout2D
+        elif dropout_type == 'Dropout':
+            dropout_type = tf.keras.layers.Dropout
         else:
             raise ValueError('dropoutType must be one of SpatialDropout2D '
                              'or Dropout, passed as a string.')
-        self.dropout_type = dropoutType
-        if isinstance(kernLength, float) and kernLength < 1:
-            self.kernel_length = int(input_shape[-1] * kernLength)
+        self.dropout_type = dropout_type
+        if isinstance(kernel_length, float) and kernel_length < 1:
+            self.kernel_length = int(input_shape[-1] * kernel_length)
         else:
-            self.kernel_length = kernLength
-        self.f1 = F1
-        self.d = D
-        self.f2 = F2
+            self.kernel_length = kernel_length
+        self.f1 = f1
+        self.d = d
+        self.f2 = f2
         self.norm_rate = norm_rate
-        super(EEGNet, self).__init__(input_shape, classes)
+        super(EEGNet, self).__init__(input_shape, classes, save_path)
 
     def _build_graph(self):
         input_tensor = keras.layers.Input(shape=self._input_shape)
