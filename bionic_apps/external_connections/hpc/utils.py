@@ -87,6 +87,17 @@ def start_test(par_module='example_params',
     job_list = 'Submitted batch jobs:\n'
     Path(par_module.LOG_DIR).joinpath('std', 'out').mkdir(parents=True, exist_ok=True)  # sdt out and error files
     Path(par_module.LOG_DIR).joinpath('std', 'err').mkdir(parents=True, exist_ok=True)  # sdt out and error files
+
+    user_ans = input(f'{len(par_module.test_kwargs)} '
+                     f'HPC jobs will be created. Do you want to continue [y] / n?  ')
+    if user_ans in ['', 'y']:
+        pass
+    else:
+        if user_ans != 'n':
+            print('Incorrect command.')
+        print(f'{__file__} is terminated.')
+        exit(0)
+
     for i in range(len(par_module.test_params)):
         cmd = f'sbatch {par_module.hpc_submit_script}'
         cmd += f' {__file__} {par_module} {package} {i}'
