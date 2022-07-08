@@ -6,10 +6,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from pymatreader import read_mat
 
-from .defaults import IMAGINED_MOVEMENT, BOTH_LEGS
-from .. import EEG_Databases, get_eeg_db_name_by_filename
-from ...handlers.gui import select_folder_in_explorer
-from ...preprocess.io import DataLoader, get_epochs_from_raw
+from bionic_apps.databases import EEG_Databases, get_eeg_db_name_by_filename
+from bionic_apps.databases.eeg.defaults import IMAGINED_MOVEMENT, BOTH_LEGS
+from bionic_apps.handlers.gui import select_folder_in_explorer
+from bionic_apps.preprocess.io import DataLoader, get_epochs_from_raw
 
 BASE_PATH = '.'
 
