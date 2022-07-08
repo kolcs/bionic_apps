@@ -10,10 +10,11 @@ from pathlib import Path
 
 from numpy.random import randint
 
-CHECKPOINT = 'checkpoint.json'
-FEATURE_DIR = 'feature_dir'
-SUBJECT_NUM = 'subj_num'
-cp_info = dict()
+from bionic_apps.preprocess.io import DataLoader
+from bionic_apps.utils import load_from_json
+
+SAVE_PATH = 'save_path'
+PROCESSED_SUBJ = 'subj'
 
 
 def _cleanup_files_older_than(path, days=7):
@@ -33,53 +34,49 @@ def _cleanup_files_older_than(path, days=7):
                 pass
 
 
-def _gen_save_path(test_name, ind):
+def _gen_hpc_save_path(log_path):
     user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
-    path = Path(f'/scratch{randint(1, 5)}').joinpath(user, 'bci', test_name, str(ind))
-    _cleanup_files_older_than(path.parent.parent)
-    return path
+    base_path = Path(f'/scratch{randint(1, 5)}').joinpath(user)
+    _cleanup_files_older_than(base_path)
+    return base_path.joinpath(log_path)
 
 
-# def run_with_checkpoint(test_func, checkpoint=None, verbose=False, **test_kwargs):
-#     global cp_info, CHECKPOINT
-#     if type(checkpoint) is str:
-#         CHECKPOINT = checkpoint
-#
-#     fast_load = True
-#     try:
-#         cp_info = load_from_json(CHECKPOINT)
-#     except FileNotFoundError:
-#         path = _gen_save_path()
-#         # rmtree(path, ignore_errors=True)
-#         cp_info[FEATURE_DIR] = path
-#         cp_info[SUBJECT_NUM] = 1
-#         fast_load = False
-#     config.SAVE_PATH = cp_info[FEATURE_DIR]
-#
-#     # running the test with checkpoints...
-#     test_func(subject_from=cp_info[SUBJECT_NUM], fast_load=fast_load,
-#               verbose=verbose, **test_kwargs)
-#
-#     os.remove(CHECKPOINT)
+def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
+    cp_info = dict(
+        filename=str(log_path.joinpath('check_point.json'))
+    )
+
+    try:
+        cp_info = load_from_json(cp_info['filename'])
+        save_path = cp_info[SAVE_PATH]
+        subjects = [s for s in subjects if s > cp_info[PROCESSED_SUBJ]]
+    except FileNotFoundError:
+        save_path = _gen_hpc_save_path(log_path)
+        cp_info[SAVE_PATH] = str(save_path)
+        cp_info[PROCESSED_SUBJ] = 0
+        subjects = 'all'
+
+    assert 'db_file' in list(inspect.signature(test_func).parameters), \
+        f'db_file param is not in kwargs of {test_func.__name__}()'
+
+    kwargs['db_file'] = Path(save_path).joinpath('database.h5')
+    kwargs['classifier_kwargs']['save_path'] = save_path
+    kwargs['subjects'] = subjects
+    kwargs['hpc_check_point'] = cp_info
+
+    test_func(*args, **kwargs)
+
+    os.remove(cp_info['filename'])
 
 
-# def run_without_checkpoint(test_func):
-#     def wrap(*args, **kwargs):
-#         assert 'db_file' in list(inspect.signature(test_func).parameters), \
-#             f'db_file param is not in kwargs of {test_func.__name__}()'
-#         save_path = _gen_save_path()
-#         kwargs['db_file'] = save_path.joinpath('database.h5')
-#         kwargs['classifier_kwargs']['save_path'] = save_path
-#         test_func(*args, **kwargs)
-#
-#     return wrap
-
-def run_without_checkpoint(test_func, test_name, ind, args=(), kwargs=None):
+def run_without_checkpoint(test_func, log_path, args=(), kwargs=None):
     if kwargs is None:
         kwargs = {}
     assert 'db_file' in list(inspect.signature(test_func).parameters), \
         f'db_file param is not in kwargs of {test_func.__name__}()'
-    save_path = _gen_save_path(test_name, ind)
+    save_path = _gen_hpc_save_path(log_path)
     kwargs['db_file'] = save_path.joinpath('database.h5')
     kwargs['classifier_kwargs']['save_path'] = save_path
     test_func(*args, **kwargs)
@@ -91,26 +88,26 @@ def make_one_test():
     par_module = importlib.import_module(module, package)
     # par_module = lazy_import(par_module, package)
 
-    param_ind = int(param_ind)
     hpc_kwargs = par_module.default_kwargs
-    hpc_kwargs.update(par_module.test_kwargs[param_ind])
+    hpc_kwargs.update(par_module.test_kwargs[int(param_ind)])
 
-    folder = Path(par_module.LOG_DIR).joinpath(hpc_kwargs['db_name'].value, par_module.TEST_NAME)
-    folder.mkdir(parents=True, exist_ok=True)
-    log_file = str(folder.joinpath('{}-{}.csv'.format(param_ind, datetime.now().strftime("%Y%m%d-%H%M%S"))))
-    hpc_kwargs['log_file'] = log_file
+    db_name = hpc_kwargs['db_name']
+    log_path = Path(par_module.LOG_DIR).joinpath(db_name.value, par_module.TEST_NAME, param_ind)
+    log_path.mkdir(parents=True, exist_ok=True)
+    hpc_kwargs['log_file'] = str(log_path.joinpath(f'{datetime.now().strftime("%Y%m%d-%H%M%S")}.csv'))
 
-    run_without_checkpoint(par_module.test_func, par_module.TEST_NAME, param_ind, kwargs=hpc_kwargs)
+    subjects = DataLoader().use_db(db_name).get_subject_list()
+    # run_without_checkpoint(par_module.test_func, log_path, kwargs=hpc_kwargs)
+    run_with_checkpoint(par_module.test_func, log_path,
+                        subjects=subjects, kwargs=hpc_kwargs)
 
 
 # stuff to main script:
 # python -c "from bionic_apps.external_connections.hpc.utils import start_test; start_test()"
 
 def start_test(module='.example_params',
-               package='bionic_apps.external_connections.hpc'):  # call this from script of from python
-    # par_module = lazy_import(par_module, package)
+               package='bionic_apps.external_connections.hpc'):
     par_module = importlib.import_module(module, package)
-    job_list = 'Submitted batch jobs:\n'
 
     std_out = Path(par_module.LOG_DIR).joinpath('std', 'out')
     std_err = Path(par_module.LOG_DIR).joinpath('std', 'err')
@@ -138,6 +135,7 @@ def start_test(module='.example_params',
             else:
                 print(line, end='')
 
+    job_list = 'Submitted batch jobs:\n'
     for i in range(len(par_module.test_kwargs)):
         cmd = f'sbatch {submit_script}'
         cmd += f' {__file__} {module} {package} {i}'

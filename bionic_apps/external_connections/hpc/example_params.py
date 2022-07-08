@@ -1,14 +1,15 @@
+import numpy as np
+
 from bionic_apps.ai import ClassifierType
 from bionic_apps.databases import EEG_Databases
 from bionic_apps.feature_extraction import FeatureType
 from bionic_apps.offline_analyses import test_eegdb_within_subject
 from bionic_apps.preprocess.io import SubjectHandle
-import numpy as np
 
-LOG_DIR = 'tests/eeg_net'
+LOG_DIR = 'bci_tests/eeg_net'
 TEST_NAME = 'window_inv'
 
-hpc_submit_script = f'py_gpu1.sh'
+hpc_submit_script = f'gpu1_lowpri.sh'
 
 test_func = test_eegdb_within_subject
 
@@ -26,6 +27,7 @@ default_kwargs = dict(
     n_splits=5,
     classifier_type=ClassifierType.EEG_NET,
     classifier_kwargs=dict(
+        validation_split=.2,
         epochs=500,
         patience=15
     ),
@@ -36,11 +38,11 @@ default_kwargs = dict(
 )
 
 # generating test params here...
+test_kwargs = []
+
 _windows = [(win_len, win_step)
             for win_len in np.arange(.5, 4.1, .5)
             for win_step in [0, .01, .05] if win_len + win_step <= 4 and win_step <= win_len]
-
-test_kwargs = []
 
 for win_len, win_step in _windows:
     pars = dict(

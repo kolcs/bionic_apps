@@ -15,7 +15,7 @@ from .handlers.tf import get_tf_dataset
 from .model_selection import BalancedKFold, LeavePSubjectGroupsOutSequentially
 from .preprocess import generate_eeg_db
 from .preprocess.io import SubjectHandle
-from .utils import mask_to_ind, process_run, save_pickle_data
+from .utils import mask_to_ind, process_run, save_pickle_data, save_to_json
 from .validations import validate_feature_classifier_pair
 
 
@@ -148,7 +148,7 @@ def _get_subject_list(subjects, all_subj):
 
 
 def make_within_subject_classification(subjects, db_filename, classifier_type, classifier_kwargs=None,
-                                       n_splits=5, res_handler=None, save_res=True):
+                                       n_splits=5, res_handler=None, save_res=True, hpc_check_point=None):
     if classifier_kwargs is None:
         classifier_kwargs = {}
 
@@ -174,6 +174,11 @@ def make_within_subject_classification(subjects, db_filename, classifier_type, c
             if save_res:
                 res_handler.save()
 
+        if isinstance(hpc_check_point, dict):
+            from bionic_apps.external_connections.hpc.utils import PROCESSED_SUBJ
+            hpc_check_point[PROCESSED_SUBJ] = int(subj)
+            save_to_json(hpc_check_point['filename'], hpc_check_point)
+
     db.close()
     if res_handler is not None:
         res_handler.print_db_res()
@@ -197,7 +202,8 @@ def test_eegdb_within_subject(
         db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
         save_res=True,
         fast_load=True, subjects='all',
-        augment_data=False
+        augment_data=False,
+        hpc_check_point=None
 ):
     if classifier_kwargs is None:
         classifier_kwargs = {}
@@ -230,7 +236,7 @@ def test_eegdb_within_subject(
     make_within_subject_classification(subjects, db_file, classifier_type,
                                        classifier_kwargs=classifier_kwargs,
                                        n_splits=n_splits, res_handler=results,
-                                       save_res=save_res)
+                                       save_res=save_res, hpc_check_point=hpc_check_point)
 
 
 def make_cross_subject_classification(db_filename, classifier_type,
