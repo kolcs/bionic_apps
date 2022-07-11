@@ -24,7 +24,9 @@ class TestOfflineBciSystem(unittest.TestCase):
     def _run_eegdb_within_subj_test(self, **kwargs):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                test_eegdb_within_subject(db_name, do_artefact_rejection=True,
+                test_eegdb_within_subject(db_name,
+                                          window_len=2, window_step=1,
+                                          do_artefact_rejection=True,
                                           fast_load=True, log_file='out.csv',
                                           subjects=2,
                                           **kwargs)
@@ -59,7 +61,9 @@ class TestOfflineBciSystem(unittest.TestCase):
     def _run_eegdb_cross_subj_test(self, **kwargs):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                test_eegdb_cross_subject(db_name, do_artefact_rejection=True,
+                test_eegdb_cross_subject(db_name,
+                                         window_len=2, window_step=1,
+                                         do_artefact_rejection=True,
                                          fast_load=True, log_file='out.csv',
                                          subjects=5, leave_out_n_subjects=2,
                                          **kwargs)
