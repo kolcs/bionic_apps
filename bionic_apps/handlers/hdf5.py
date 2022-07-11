@@ -98,6 +98,7 @@ class HDF5Dataset:
         if self.file is not None:
             self.file.close()
             self.file = None
+            self.dset_x = None
 
         if delete:
             self.filename.unlink(missing_ok=True)
