@@ -80,7 +80,7 @@ class TestOfflineBciSystem(unittest.TestCase):
             ),
 
         )
-        self._run_eegdb_within_subj_test(**kwargs)
+        self._run_eegdb_cross_subj_test(**kwargs)
 
     def test_eegdb_cross_subj_eegnet_val(self):
         kwargs = dict(
@@ -93,7 +93,7 @@ class TestOfflineBciSystem(unittest.TestCase):
                 order=5, l_freq=1, h_freq=45
             ),
         )
-        self._run_eegdb_within_subj_test(**kwargs)
+        self._run_eegdb_cross_subj_test(**kwargs)
 
 
 @unittest.skipUnless(
