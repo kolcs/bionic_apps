@@ -5,6 +5,7 @@ from warnings import warn, simplefilter
 
 import keras.models
 import numpy as np
+from sklearn.preprocessing import LabelEncoder
 
 from bionic_apps.ai import ClassifierType, init_classifier
 from bionic_apps.artifact_filtering.faster import ArtefactFilter
@@ -39,7 +40,7 @@ F_KWARGS = dict(
 CLF_TYPE = ClassifierType.VOTING_SVM
 CLF_KWARGS = dict(
     # C=309.27089776753826, gamma=0.3020223611011116
-    # epochs=150, batch_size=32
+    # epochs=150, batch_size=32, validation_split=.2, patience=7
 )
 
 
@@ -48,6 +49,7 @@ def start_brain_driver_control_system(feature_type, classifier_type,
                                       window_length=2, window_step=.1, *,
                                       feature_kwargs=None, filter_params=None,
                                       do_artefact_rejection=True, balance_data=True,
+                                      augment_data=False,
                                       classifier_kwargs=None,
                                       use_best_clf=True, make_opponents=True,
                                       use_game_logger=True,
@@ -98,30 +100,32 @@ def start_brain_driver_control_system(feature_type, classifier_type,
 
     if not database.exists():
         artifact_filter = ArtefactFilter(apply_frequency_filter=False) if do_artefact_rejection else None
-        windowed_data, labels, subj_ind, ep_ind, fs, info = generate_subject_data(
+        windowed_data, labels, subj_ind, ep_ind, orig_mask, fs, info = generate_subject_data(
             eeg_files, loader, SUBJ, filter_params,
             epoch_tmin, epoch_tmax, window_length, window_step,
             artifact_filter, balance_data,
-            binarize_labels=make_binary_classification
+            binarize_labels=make_binary_classification,
+            augment_data=augment_data
         )
         windowed_data = generate_features(windowed_data, fs, feature_type, info=info, **feature_kwargs)
-        database.add_data(windowed_data, labels, subj_ind, ep_ind, fs)
+        database.add_data(windowed_data, labels, subj_ind, ep_ind, orig_mask, fs)
         database.close()
         save_pickle_data(base_dir.joinpath(AR_FILTER), artifact_filter)
     else:
         artifact_filter = load_pickle_data(base_dir.joinpath(AR_FILTER))
 
-    db, y_all, all_subj, ep_ind, le, fs = init_hdf5_db(db_filename)
-
+    all_subj = database.get_subject_group()
+    y_all = database.get_y()
+    le = LabelEncoder()
+    y_all = le.fit_transform(y_all)
+    fs = database.get_fs()
     subj_ind = mask_to_ind(all_subj == SUBJ)
-    x = db.get_data(subj_ind)
-    y = y_all[subj_ind]
 
-    cross_acc, clf_filenames = train_test_subject_data(db, subj_ind, classifier_type,
+    cross_acc, clf_filenames = train_test_subject_data(database, subj_ind, classifier_type,
                                                        n_splits=5, shuffle=True,
                                                        save_classifiers=True, label_encoder=le,
                                                        **classifier_kwargs)
-    db.close()
+    database.close()
 
     one_hot_output = False
     if use_best_clf:
@@ -141,6 +145,9 @@ def start_brain_driver_control_system(feature_type, classifier_type,
             batch_size = classifier_kwargs.pop('batch_size')
         except KeyError:
             batch_size = None
+
+        x = database.get_data(subj_ind)
+        y = y_all[subj_ind]
         classifier = init_classifier(classifier_type, x[0].shape, len(le.classes_),
                                      **classifier_kwargs)
         if epochs is None:
