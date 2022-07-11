@@ -39,12 +39,10 @@ def _get_balanced_train_val_ind(validation_split, train_labels, train_groups):
     return tr_ind, val_ind
 
 
-def _one_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
-              *, shuffle, label_encoder, classifier_type,
-              epochs=None, batch_size=32, validation_split=0., patience=15,
-              save_classifier=False, i, **classifier_kwargs):
-    if shuffle:
-        np.random.shuffle(train_ind)
+def _one_within_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
+                     *, label_encoder, classifier_type,
+                     epochs=None, batch_size=32, validation_split=0., patience=15,
+                     save_classifier=False, i, **classifier_kwargs):
     base_dir = db.filename.parent
 
     orig_test_mask = db.get_orig_mask()[subj_ind][test_ind]
@@ -115,9 +113,11 @@ def train_test_subject_data(db, subj_ind, classifier_type,
     saved_clf_names = list()
     for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
         db.close()
-        acc = process_run(_one_fold,
+        if shuffle:
+            np.random.shuffle(train)
+        acc = process_run(_one_within_fold,
                           args=(train, test, subj_ind, ep_ind, y, db),
-                          kwargs=dict(shuffle=shuffle, label_encoder=label_encoder,
+                          kwargs=dict(label_encoder=label_encoder,
                                       classifier_type=classifier_type, epochs=epochs,
                                       batch_size=batch_size,
                                       validation_split=validation_split,
@@ -199,7 +199,7 @@ def test_eegdb_within_subject(
         classifier_type=ClassifierType.ENSEMBLE,
         classifier_kwargs=None,
         # ch_mode='all', ep_mode='distinct',
-        db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
+        db_file='tmp/database.hdf5', log_file='tmp/out.csv', base_dir='.',
         save_res=True,
         fast_load=True, subjects='all',
         augment_data=False,
@@ -239,8 +239,64 @@ def test_eegdb_within_subject(
                                        save_res=save_res, hpc_check_point=hpc_check_point)
 
 
+def _one_cross_fold(train_ind, test_ind, y, db,
+                    *, label_encoder, classifier_type,
+                    res_handler=None, save_res=True,
+                    epochs=None, batch_size=32, validation_split=0., patience=15,
+                    **classifier_kwargs):
+    clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
+                          len(label_encoder.classes_), **classifier_kwargs)
+
+    all_subj = db.get_subject_group()
+
+    if epochs is None:
+        x_train = db.get_data(train_ind)
+        y_train = y[train_ind]
+        clf.fit(x_train, y_train)
+    else:
+        if validation_split > 0:
+            # # subject level
+            # tr, val = _get_train_val_ind(validation_split, all_subj[train_ind])
+
+            # epoch level
+            tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
+                                                  db.get_epoch_group()[train_ind])
+
+            train_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[tr]]).batch(batch_size)
+            train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+            val_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[val]]).batch(batch_size)
+            val_tf_ds = val_tf_ds.cache()
+            clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
+                    patience=patience)
+        else:
+            tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
+            tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+            clf.fit(tf_dataset, epochs=epochs)
+
+    # test subjects individually - check network generalization capability
+    for subj in np.unique(all_subj[test_ind]):
+        print(f'Subject{subj}')
+        test_subj_ind = mask_to_ind(subj == all_subj)
+        orig_test_mask = db.get_orig_mask()[test_subj_ind]
+        orig_test_ind = test_subj_ind[orig_test_mask]
+
+        x_test = db.get_data(orig_test_ind)
+        y_test = y[orig_test_ind]
+        acc = test_classifier(clf, x_test, y_test, label_encoder)
+
+        if res_handler is not None:
+            res_handler.add({'Subject': [f'Subject{subj}'],
+                             'Left out subjects': [np.unique(all_subj[test_ind])],
+                             'Accuracy': [acc]})
+            if save_res:
+                res_handler.save()
+
+    return res_handler
+
+
 def make_cross_subject_classification(db_filename, classifier_type,
-                                      leave_out_n_subjects=10, res_handler=None,
+                                      leave_out_n_subjects=10, shuffle=True,
+                                      res_handler=None,
                                       save_res=True, epochs=None, batch_size=32,
                                       validation_split=.0, patience=15,
                                       **classifier_kwargs):
@@ -251,52 +307,21 @@ def make_cross_subject_classification(db_filename, classifier_type,
     y = label_encoder.transform(y)
 
     for train_ind, test_ind in LeavePSubjectGroupsOutSequentially(leave_out_n_subjects).split(groups=all_subj):
-        clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
-                              len(label_encoder.classes_), **classifier_kwargs)
+        print(f'Training on subjects: {np.unique(all_subj[train_ind])}')
+        if shuffle:
+            np.random.shuffle(train_ind)
+        db.close()
+        res_handler = process_run(_one_cross_fold,
+                                  args=(train_ind, test_ind, y, db),
+                                  kwargs=dict(label_encoder=label_encoder,
+                                              res_handler=res_handler, save_res=save_res,
+                                              classifier_type=classifier_type,
+                                              epochs=epochs,
+                                              batch_size=batch_size,
+                                              validation_split=validation_split,
+                                              patience=patience,
+                                              **classifier_kwargs))
 
-        if epochs is None:
-            x_train = db.get_data(train_ind)
-            y_train = y[train_ind]
-            clf.fit(x_train, y_train)
-        else:
-            if validation_split > 0:
-                # # subject level
-                # tr, val = _get_train_val_ind(validation_split, all_subj[train_ind])
-
-                # epoch level
-                tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
-                                                      db.get_epoch_group()[train_ind])
-
-                train_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[tr]]).batch(batch_size)
-                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
-                val_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[val]]).batch(batch_size)
-                val_tf_ds = val_tf_ds.cache()
-                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
-                        patience=patience)
-            else:
-                tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
-                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-                clf.fit(tf_dataset, epochs=epochs)
-
-        # test subjects individually - check network generalization capability
-        for subj in np.unique(all_subj[test_ind]):
-            print(f'Subject{subj}')
-            test_subj_ind = mask_to_ind(subj == all_subj)
-            orig_test_mask = db.get_orig_mask()[test_subj_ind]
-            orig_test_ind = test_subj_ind[orig_test_mask]
-
-            x_test = db.get_data(orig_test_ind)
-            y_test = y[orig_test_ind]
-            acc = test_classifier(clf, x_test, y_test, label_encoder)
-
-            if res_handler is not None:
-                res_handler.add({'Subject': [f'Subject{subj}'],
-                                 'Left out subjects': [np.unique(all_subj[test_ind])],
-                                 'Accuracy': [acc]})
-                if save_res:
-                    res_handler.save()
-
-    db.close()
     if res_handler is not None:
         res_handler.print_db_res(col='Accuracy')
 
@@ -315,7 +340,7 @@ def test_eegdb_cross_subject(
         leave_out_n_subjects=10,
         classifier_type=ClassifierType.EEG_NET,
         classifier_kwargs=None,
-        db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
+        db_file='tmp/database.hdf5', log_file='tmp/out.csv', base_dir='.',
         save_res=True,
         fast_load=True,
         subjects='all',
