@@ -68,6 +68,8 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
 
     test_func(*args, **kwargs)
 
+    # cleanup
+    shutil.rmtree(save_path)
     os.remove(cp_info['filename'])
 
 
@@ -80,6 +82,7 @@ def run_without_checkpoint(test_func, log_path, args=(), kwargs=None):
     kwargs['db_file'] = save_path.joinpath('database.h5')
     kwargs['classifier_kwargs']['save_path'] = save_path
     test_func(*args, **kwargs)
+    shutil.rmtree(str(save_path))
 
 
 def make_one_test():
