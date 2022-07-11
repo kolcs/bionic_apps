@@ -11,7 +11,7 @@ from pathlib import Path
 from numpy.random import randint
 
 from bionic_apps.preprocess.io import DataLoader
-from bionic_apps.utils import load_from_json
+from bionic_apps.utils import load_from_json, save_to_json
 
 SAVE_PATH = 'save_path'
 PROCESSED_SUBJ = 'subj'
@@ -57,6 +57,7 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
         cp_info[SAVE_PATH] = str(save_path)
         cp_info[PROCESSED_SUBJ] = 0
         subjects = 'all'
+        save_to_json(cp_info['filename'], cp_info)
 
     assert 'db_file' in list(inspect.signature(test_func).parameters), \
         f'db_file param is not in kwargs of {test_func.__name__}()'
@@ -66,11 +67,13 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
     kwargs['subjects'] = subjects
     kwargs['hpc_check_point'] = cp_info
 
-    test_func(*args, **kwargs)
-
-    # cleanup
-    shutil.rmtree(save_path)
-    os.remove(cp_info['filename'])
+    try:
+        test_func(*args, **kwargs)
+        os.remove(cp_info['filename'])
+        shutil.rmtree(save_path)
+    except Exception as e:
+        shutil.rmtree(save_path)
+        raise e
 
 
 def run_without_checkpoint(test_func, log_path, args=(), kwargs=None):
@@ -81,13 +84,19 @@ def run_without_checkpoint(test_func, log_path, args=(), kwargs=None):
     save_path = _gen_hpc_save_path(log_path)
     kwargs['db_file'] = save_path.joinpath('database.h5')
     kwargs['classifier_kwargs']['save_path'] = save_path
-    test_func(*args, **kwargs)
-    shutil.rmtree(str(save_path))
+
+    try:
+        test_func(*args, **kwargs)
+        shutil.rmtree(save_path)
+    except Exception as e:
+        shutil.rmtree(save_path)
+        raise e
 
 
 def make_one_test():
     _, module, package, param_ind = sys.argv
 
+    print(f'Starting job with param_ind: {param_ind}')
     par_module = importlib.import_module(module, package)
     # par_module = lazy_import(par_module, package)
 
