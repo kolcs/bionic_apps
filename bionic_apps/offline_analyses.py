@@ -115,15 +115,25 @@ def train_test_subject_data(db, subj_ind, classifier_type,
         db.close()
         if shuffle:
             np.random.shuffle(train)
-        acc = process_run(_one_within_fold,
-                          args=(train, test, subj_ind, ep_ind, y, db),
-                          kwargs=dict(label_encoder=label_encoder,
-                                      classifier_type=classifier_type, epochs=epochs,
-                                      batch_size=batch_size,
-                                      validation_split=validation_split,
-                                      patience=patience,
-                                      save_classifier=save_classifiers, i=i,
-                                      **classifier_kwargs))
+        if classifier_type in [ClassifierType.ENSEMBLE, ClassifierType.VOTING, ClassifierType.VOTING_SVM]:
+            acc = _one_within_fold(train, test, subj_ind, ep_ind, y, db,
+                                   label_encoder=label_encoder,
+                                   classifier_type=classifier_type, epochs=epochs,
+                                   batch_size=batch_size,
+                                   validation_split=validation_split,
+                                   patience=patience,
+                                   save_classifier=save_classifiers, i=i,
+                                   **classifier_kwargs)
+        else:
+            acc = process_run(_one_within_fold,
+                              args=(train, test, subj_ind, ep_ind, y, db),
+                              kwargs=dict(label_encoder=label_encoder,
+                                          classifier_type=classifier_type, epochs=epochs,
+                                          batch_size=batch_size,
+                                          validation_split=validation_split,
+                                          patience=patience,
+                                          save_classifier=save_classifiers, i=i,
+                                          **classifier_kwargs))
         if save_classifiers:
             acc, saved_clf_name = acc
             saved_clf_names.append(saved_clf_name)
