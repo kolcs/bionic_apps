@@ -6,6 +6,7 @@ from pickle import dump as pkl_dump, load as pkl_load
 from sys import platform
 
 import numpy as np
+from joblib.externals.loky import get_reusable_executor
 
 from .databases import REST, CALM, ACTIVE
 
@@ -248,3 +249,18 @@ def process_run(func, args=(), kwargs=None, debug=False):
     else:
         ans = func(*args, **kwargs)
     return ans
+
+
+def cleanup_after(func):
+    """Clean up unused processes after using joblib library
+
+    Joblib does not release processes to speed up re-usage of processes
+    Issue: https://github.com/joblib/joblib/issues/945
+    """
+
+    def wrap(*args, **kwargs):
+        ans = func(*args, **kwargs)
+        get_reusable_executor().shutdown(wait=True)  # , kill_workers=True)
+        return ans
+
+    return wrap
