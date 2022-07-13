@@ -42,6 +42,8 @@ class HDF5Dataset:
                 validated_f_pars[key] = val
             elif isinstance(val, list):
                 validated_f_pars[key] = np.array(sorted(val))
+            elif val is None:
+                validated_f_pars[key] = np.nan
             else:
                 raise ValueError(f'Can not save meta data with type {type(val)}.')
         self.feature_params = validated_f_pars
