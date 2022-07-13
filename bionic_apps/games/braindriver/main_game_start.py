@@ -16,7 +16,7 @@ from bionic_apps.games.braindriver.control import GameControl
 from bionic_apps.games.braindriver.logger import GameLogger
 from bionic_apps.games.braindriver.opponents import create_opponents
 from bionic_apps.handlers.gui import select_files_in_explorer
-from bionic_apps.handlers.hdf5 import HDF5Dataset, init_hdf5_db
+from bionic_apps.handlers.hdf5 import HDF5Dataset
 from bionic_apps.offline_analyses import train_test_subject_data
 from bionic_apps.preprocess.dataset_generation import generate_subject_data
 from bionic_apps.preprocess.io import DataLoader
