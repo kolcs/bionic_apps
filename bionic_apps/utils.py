@@ -14,22 +14,26 @@ CONFIG_FILE = 'bionic_apps.cfg'
 BASE_DIR = 'base_dir'
 
 
-def _windowed_view(data, window_length, window_step):
+def window_data(data, window_length, window_step, fs):
     """Windower method which windows a given signal in to a given window size.
 
     Parameters
     ----------
     data : ndarray
         Data to be windowed. Shape: (n_channels, time)
-    window_length : int
-        Required window length in sample points.
-    window_step : int
-        Required window step in sample points.
+    window_length : float
+        Length of sliding window in seconds.
+    window_step : float
+        Step of sliding window in seconds.
+    fs : int
+        Sampling frequency.
     Returns
     -------
     ndarray
         Windowed data with shape (n_windows, n_channels, time)
     """
+    window_length = int(window_length * fs)
+    window_step = int(window_step * fs)
     if window_step > 0:
         overlap = window_length - window_step
         n_windows = data.shape[-1] - overlap
@@ -67,7 +71,7 @@ def window_epochs(data, window_length, window_step, fs):
     """
     windowed_tasks = []
     for i in range(len(data)):
-        x = _windowed_view(data[i, :, :], int(window_length * fs), int(window_step * fs))
+        x = window_data(data[i, :, :], window_length, window_step, fs)
         windowed_tasks.append(np.array(x))
     return np.array(windowed_tasks)
 
