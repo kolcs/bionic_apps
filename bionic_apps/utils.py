@@ -76,11 +76,13 @@ def window_epochs(data, window_length, window_step, fs):
     return np.array(windowed_tasks)
 
 
-def filter_mne_obj(mne_obj, f_type='butter', order=5, l_freq=1, h_freq=None, n_jobs=1):
+def filter_mne_obj(mne_obj, f_type='butter', order=5, l_freq=1, h_freq=None, picks=None, n_jobs=1):
     mne_obj = mne_obj.copy()
     iir_params = dict(order=order, ftype=f_type, output='sos')
-    mne_obj.filter(l_freq=l_freq, h_freq=h_freq, method='iir', iir_params=iir_params, skip_by_annotation='edge',
-                   n_jobs=n_jobs)
+    mne_obj.filter(l_freq=l_freq, h_freq=h_freq,
+                   method='iir', iir_params=iir_params,
+                   skip_by_annotation='edge',
+                   picks=picks, n_jobs=n_jobs)
     return mne_obj
 
 
