@@ -8,7 +8,7 @@ from tensorflow import data as tf_data
 
 from .ai.classifier import test_classifier, init_classifier, ClassifierType
 from .ai.interface import TFBaseNet
-from .databases import EEG_Databases
+from .databases import Databases
 from .feature_extraction import FeatureType
 from .handlers import ResultHandler, HDF5Dataset
 from .handlers.tf import get_tf_dataset
