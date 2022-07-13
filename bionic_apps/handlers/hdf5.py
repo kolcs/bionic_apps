@@ -3,7 +3,6 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
 
 
 class HDF5Dataset:
@@ -118,16 +117,15 @@ class HDF5Dataset:
             ind = np.arange(len(ind))[ind]
         return self.file['x'][ind]
 
-    def _get_meta(self, key='all'):
+    def _get_meta(self, key):
         if self.mode is None:
             self._open('a')
-        if key == 'all':
-            return self.file.attrs['subject'], self.file.attrs['ep_group'], \
-                   self.file.attrs['y'].astype('U'), self.file.attrs['fs']
-        elif key == 'y':
-            return self.file.attrs['y'].astype('U')
+
+        if key == 'y':
+            meta = self.file.attrs['y'].astype('U')
         else:
-            return self.file.attrs[key]
+            meta = self.file.attrs[key]
+        return meta
 
     def get_subject_group(self):
         return self._get_meta('subject')
@@ -175,11 +173,13 @@ class HDF5Dataset:
 
     def __del__(self):
         self.close()
+        del self.file
+        del self.dset_x
+        del self
 
-
-def init_hdf5_db(db_filename):
-    db = HDF5Dataset(db_filename)
-    subj_ind, ep_ind, y, fs = db._get_meta()
-    le = LabelEncoder()
-    y = le.fit_transform(y)
-    return db, y, subj_ind, ep_ind, le, fs
+# def init_hdf5_db(db_filename):
+#     db = HDF5Dataset(db_filename)
+#     subj_ind, ep_ind, y, fs = db._get_meta()
+#     le = LabelEncoder()
+#     y = le.fit_transform(y)
+#     return db, y, subj_ind, ep_ind, le, fs
