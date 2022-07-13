@@ -57,8 +57,8 @@ class TFBaseNet(ClassifierInterface):
             best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')
             best_model_cp_file.unlink(missing_ok=True)
 
-            monitor = 'val_accuracy'
-            mode = 'max'
+            monitor = 'val_loss'  # 'val_accuracy'
+            mode = 'min'  # 'max'
 
             callbacks.extend((
                 keras.callbacks.ModelCheckpoint(
