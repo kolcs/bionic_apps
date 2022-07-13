@@ -9,7 +9,7 @@ from sklearn.preprocessing import LabelEncoder
 
 from bionic_apps.ai import ClassifierType, init_classifier
 from bionic_apps.artifact_filtering.faster import ArtefactFilter
-from bionic_apps.databases import get_eeg_db_name_by_filename, EEG_Databases
+from bionic_apps.databases import get_eeg_db_name_by_filename, Databases
 from bionic_apps.external_connections.lsl.BCI import DSP
 from bionic_apps.feature_extraction import FeatureType, get_feature_extractor, generate_features
 from bionic_apps.games.braindriver.control import GameControl
@@ -76,7 +76,7 @@ def start_brain_driver_control_system(feature_type, classifier_type,
         eeg_files = [eeg_files]
 
     db_name = get_eeg_db_name_by_filename(eeg_files[0])
-    make_binary_classification = db_name is EEG_Databases.GAME_PAR_D
+    make_binary_classification = db_name is Databases.GAME_PAR_D
 
     loader = DataLoader()
     loader.use_db(db_name)

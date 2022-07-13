@@ -6,7 +6,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from pymatreader import read_mat
 
-from bionic_apps.databases import EEG_Databases, get_eeg_db_name_by_filename
+from bionic_apps.databases import Databases, get_eeg_db_name_by_filename
 from bionic_apps.databases.eeg.defaults import IMAGINED_MOVEMENT, BOTH_LEGS
 from bionic_apps.handlers.gui import select_folder_in_explorer
 from bionic_apps.preprocess.io import DataLoader, get_epochs_from_raw
@@ -399,7 +399,7 @@ def convert_all_ttk():
 
 
 def convert_pilot_par_a():
-    loader = DataLoader(BASE_PATH, use_drop_subject_list=True).use_db(EEG_Databases.PILOT_PAR_A, config_ver=0)
+    loader = DataLoader(BASE_PATH, use_drop_subject_list=True).use_db(Databases.PILOT_PAR_A, config_ver=0)
     assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
     for subj in loader.get_subject_list():
@@ -412,7 +412,7 @@ def convert_pilot_par_a():
 
 
 def convert_pilot_par_b():
-    loader = DataLoader(BASE_PATH, use_drop_subject_list=True).use_db(EEG_Databases.PILOT_PAR_B, config_ver=0)
+    loader = DataLoader(BASE_PATH, use_drop_subject_list=True).use_db(Databases.PILOT_PAR_B, config_ver=0)
     assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'
 
     for subj in loader.get_subject_list():
@@ -442,7 +442,7 @@ def convert_pilot_par_b():
 
 
 def convert_game_par_c_and_d():
-    db_list = [EEG_Databases.GAME_PAR_C, EEG_Databases.GAME_PAR_D]
+    db_list = [Databases.GAME_PAR_C, Databases.GAME_PAR_D]
     for db_name in db_list:
         loader = DataLoader(BASE_PATH, use_drop_subject_list=True).use_db(db_name, config_ver=0)
         assert loader._db_type.CONFIG_VER == 0, 'File conversion only avaliable for CONFIG_VER=0'

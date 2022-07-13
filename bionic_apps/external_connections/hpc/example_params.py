@@ -1,9 +1,9 @@
 import numpy as np
 
 from bionic_apps.ai import ClassifierType
-from bionic_apps.databases import EEG_Databases
+from bionic_apps.databases import Databases
 from bionic_apps.feature_extraction import FeatureType
-from bionic_apps.offline_analyses import test_eegdb_within_subject
+from bionic_apps.offline_analyses import test_db_within_subject
 from bionic_apps.preprocess.io import SubjectHandle
 
 LOG_DIR = 'bci_tests/eeg_net'
@@ -11,10 +11,10 @@ TEST_NAME = 'window_inv'
 
 hpc_submit_script = f'gpu1_lowpri.sh'
 
-test_func = test_eegdb_within_subject
+test_func = test_db_within_subject
 
 default_kwargs = dict(
-    db_name=EEG_Databases.PHYSIONET,
+    db_name=Databases.PHYSIONET,
     feature_type=FeatureType.RAW,
     epoch_tmin=0, epoch_tmax=4,
     window_len=2, window_step=.1,

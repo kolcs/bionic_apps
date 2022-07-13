@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from bionic_apps.databases import EEG_Databases
+from bionic_apps.databases import Databases
 from bionic_apps.preprocess.io import DataLoader, SubjectHandle
 from bionic_apps.tests.utils import AVAILABLE_DBS
 
@@ -26,9 +26,9 @@ class TestDataLoader(unittest.TestCase):
                 self.loader.use_db(db_name, db_config_ver)
                 self.assertIsInstance(self.loader.get_subject_num(), int)
                 self._test_get_subject_list()
-                if db_config_ver == 0 and db_name in [EEG_Databases.PHYSIONET, EEG_Databases.BCI_COMP_IV_2A,
-                                                      EEG_Databases.BCI_COMP_IV_2B, EEG_Databases.BCI_COMP_IV_1,
-                                                      EEG_Databases.GIGA]:
+                if db_config_ver == 0 and db_name in [Databases.PHYSIONET, Databases.BCI_COMP_IV_2A,
+                                                      Databases.BCI_COMP_IV_2B, Databases.BCI_COMP_IV_1,
+                                                      Databases.GIGA]:
                     with self.assertRaises(NotImplementedError):
                         self._test_get_filenames()
                 else:
@@ -55,7 +55,7 @@ class TestDataLoader(unittest.TestCase):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
                 self.loader.use_db(db_name)
-                if db_name in [EEG_Databases.BCI_COMP_IV_2A, EEG_Databases.BCI_COMP_IV_2B, EEG_Databases.GIGA]:
+                if db_name in [Databases.BCI_COMP_IV_2A, Databases.BCI_COMP_IV_2B, Databases.GIGA]:
                     self.assertIsInstance(self.loader.get_subject_num(), int)
                     self._test_get_subject_list()
                     self._test_get_filenames()

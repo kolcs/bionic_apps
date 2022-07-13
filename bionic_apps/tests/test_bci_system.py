@@ -9,7 +9,7 @@ from bionic_apps.external_connections.lsl.DataSender import run as send_online_d
 from bionic_apps.feature_extraction import FeatureType, get_hugines_transfromer
 from bionic_apps.feature_extraction import eeg_bands
 from bionic_apps.games.braindriver.main_game_start import start_brain_driver_control_system
-from bionic_apps.offline_analyses import test_eegdb_within_subject, test_eegdb_cross_subject
+from bionic_apps.offline_analyses import test_db_within_subject, test_db_cross_subject
 from bionic_apps.tests.utils import cleanup_fastload_data, AVAILABLE_DBS
 from bionic_apps.utils import init_base_config
 
@@ -24,12 +24,12 @@ class TestOfflineBciSystem(unittest.TestCase):
     def _run_eegdb_within_subj_test(self, **kwargs):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                test_eegdb_within_subject(db_name,
-                                          window_len=2, window_step=1,
-                                          do_artefact_rejection=True,
-                                          fast_load=True, log_file='out.csv',
-                                          subjects=2,
-                                          **kwargs)
+                test_db_within_subject(db_name,
+                                       window_len=2, window_step=1,
+                                       do_artefact_rejection=True,
+                                       fast_load=True, log_file='out.csv',
+                                       subjects=2,
+                                       **kwargs)
 
     def test_eegdb_within_subj_multi_svm(self):
         band = eeg_bands['range40'].copy()
@@ -61,12 +61,12 @@ class TestOfflineBciSystem(unittest.TestCase):
     def _run_eegdb_cross_subj_test(self, **kwargs):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                test_eegdb_cross_subject(db_name,
-                                         window_len=2, window_step=1,
-                                         do_artefact_rejection=True,
-                                         fast_load=True, log_file='out.csv',
-                                         subjects=5, leave_out_n_subjects=2,
-                                         **kwargs)
+                test_db_cross_subject(db_name,
+                                      window_len=2, window_step=1,
+                                      do_artefact_rejection=True,
+                                      fast_load=True, log_file='out.csv',
+                                      subjects=5, leave_out_n_subjects=2,
+                                      **kwargs)
 
     def test_eegdb_cross_subj_eegnet_no_val(self):
         kwargs = dict(

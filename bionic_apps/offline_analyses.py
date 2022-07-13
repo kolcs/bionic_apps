@@ -13,7 +13,7 @@ from .feature_extraction import FeatureType
 from .handlers import ResultHandler, HDF5Dataset
 from .handlers.tf import get_tf_dataset
 from .model_selection import BalancedKFold, LeavePSubjectGroupsOutSequentially
-from .preprocess import generate_eeg_db
+from .preprocess import generate_db
 from .preprocess.io import SubjectHandle
 from .utils import mask_to_ind, process_run, save_pickle_data, save_to_json
 from .validations import validate_feature_classifier_pair
@@ -184,11 +184,12 @@ def make_within_subject_classification(subjects, db_filename, classifier_type, c
         res_handler.print_db_res()
 
 
-def test_eegdb_within_subject(
-        db_name=EEG_Databases.PHYSIONET,
+def test_db_within_subject(
+        db_name=Databases.PHYSIONET,
         feature_type=FeatureType.HUGINES,
         epoch_tmin=0, epoch_tmax=4,
         window_len=2, window_step=.1, *,
+        ch_selection=None,
         feature_kwargs=None,
         use_drop_subject_list=True,
         filter_params=None,
@@ -220,18 +221,19 @@ def test_eegdb_within_subject(
     results = ResultHandler(fix_params, ['Subject', 'Accuracy list', 'Std of Avg. Acc', 'Avg. Acc'],
                             to_beginning=('Subject',), filename=log_file)
 
-    generate_eeg_db(db_name, db_file, feature_type,
-                    epoch_tmin, epoch_tmax,
-                    window_len, window_step,
-                    feature_kwargs=feature_kwargs,
-                    use_drop_subject_list=use_drop_subject_list,
-                    filter_params=filter_params,
-                    do_artefact_rejection=do_artefact_rejection,
-                    balance_data=balance_data,
-                    subject_handle=subject_handle,
-                    base_dir=base_dir, fast_load=fast_load,
-                    subjects=subjects,
-                    augment_data=augment_data)
+    generate_db(db_name, db_file, feature_type,
+                epoch_tmin, epoch_tmax,
+                window_len, window_step,
+                ch_selection=ch_selection,
+                feature_kwargs=feature_kwargs,
+                use_drop_subject_list=use_drop_subject_list,
+                filter_params=filter_params,
+                do_artefact_rejection=do_artefact_rejection,
+                balance_data=balance_data,
+                subject_handle=subject_handle,
+                base_dir=base_dir, fast_load=fast_load,
+                subjects=subjects,
+                augment_data=augment_data)
 
     make_within_subject_classification(subjects, db_file, classifier_type,
                                        classifier_kwargs=classifier_kwargs,
@@ -326,11 +328,12 @@ def make_cross_subject_classification(db_filename, classifier_type,
         res_handler.print_db_res(col='Accuracy')
 
 
-def test_eegdb_cross_subject(
-        db_name=EEG_Databases.PHYSIONET,
+def test_db_cross_subject(
+        db_name=Databases.PHYSIONET,
         feature_type=FeatureType.RAW,
         epoch_tmin=0, epoch_tmax=4,
         window_len=2, window_step=.1, *,
+        ch_selection=None,
         feature_kwargs=None,
         use_drop_subject_list=True,
         filter_params=None,
@@ -360,18 +363,19 @@ def test_eegdb_cross_subject(
                             ['Subject', 'Left out subjects', 'Accuracy'],
                             to_beginning=('Subject',), filename=log_file)
 
-    generate_eeg_db(db_name, db_file, feature_type,
-                    epoch_tmin, epoch_tmax,
-                    window_len, window_step,
-                    feature_kwargs=feature_kwargs,
-                    use_drop_subject_list=use_drop_subject_list,
-                    filter_params=filter_params,
-                    do_artefact_rejection=do_artefact_rejection,
-                    balance_data=balance_data,
-                    subject_handle=subject_handle,
-                    base_dir=base_dir, fast_load=fast_load,
-                    subjects=subjects,
-                    augment_data=augment_data)
+    generate_db(db_name, db_file, feature_type,
+                epoch_tmin, epoch_tmax,
+                window_len, window_step,
+                ch_selection=ch_selection,
+                feature_kwargs=feature_kwargs,
+                use_drop_subject_list=use_drop_subject_list,
+                filter_params=filter_params,
+                do_artefact_rejection=do_artefact_rejection,
+                balance_data=balance_data,
+                subject_handle=subject_handle,
+                base_dir=base_dir, fast_load=fast_load,
+                subjects=subjects,
+                augment_data=augment_data)
 
     make_cross_subject_classification(db_file, classifier_type,
                                       leave_out_n_subjects=leave_out_n_subjects,

@@ -1,10 +1,10 @@
 from pathlib import Path
 from shutil import rmtree
 
-from ..databases import EEG_Databases, get_eeg_db_name_by_filename
+from ..databases import Databases, get_eeg_db_name_by_filename
 from ..utils import init_base_config
 
-EXCLUDE_DB_LIST = [EEG_Databases.ParadigmC, EEG_Databases.EMOTIV_PAR_C]
+EXCLUDE_DB_LIST = [Databases.ParadigmC, Databases.EMOTIV_PAR_C]
 
 
 def get_available_databases():

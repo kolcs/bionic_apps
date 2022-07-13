@@ -14,7 +14,7 @@ from sklearn.svm import SVC
 
 from ..ai.classifier import test_classifier
 from ..artifact_filtering.faster import ArtefactFilter
-from ..databases import EEG_Databases
+from ..databases import Databases
 from ..feature_extraction import to_micro_volt, FeatureType, eeg_bands
 from ..feature_extraction.frequency.fft_methods import FFTCalc, AvgFFTCalc, get_fft_ranges
 from ..preprocess.io import DataLoader, get_epochs_from_raw, SubjectHandle
@@ -282,7 +282,7 @@ def test_db(feature_params, db_name,
         if balance_data:
             epochs, ep_labels = balance_epoch_nums(epochs, ep_labels)
 
-        if db_name is EEG_Databases.GAME_PAR_D:
+        if db_name is Databases.GAME_PAR_D:
             ep_labels = [_create_binary_label(label) for label in ep_labels]
 
         # window the epochs
@@ -447,7 +447,7 @@ def fft_test(db_name):
             )
 
 
-def make_tests_on(db_name=EEG_Databases.PHYSIONET):
+def make_tests_on(db_name=Databases.PHYSIONET):
     multi_svm_test(db_name)
     band_comb_test(db_name)
     norm_test(db_name)
@@ -455,5 +455,5 @@ def make_tests_on(db_name=EEG_Databases.PHYSIONET):
 
 
 if __name__ == '__main__':
-    band_comb_test_old2(EEG_Databases.PHYSIONET, 106)
-    band_comb_test_old(EEG_Databases.GAME_PAR_D)
+    band_comb_test_old2(Databases.PHYSIONET, 106)
+    band_comb_test_old(Databases.GAME_PAR_D)
