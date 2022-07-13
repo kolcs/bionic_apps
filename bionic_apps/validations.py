@@ -11,6 +11,9 @@ def validate_feature_classifier_pair(feature_type, classifier_type):
     elif classifier_type is ClassifierType.USER_DEFINED and \
             feature_type in [FeatureType.RAW, FeatureType.USER_PIPELINE]:
         pass
+    elif classifier_type in [ClassifierType.ENSEMBLE, ClassifierType.VOTING] and \
+            feature_type is FeatureType.HUGINES:
+        pass
     else:
         raise ValueError(f'Feature {feature_type.name} and classifier {classifier_type.name} '
                          f'can not be used together.')

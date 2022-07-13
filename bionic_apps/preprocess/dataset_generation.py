@@ -7,14 +7,14 @@ from joblib import Parallel, delayed
 from psutil import cpu_count
 
 from .data_augmentation import do_augmentation
-from .io import DataLoader, SubjectHandle, get_epochs_from_raw
+from .io import DataLoader, SubjectHandle, get_epochs_from_raw, get_epochs_from_raw_annot
 from ..artifact_filtering.faster import ArtefactFilter
 from ..databases import Databases
 from ..databases.coreg_mindrove import MindRoveCoreg
 from ..feature_extraction import FeatureType, generate_features
 from ..handlers.hdf5 import HDF5Dataset
 from ..utils import standardize_eeg_channel_names, filter_mne_obj, balance_epoch_nums, _create_binary_label, \
-    window_epochs
+    window_data
 
 CPU_THRESHOLD = 10
 
@@ -28,55 +28,74 @@ def generate_subject_data(files, loader, subj, filter_params,
     raws = [mne.io.read_raw(file) for file in files]
     raw = mne.io.concatenate_raws(raws)
     raw.load_data()
+    raw = raw.pick(ch_selection)
     fs = raw.info['sfreq']
 
-    standardize_eeg_channel_names(raw)
-    try:  # check available channel positions
-        mne.channels.make_eeg_layout(raw.info)
-    except RuntimeError:  # if no channel positions are available create them from standard positions
-        montage = mne.channels.make_standard_montage('standard_1005')  # 'standard_1020'
-        raw.set_montage(montage, on_missing='warn')
+    if ch_selection != 'emg':
+        standardize_eeg_channel_names(raw)
+        try:  # check available channel positions
+            mne.channels.make_eeg_layout(raw.info)
+        except RuntimeError:  # if no channel positions are available create them from standard positions
+            montage = mne.channels.make_standard_montage('standard_1005')  # 'standard_1020'
+            raw.set_montage(montage, on_missing='warn')
 
-    if len(filter_params) > 0:
-        raw = filter_mne_obj(raw, **filter_params)
+    if filter_params is not None:
+        if ch_selection == 'all':
+            pick_list = ['eeg', 'emg', 'eog']
+            for pick, fpars in filter_params.items():
+                assert pick in pick_list, f'filter_params are not defined well. ' \
+                                          f'Keys must be in {pick_list}. Got {filter_params}'
+                raw = filter_mne_obj(raw, picks=pick, **fpars)
+        else:
+            raw = filter_mne_obj(raw, picks=ch_selection, **filter_params)
 
-    epochs = get_epochs_from_raw(raw, task_dict,
-                                 epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
-                                 event_id=event_id)
-    del raw
+    if isinstance(loader._db_type, MindRoveCoreg):
+        ep_data, ep_labels, ep_min, _ = get_epochs_from_raw_annot(raw, return_min_max=True)
+        assert window_length <= ep_min, f'The shortest epoch is {ep_min:.4f} sec long. ' \
+                                        f'Can not make {window_length} sec long windows.'
+    else:
+        task_dict = loader.get_task_dict()
+        event_id = loader.get_event_id()
+        epochs = get_epochs_from_raw(raw, task_dict,
+                                     epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
+                                     event_id=event_id)
 
-    if artifact_filter is not None:
-        epochs = artifact_filter.offline_filter(epochs)
+        if artifact_filter is not None:
+            epochs = artifact_filter.offline_filter(epochs)
 
-    ep_labels = [list(epochs[i].event_id)[0] for i in range(len(epochs))]
+        ep_labels = [list(epochs[i].event_id)[0] for i in range(len(epochs))]
 
-    if balance_data:
-        epochs, ep_labels = balance_epoch_nums(epochs, ep_labels)
+        if balance_data:
+            epochs, ep_labels = balance_epoch_nums(epochs, ep_labels)
 
-    if binarize_labels:
-        ep_labels = [_create_binary_label(label) for label in ep_labels]
+        if binarize_labels:
+            ep_labels = [_create_binary_label(label) for label in ep_labels]
+
+        ep_data = epochs.get_data()
+        del epochs
 
     if augment_data:
-        ep_data, ep_labels, ep_ind, orig_mask = do_augmentation(epochs.get_data(), ep_labels)
+        ep_data, ep_labels, ep_ind, ep_orig_mask = do_augmentation(ep_data, ep_labels)
     else:
-        ep_data = epochs.get_data()
         ep_ind = np.arange(len(ep_labels))
-        orig_mask = [True] * len(ep_labels)
+        ep_orig_mask = [True] * len(ep_labels)
 
-    info = epochs.info
-    del epochs
+    info = raw.info
+    del raw
 
     # window the epochs
-    windowed_data = window_epochs(ep_data,
-                                  window_length=window_length, window_step=window_step,
-                                  fs=fs)
+    windowed_data, groups, labels, orig_mask = [], [], [], []
+    for i, ep in enumerate(ep_data):
+        window = window_data(ep, window_length, window_step, fs)
+        n_windows = window.shape[0]
+        windowed_data.append(window)
+        groups.extend([ep_ind[i]] * n_windows)
+        labels.extend([ep_labels[i]] * n_windows)
+        orig_mask.extend([ep_orig_mask[i]] * n_windows)
+
+    windowed_data = np.vstack(windowed_data)
     del ep_data
 
-    num = windowed_data.shape[0] * windowed_data.shape[1]
-    groups = [ep_ind[i // windowed_data.shape[1]] for i in range(num)]
-    labels = [ep_labels[i // windowed_data.shape[1]] for i in range(num)]
-    orig_mask = [orig_mask[i // windowed_data.shape[1]] for i in range(num)]
-    windowed_data = np.vstack(windowed_data)
     return windowed_data, labels, [subj] * len(labels), groups, orig_mask, fs, info
 
 
