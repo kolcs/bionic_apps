@@ -57,6 +57,13 @@ def _one_within_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
         x = db.get_data(subj_ind)
         x_train = x[train_ind]
         x_test = x[orig_test_ind]
+
+        # required for sklearn classifiers with n_job > 1, because joblib
+        # does not terminate processes and somehow hdf5 db handler is copied
+        # to processes which cause later an error, when db should be deleted...
+        # Issue: https://github.com/joblib/joblib/issues/945
+        db.close()
+
         clf.fit(x_train, y_train)
     else:
         y = label_encoder.transform(db.get_y())
