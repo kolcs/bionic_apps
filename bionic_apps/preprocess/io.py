@@ -129,6 +129,32 @@ def get_epochs_from_files(filenames, task_dict, epoch_tmin=-0.2, epoch_tmax=0.5,
     return epochs
 
 
+def get_epochs_from_raw_annot(raw, drop_labels=('Idle', 'Rest'), return_min_max=False):
+    ep_list, ep_labels = [], []
+    min_len = raw.annotations.duration[0]
+    max_len = 0
+    for i in range(len(raw.annotations)):
+        label = raw.annotations.description[i]
+        if label in drop_labels:
+            continue
+        duration = raw.annotations.duration[i]
+        min_len = duration if duration < min_len else min_len
+        max_len = duration if duration > max_len else max_len
+
+        tr_start = raw.annotations.onset[i]
+        tr_end = tr_start + duration
+
+        ep = raw.copy()
+        ep.crop(tr_start, tr_end)
+        ep_list.append(ep.get_data())
+        ep_labels.append(label)
+
+    print(f'The length of epochs: {min_len:.3f} - {max_len:.3f} sec')
+    if return_min_max:
+        return ep_list, ep_labels, min_len, max_len
+    return ep_list, ep_labels
+
+
 def open_raw_with_gui():
     raws = [mne.io.read_raw(file) for file in sorted(select_files_in_explorer(init_base_config()))]
     raw = mne.io.concatenate_raws(raws)
