@@ -64,6 +64,7 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
 
     kwargs['db_file'] = Path(save_path).joinpath('database.h5')
     kwargs['classifier_kwargs']['save_path'] = save_path
+    kwargs['classifier_kwargs']['verbose'] = 2
     kwargs['subjects'] = subjects
     kwargs['hpc_check_point'] = cp_info
 
@@ -84,6 +85,7 @@ def run_without_checkpoint(test_func, log_path, args=(), kwargs=None):
     save_path = _gen_hpc_save_path(log_path)
     kwargs['db_file'] = save_path.joinpath('database.h5')
     kwargs['classifier_kwargs']['save_path'] = save_path
+    kwargs['classifier_kwargs']['verbose'] = 2
 
     try:
         test_func(*args, **kwargs)

@@ -42,7 +42,7 @@ def _get_balanced_train_val_ind(validation_split, train_labels, train_groups):
 def _one_within_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
                      *, label_encoder, classifier_type,
                      epochs=None, batch_size=32, validation_split=0., patience=15,
-                     save_classifier=False, i, **classifier_kwargs):
+                     save_classifier=False, i, verbose='auto', **classifier_kwargs):
     base_dir = db.filename.parent
 
     orig_test_mask = db.get_orig_mask()[subj_ind][test_ind]
@@ -74,11 +74,11 @@ def _one_within_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
             val_tf_ds = get_tf_dataset(db, y, subj_ind[train_ind[val]]).batch(batch_size)
             val_tf_ds = val_tf_ds.cache()
             clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
-                    patience=patience)
+                    patience=patience, verbose=verbose)
         else:
             tf_dataset = get_tf_dataset(db, y, subj_ind[train_ind]).batch(batch_size)
             tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-            clf.fit(tf_dataset, epochs=epochs)
+            clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
         x_test = db.get_data(subj_ind[orig_test_ind])
         clf.evaluate(x_test, y_test)
 
@@ -262,6 +262,7 @@ def _one_cross_fold(train_ind, test_ind, y, db,
                     *, label_encoder, classifier_type,
                     res_handler=None, save_res=True,
                     epochs=None, batch_size=32, validation_split=0., patience=15,
+                    verbose='auto',
                     **classifier_kwargs):
     clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
                           len(label_encoder.classes_), **classifier_kwargs)
@@ -286,11 +287,11 @@ def _one_cross_fold(train_ind, test_ind, y, db,
             val_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[val]]).batch(batch_size)
             val_tf_ds = val_tf_ds.cache()
             clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
-                    patience=patience)
+                    patience=patience, verbose=verbose)
         else:
             tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
             tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-            clf.fit(tf_dataset, epochs=epochs)
+            clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
 
     # test subjects individually - check network generalization capability
     for subj in np.unique(all_subj[test_ind]):
