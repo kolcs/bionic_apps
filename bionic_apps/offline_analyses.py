@@ -282,9 +282,9 @@ def _one_cross_fold(train_ind, test_ind, y, db,
             tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
                                                   db.get_epoch_group()[train_ind])
 
-            train_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[tr]]).batch(batch_size)
+            train_tf_ds = get_tf_dataset(db, y, train_ind[tr]).batch(batch_size)
             train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
-            val_tf_ds = get_tf_dataset(db, y, all_subj[train_ind[val]]).batch(batch_size)
+            val_tf_ds = get_tf_dataset(db, y, train_ind[val]).batch(batch_size)
             val_tf_ds = val_tf_ds.cache()
             clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
                     patience=patience, verbose=verbose)
