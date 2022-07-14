@@ -13,7 +13,6 @@ from numpy.random import randint
 from bionic_apps.preprocess.io import DataLoader
 from bionic_apps.utils import load_from_json, save_to_json
 
-SAVE_PATH = 'save_path'
 PROCESSED_SUBJ = 'subj'
 
 
@@ -54,12 +53,14 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
     except FileNotFoundError:
         cp_info[PROCESSED_SUBJ] = 0
         subjects = 'all'
-        save_to_json(cp_info['filename'], cp_info)
 
     assert 'db_file' in list(inspect.signature(test_func).parameters), \
         f'db_file param is not in kwargs of {test_func.__name__}()'
 
     save_path = _gen_hpc_save_path(log_path)
+    cp_info['save_path'] = str(save_path)
+    save_to_json(cp_info['filename'], cp_info)
+
     kwargs['db_file'] = save_path.joinpath('database.h5')
     kwargs['classifier_kwargs']['save_path'] = save_path
     kwargs['classifier_kwargs']['verbose'] = 2
@@ -117,8 +118,10 @@ def make_one_test():
 # stuff to main script:
 # python -c "from bionic_apps.external_connections.hpc.utils import start_test; start_test()"
 
-def start_test(module='.example_params',
+def start_test(module='example_params',
                package='bionic_apps.external_connections.hpc'):
+    if len(package) > 0 and module[0] != '.':
+        module = '.' + module
     par_module = importlib.import_module(module, package)
 
     std_out = Path(par_module.LOG_DIR).joinpath('std', 'out')
