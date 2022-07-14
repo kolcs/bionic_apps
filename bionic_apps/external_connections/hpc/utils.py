@@ -50,11 +50,8 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
 
     try:
         cp_info = load_from_json(cp_info['filename'])
-        save_path = cp_info[SAVE_PATH]
         subjects = [s for s in subjects if s > cp_info[PROCESSED_SUBJ]]
     except FileNotFoundError:
-        save_path = _gen_hpc_save_path(log_path)
-        cp_info[SAVE_PATH] = str(save_path)
         cp_info[PROCESSED_SUBJ] = 0
         subjects = 'all'
         save_to_json(cp_info['filename'], cp_info)
@@ -62,7 +59,8 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
     assert 'db_file' in list(inspect.signature(test_func).parameters), \
         f'db_file param is not in kwargs of {test_func.__name__}()'
 
-    kwargs['db_file'] = Path(save_path).joinpath('database.h5')
+    save_path = _gen_hpc_save_path(log_path)
+    kwargs['db_file'] = save_path.joinpath('database.h5')
     kwargs['classifier_kwargs']['save_path'] = save_path
     kwargs['classifier_kwargs']['verbose'] = 2
     kwargs['subjects'] = subjects
@@ -71,9 +69,9 @@ def run_with_checkpoint(test_func, log_path, subjects, args=(), kwargs=None):
     try:
         test_func(*args, **kwargs)
         os.remove(cp_info['filename'])
-        shutil.rmtree(save_path)
+        shutil.rmtree(str(save_path))
     except Exception as e:
-        shutil.rmtree(save_path)
+        shutil.rmtree(str(save_path))
         raise e
 
 
@@ -89,9 +87,9 @@ def run_without_checkpoint(test_func, log_path, args=(), kwargs=None):
 
     try:
         test_func(*args, **kwargs)
-        shutil.rmtree(save_path)
+        shutil.rmtree(str(save_path))
     except Exception as e:
-        shutil.rmtree(save_path)
+        shutil.rmtree(str(save_path))
         raise e
 
 
