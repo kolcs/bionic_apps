@@ -231,7 +231,7 @@ def test_db_within_subject(
 
     fix_params = dict(window_len=window_len, window_step=window_step,
                       n_splits=n_splits,
-                      # ch_mode=ch_mode, ep_mode=ep_mode,
+                      ch_mode=ch_selection,
                       classifier=classifier_type.name)
     fix_params.update(classifier_kwargs)
 
@@ -374,6 +374,7 @@ def test_db_cross_subject(
     feature_type, classifier_type = validate_feature_classifier_pair(feature_type, classifier_type)
 
     fix_params = dict(window_len=window_len, window_step=window_step,
+                      ch_mode=ch_selection,
                       classifier=classifier_type.name)
     fix_params.update(classifier_kwargs)
 
