@@ -69,9 +69,13 @@ def _one_within_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
         y = label_encoder.transform(db.get_y())
         if validation_split > 0:
             tr, val = _get_balanced_train_val_ind(validation_split, y_train, ep_ind[train_ind])
+
+            orig_val_mask = db.get_orig_mask()[subj_ind][train_ind[val]]
+            orig_val_ind = subj_ind[train_ind[val][orig_val_mask]]
+
             train_tf_ds = get_tf_dataset(db, y, subj_ind[train_ind[tr]]).batch(batch_size)
             train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
-            val_tf_ds = get_tf_dataset(db, y, subj_ind[train_ind[val]]).batch(batch_size)
+            val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
             val_tf_ds = val_tf_ds.cache()
             clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
                     patience=patience, verbose=verbose)
@@ -232,7 +236,8 @@ def test_db_within_subject(
     fix_params = dict(window_len=window_len, window_step=window_step,
                       n_splits=n_splits,
                       ch_mode=ch_selection,
-                      classifier=classifier_type.name)
+                      classifier=classifier_type.name,
+                      augment_data=augment_data)
     fix_params.update(classifier_kwargs)
 
     results = ResultHandler(fix_params, ['Subject', 'Accuracy list', 'Std of Avg. Acc', 'Avg. Acc'],
@@ -282,9 +287,12 @@ def _one_cross_fold(train_ind, test_ind, y, db,
             tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
                                                   db.get_epoch_group()[train_ind])
 
+            orig_val_mask = db.get_orig_mask()[train_ind[val]]
+            orig_val_ind = train_ind[val][orig_val_mask]
+
             train_tf_ds = get_tf_dataset(db, y, train_ind[tr]).batch(batch_size)
             train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
-            val_tf_ds = get_tf_dataset(db, y, train_ind[val]).batch(batch_size)
+            val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
             val_tf_ds = val_tf_ds.cache()
             clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
                     patience=patience, verbose=verbose)
@@ -375,7 +383,8 @@ def test_db_cross_subject(
 
     fix_params = dict(window_len=window_len, window_step=window_step,
                       ch_mode=ch_selection,
-                      classifier=classifier_type.name)
+                      classifier=classifier_type.name,
+                      augment_data=augment_data)
     fix_params.update(classifier_kwargs)
 
     results = ResultHandler(fix_params,
