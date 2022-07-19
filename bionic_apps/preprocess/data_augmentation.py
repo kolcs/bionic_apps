@@ -11,6 +11,7 @@ def do_augmentation(ep_data, labels, n_iter=9, include_origin=True):
         orig_mask.extend([True] * len(labels))
 
     for i, ep in enumerate(ep_data):
+        ep = ep.copy()
         ampl = ep.std()
         #  1) Setting the mean value of each channel to zero
         ep -= ep.mean(axis=-1, keepdims=True)
