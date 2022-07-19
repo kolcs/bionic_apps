@@ -16,6 +16,128 @@ class ClassifierInterface(ABC):
         raise NotImplementedError
 
 
+class EarlyStoppingAfterInitValidationReached(keras.callbacks.EarlyStopping):
+
+    def __init__(self, monitor='val_loss', give_up=100, min_delta=0, patience=0,
+                 verbose=0, mode='auto', baseline=None, restore_best_weights=False):
+        super(EarlyStoppingAfterInitValidationReached, self).__init__(monitor, min_delta, patience, verbose, mode,
+                                                                      baseline, restore_best_weights)
+        self.init_value = None
+        self.reached_init = False
+        self.give_up = give_up
+        self.g_ind = 0
+
+    def on_epoch_end(self, epoch, logs=None):
+        current = self.get_monitor_value(logs)
+        if current is None:
+            return
+        if self.restore_best_weights and self.best_weights is None:
+            # Restore the weights after first epoch if no progress is ever made.
+            self.best_weights = self.model.get_weights()
+
+        self.wait += 1
+        if self._is_improvement(current, self.best):
+            self.best = current
+            self.best_epoch = epoch
+            if self.restore_best_weights:
+                self.best_weights = self.model.get_weights()
+            # Only restart wait if we beat both the baseline and our previous best.
+            if self.baseline is None or self._is_improvement(current, self.baseline):
+                self.wait = 0
+
+        if epoch == 0:
+            self.init_value = current
+        elif not self.reached_init:
+            if self._is_improvement(current, self.init_value):
+                self.reached_init = True
+            else:
+                self.g_ind += 1
+                self.wait = 0
+
+        # Only check after the first epoch.
+        if self.wait >= self.patience and epoch > 0 or self.g_ind > self.give_up:
+            self.stopped_epoch = epoch
+            self.model.stop_training = True
+            if self.restore_best_weights and self.best_weights is not None:
+                if self.verbose > 0:
+                    keras.utis.io_utils.print_msg(
+                        'Restoring model weights from the end of the best epoch: '
+                        f'{self.best_epoch + 1}.')
+                self.model.set_weights(self.best_weights)
+
+
+def _reset_weights(model):
+    # https://github.com/keras-team/keras/issues/341
+    for layer in model.layers:
+        if isinstance(layer, keras.Model):  # if you're using a model as a layer
+            _reset_weights(layer)  # apply function recursively
+            continue
+
+        # where are the initializers?
+        if hasattr(layer, 'cell'):
+            init_container = layer.cell
+        else:
+            init_container = layer
+
+        for key, initializer in init_container.__dict__.items():
+            if "initializer" not in key:  # is this item an initializer?
+                continue  # if no, skip it
+
+            # find the corresponding variable, like the kernel or the bias
+            if key == 'recurrent_initializer':  # special case check
+                var = getattr(init_container, 'recurrent_kernel')
+            else:
+                var = getattr(init_container, key.replace("_initializer", ""))
+
+            # use the initializer
+            if var is not None:
+                var.assign(initializer(var.shape, var.dtype))
+
+
+def _reinitialize_model(model):
+    # https://github.com/tensorflow/tensorflow/issues/48230
+    weights = []
+    initializers = []
+    for layer in model.layers:
+        if isinstance(layer, keras.Model):  # if you're using a model as a layer
+            _reinitialize_model(layer)  # apply function recursively
+            continue
+        elif isinstance(layer, keras.layers.DepthwiseConv2D):
+            weights += [layer.depthwise_kernel, layer.bias]
+            initializers += [layer.depthwise_initializer, layer.bias_initializer]
+        elif isinstance(layer, keras.layers.SeparableConv2D):
+            weights += [layer.depthwise_kernel, layer.pointwise_kernel, layer.bias]
+            initializers += [layer.depthwise_initializer, layer.pointwise_initializer, layer.bias_initializer]
+        elif isinstance(layer, (keras.layers.Dense, keras.layers.Conv2D)):
+            weights += [layer.kernel, layer.bias]
+            initializers += [layer.kernel_initializer, layer.bias_initializer]
+        elif isinstance(layer, keras.layers.BatchNormalization):
+            weights += [layer.gamma, layer.beta, layer.moving_mean, layer.moving_variance]
+            initializers += [layer.gamma_initializer,
+                             layer.beta_initializer,
+                             layer.moving_mean_initializer,
+                             layer.moving_variance_initializer]
+        elif isinstance(layer, keras.layers.Embedding):
+            weights += [layer.embeddings]
+            initializers += [layer.embeddings_initializer]
+        elif isinstance(layer, (keras.layers.InputLayer,
+                                keras.layers.Reshape,
+                                keras.layers.Concatenate,
+                                keras.layers.Lambda,
+                                keras.layers.Activation,
+                                keras.layers.AveragePooling2D,
+                                keras.layers.Dropout,
+                                keras.layers.Flatten,
+                                )):
+            # These layers don't need initialization
+            continue
+        else:
+            raise ValueError('Unhandled layer type: %s' % (type(layer)))
+    for w, init in zip(weights, initializers):
+        if w is not None:
+            w.assign(init(w.shape, dtype=w.dtype))
+
+
 class TFBaseNet(ClassifierInterface):
 
     def __init__(self, input_shape, output_shape, save_path='tf_log/'):
@@ -33,6 +155,7 @@ class TFBaseNet(ClassifierInterface):
             loss=keras.losses.SparseCategoricalCrossentropy(from_logits=False),
             metrics=['accuracy']
         )
+        _reinitialize_model(self._model)
 
     def _build_graph(self):
         raise NotImplementedError("Model build function is not implemented")
@@ -68,7 +191,7 @@ class TFBaseNet(ClassifierInterface):
                     mode=mode,
                     save_best_only=True
                 ),
-                keras.callbacks.EarlyStopping(
+                EarlyStoppingAfterInitValidationReached(
                     monitor=monitor,
                     min_delta=0,
                     patience=patience,
