@@ -20,7 +20,7 @@ default_kwargs = dict(
     window_len=2, window_step=.1,
     feature_kwargs=None,
     use_drop_subject_list=True,
-    filter_params=None,
+    filter_params=dict(order=5, l_freq=1, h_freq=45),
     do_artefact_rejection=True,
     balance_data=True,
     subject_handle=SubjectHandle.INDEPENDENT_DAYS,
