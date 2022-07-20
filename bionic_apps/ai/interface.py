@@ -1,8 +1,10 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+import numpy as np
 from numpy import argmax as np_argmax
 from tensorflow import keras
+from tensorflow.python.platform import tf_logging as logging
 
 
 class ClassifierInterface(ABC):
@@ -55,7 +57,7 @@ class EarlyStoppingAfterInitValidationReached(keras.callbacks.EarlyStopping):
                 self.wait = 0
 
         # Only check after the first epoch.
-        if self.wait >= self.patience and epoch > 0 or self.g_ind > self.give_up:
+        if (self.wait >= self.patience and epoch > 0) or self.g_ind > self.give_up:
             self.stopped_epoch = epoch
             self.model.stop_training = True
             if self.restore_best_weights and self.best_weights is not None:
@@ -64,6 +66,66 @@ class EarlyStoppingAfterInitValidationReached(keras.callbacks.EarlyStopping):
                         'Restoring model weights from the end of the best epoch: '
                         f'{self.best_epoch + 1}.')
                 self.model.set_weights(self.best_weights)
+
+
+class SaveAndRestoreBestModel(keras.callbacks.Callback):
+
+    def __init__(self):
+        super(SaveAndRestoreBestModel, self).__init__()
+        self._val_loss = 'val_loss'
+        self._val_acc = 'val_accuracy'
+        self._min_loss = np.Inf
+        self._max_acc = -np.Inf
+        self.best_weights = None
+        self.epoch = 0
+        self._init_loss = 0
+        self._reached_init = False
+
+    def on_train_begin(self, logs=None):
+        # Allow instances to be re-used
+        self._min_loss = np.Inf
+        self._max_acc = -np.Inf
+        self.best_weights = None
+        self._init_loss = 0
+        self._reached_init = False
+
+    def on_epoch_end(self, epoch, logs=None):
+        val_loss = self._get_monitor_value(self._val_loss, logs)
+        val_acc = self._get_monitor_value(self._val_acc, logs)
+        if val_loss is None or val_acc is None:
+            return
+
+        if epoch == 0:
+            self._init_loss = val_loss
+        elif val_loss < self._init_loss:
+            self._reached_init = True
+
+        if not self._reached_init:
+            if val_acc > self._max_acc:
+                self.epoch = epoch
+                self._max_acc = val_acc
+                self.best_weights = self.model.get_weights()
+
+        elif val_loss < self._min_loss and val_acc > self._max_acc:
+            self.epoch = epoch
+            self._min_loss = val_loss
+            self._max_acc = val_acc
+            self.best_weights = self.model.get_weights()
+
+    @staticmethod
+    def _get_monitor_value(value, logs):
+        logs = logs or {}
+        monitor_value = logs.get(value)
+        if monitor_value is None:
+            logging.warning('Early stopping conditioned on metric `%s` '
+                            'which is not available. Available metrics are: %s',
+                            value, ','.join(list(logs.keys())))
+        return monitor_value
+
+    def on_train_end(self, logs=None):
+        print(f'Restored model at epoch{self.epoch + 1} with '
+              f'val_loss={self._min_loss:.4f} and val_acc={self._max_acc:.4f}')
+        self.model.set_weights(self.best_weights)
 
 
 def _reset_weights(model):
@@ -174,23 +236,17 @@ class TFBaseNet(ClassifierInterface):
             # EarlyStopping(monitor='loss', patience=3),
         ]
 
-        best_model_cp_file = self._save_path.joinpath('models')
+        # best_model_cp_file = self._save_path.joinpath('models')
         if validation_data is not None:
-            best_model_cp_file.mkdir(parents=True, exist_ok=True)
-            best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')
-            best_model_cp_file.unlink(missing_ok=True)
+            # best_model_cp_file.mkdir(parents=True, exist_ok=True)
+            # best_model_cp_file = best_model_cp_file.joinpath('best_model.h5')
+            # best_model_cp_file.unlink(missing_ok=True)
 
             monitor = 'val_loss'  # 'val_accuracy'
             mode = 'min'  # 'max'
 
             callbacks.extend((
-                keras.callbacks.ModelCheckpoint(
-                    str(best_model_cp_file),
-                    save_weights_only=True,
-                    monitor=monitor,
-                    mode=mode,
-                    save_best_only=True
-                ),
+                SaveAndRestoreBestModel(),
                 EarlyStoppingAfterInitValidationReached(
                     monitor=monitor,
                     min_delta=0,
@@ -209,8 +265,8 @@ class TFBaseNet(ClassifierInterface):
             verbose=verbose
         )
 
-        if validation_data is not None:
-            self._model.load_weights(best_model_cp_file)
+        # if validation_data is not None:
+        #     self._model.load_weights(best_model_cp_file)
 
     def summary(self):
         self._model.summary()
