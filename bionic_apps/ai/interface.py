@@ -285,3 +285,14 @@ class TFBaseNet(ClassifierInterface):
 
     # def load_model(self, filename):
     #     self._model = keras.models.load_model(filename)
+
+    def load_weights(self, filename):
+        self._model.load_weights(filename)
+
+    def save_weights(self):
+        model_filename = self._save_path.joinpath('models')
+        model_filename.mkdir(parents=True, exist_ok=True)
+        model_filename = model_filename.joinpath(self.__class__.__name__ + '.h5')
+        model_filename.unlink(missing_ok=True)
+        self._model.save_weights(model_filename)
+        return model_filename
