@@ -15,7 +15,7 @@ from .handlers.tf import get_tf_dataset
 from .model_selection import BalancedKFold, LeavePSubjectGroupsOutSequentially
 from .preprocess import generate_db
 from .preprocess.io import SubjectHandle
-from .utils import mask_to_ind, process_run, save_pickle_data, save_to_json
+from .utils import mask_to_ind, save_pickle_data, save_to_json
 from .validations import validate_feature_classifier_pair
 
 
@@ -39,78 +39,12 @@ def _get_balanced_train_val_ind(validation_split, train_labels, train_groups):
     return tr_ind, val_ind
 
 
-def _one_within_fold(train_ind, test_ind, subj_ind, ep_ind, y, db,
-                     *, label_encoder, classifier_type,
-                     epochs=None, batch_size=32, validation_split=0., patience=15,
-                     save_classifier=False, i, verbose='auto', **classifier_kwargs):
-    base_dir = db.filename.parent
-
-    orig_test_mask = db.get_orig_mask()[subj_ind][test_ind]
-    orig_test_ind = test_ind[orig_test_mask]
-    y_train = y[train_ind]
-    y_test = y[orig_test_ind]
-
-    clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
-                          **classifier_kwargs)
-
-    if epochs is None:
-        x = db.get_data(subj_ind)
-        x_train = x[train_ind]
-        x_test = x[orig_test_ind]
-
-        # required for sklearn classifiers with n_job > 1, because joblib
-        # does not terminate processes and somehow hdf5 db handler is copied
-        # to processes which cause later an error, when db should be deleted...
-        # Issue: https://github.com/joblib/joblib/issues/945
-        db.close()
-
-        clf.fit(x_train, y_train)
-    else:
-        y = label_encoder.transform(db.get_y())
-        if validation_split > 0:
-            tr, val = _get_balanced_train_val_ind(validation_split, y_train, ep_ind[train_ind])
-
-            orig_val_mask = db.get_orig_mask()[subj_ind][train_ind[val]]
-            orig_val_ind = subj_ind[train_ind[val][orig_val_mask]]
-
-            train_tf_ds = get_tf_dataset(db, y, subj_ind[train_ind[tr]]).batch(batch_size)
-            train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
-            val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
-            val_tf_ds = val_tf_ds.cache()
-            clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
-                    patience=patience, verbose=verbose)
-        else:
-            tf_dataset = get_tf_dataset(db, y, subj_ind[train_ind]).batch(batch_size)
-            tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-            clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
-        x_test = db.get_data(subj_ind[orig_test_ind])
-        clf.evaluate(x_test, y_test)
-
-    acc = test_classifier(clf, x_test, y_test, label_encoder)
-    ans = acc
-
-    if save_classifier:
-        if isinstance(clf, TFBaseNet):
-            file = base_dir.joinpath('tensorflow', f'clf{i}.h5')
-            file.parent.mkdir(parents=True, exist_ok=True)
-            clf.save(file)
-        elif isinstance(clf, (BaseEstimator, Pipeline, ClassifierMixin)):
-            file = base_dir.joinpath('sklearn', f'clf{i}.pkl')
-            file.parent.mkdir(parents=True, exist_ok=True)
-            save_pickle_data(file, clf)
-        else:
-            raise NotImplementedError()
-        ans = (acc, file)
-
-    db.close()
-    return ans
-
-
 def train_test_subject_data(db, subj_ind, classifier_type,
                             *, n_splits=5, shuffle=False,
                             epochs=None, save_classifiers=False,
                             label_encoder=None, batch_size=32,
                             validation_split=.0, patience=15,
+                            verbose='auto', weight_file=None,
                             **classifier_kwargs):
     kfold = BalancedKFold(n_splits=n_splits, shuffle=shuffle)
 
@@ -122,33 +56,70 @@ def train_test_subject_data(db, subj_ind, classifier_type,
 
     cross_acc = list()
     saved_clf_names = list()
-    for i, (train, test) in enumerate(kfold.split(y=y, groups=ep_ind)):
-        db.close()
+    for i, (train_ind, test_ind) in enumerate(kfold.split(y=y, groups=ep_ind)):
         if shuffle:
-            np.random.shuffle(train)
-        if classifier_type in [ClassifierType.ENSEMBLE, ClassifierType.VOTING, ClassifierType.VOTING_SVM]:
-            acc = _one_within_fold(train, test, subj_ind, ep_ind, y, db,
-                                   label_encoder=label_encoder,
-                                   classifier_type=classifier_type, epochs=epochs,
-                                   batch_size=batch_size,
-                                   validation_split=validation_split,
-                                   patience=patience,
-                                   save_classifier=save_classifiers, i=i,
-                                   **classifier_kwargs)
+            np.random.shuffle(train_ind)
+
+        orig_test_mask = db.get_orig_mask()[subj_ind][test_ind]
+        orig_test_ind = np.sort(test_ind[orig_test_mask])
+        y_train = y[train_ind]
+        y_test = y[orig_test_ind]
+
+        clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
+                              **classifier_kwargs)
+
+        if isinstance(clf, TFBaseNet) and weight_file is not None:
+            clf.load_weights(weight_file)
+
+        if epochs is None:
+            x = db.get_data(subj_ind)
+            x_train = x[train_ind]
+            x_test = x[orig_test_ind]
+
+            # required for sklearn classifiers with n_job > 1, because joblib
+            # does not terminate processes and somehow hdf5 db handler is copied
+            # to processes which cause later an error, when db should be deleted...
+            # Issue: https://github.com/joblib/joblib/issues/945
+            db.close()
+
+            clf.fit(x_train, y_train)
         else:
-            acc = process_run(_one_within_fold,
-                              args=(train, test, subj_ind, ep_ind, y, db),
-                              kwargs=dict(label_encoder=label_encoder,
-                                          classifier_type=classifier_type, epochs=epochs,
-                                          batch_size=batch_size,
-                                          validation_split=validation_split,
-                                          patience=patience,
-                                          save_classifier=save_classifiers, i=i,
-                                          **classifier_kwargs))
-        if save_classifiers:
-            acc, saved_clf_name = acc
-            saved_clf_names.append(saved_clf_name)
+            y_all = label_encoder.transform(db.get_y())
+            if validation_split > 0:
+                tr, val = _get_balanced_train_val_ind(validation_split, y_train, ep_ind[train_ind])
+
+                orig_val_mask = db.get_orig_mask()[subj_ind][train_ind[val]]
+                orig_val_ind = subj_ind[train_ind[val][orig_val_mask]]
+
+                train_tf_ds = get_tf_dataset(db, y_all, subj_ind[train_ind[tr]]).batch(batch_size)
+                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+                val_tf_ds = get_tf_dataset(db, y_all, orig_val_ind).batch(batch_size)
+                val_tf_ds = val_tf_ds.cache()
+                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
+                        patience=patience, verbose=verbose)
+            else:
+                tf_dataset = get_tf_dataset(db, y_all, subj_ind[train_ind]).batch(batch_size)
+                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+                clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
+            x_test = db.get_data(subj_ind[orig_test_ind])
+            clf.evaluate(x_test, y_test)
+
+        acc = test_classifier(clf, x_test, y_test, label_encoder)
         cross_acc.append(acc)
+
+        if save_classifiers:
+            base_dir = db.filename.parent
+            if isinstance(clf, TFBaseNet):
+                file = base_dir.joinpath('tensorflow', f'clf{i}.h5')
+                file.parent.mkdir(parents=True, exist_ok=True)
+                clf.save(file)
+            elif isinstance(clf, (BaseEstimator, Pipeline, ClassifierMixin)):
+                file = base_dir.joinpath('sklearn', f'clf{i}.pkl')
+                file.parent.mkdir(parents=True, exist_ok=True)
+                save_pickle_data(file, clf)
+            else:
+                raise NotImplementedError()
+            saved_clf_names.append(file)
 
     print(f"Accuracy scores for k-fold crossvalidation: {cross_acc}\n")
     print(f"Avg accuracy: {np.mean(cross_acc):.4f}   +/- {np.std(cross_acc):.4f}")
@@ -263,70 +234,13 @@ def test_db_within_subject(
                                        save_res=save_res, hpc_check_point=hpc_check_point)
 
 
-def _one_cross_fold(train_ind, test_ind, y, db,
-                    *, label_encoder, classifier_type,
-                    res_handler=None, save_res=True,
-                    epochs=None, batch_size=32, validation_split=0., patience=15,
-                    verbose='auto',
-                    **classifier_kwargs):
-    clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
-                          len(label_encoder.classes_), **classifier_kwargs)
-
-    all_subj = db.get_subject_group()
-
-    if epochs is None:
-        x_train = db.get_data(train_ind)
-        y_train = y[train_ind]
-        clf.fit(x_train, y_train)
-    else:
-        if validation_split > 0:
-            # # subject level
-            # tr, val = _get_train_val_ind(validation_split, all_subj[train_ind])
-
-            # epoch level
-            tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
-                                                  db.get_epoch_group()[train_ind])
-
-            orig_val_mask = db.get_orig_mask()[train_ind[val]]
-            orig_val_ind = train_ind[val][orig_val_mask]
-
-            train_tf_ds = get_tf_dataset(db, y, train_ind[tr]).batch(batch_size)
-            train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
-            val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
-            val_tf_ds = val_tf_ds.cache()
-            clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
-                    patience=patience, verbose=verbose)
-        else:
-            tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
-            tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
-            clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
-
-    # test subjects individually - check network generalization capability
-    for subj in np.unique(all_subj[test_ind]):
-        print(f'Subject{subj}')
-        test_subj_ind = mask_to_ind(subj == all_subj)
-        orig_test_mask = db.get_orig_mask()[test_subj_ind]
-        orig_test_ind = test_subj_ind[orig_test_mask]
-
-        x_test = db.get_data(orig_test_ind)
-        y_test = y[orig_test_ind]
-        acc = test_classifier(clf, x_test, y_test, label_encoder)
-
-        if res_handler is not None:
-            res_handler.add({'Subject': [f'Subject{subj}'],
-                             'Left out subjects': [np.unique(all_subj[test_ind])],
-                             'Accuracy': [acc]})
-            if save_res:
-                res_handler.save()
-
-    return res_handler
-
-
 def make_cross_subject_classification(db_filename, classifier_type,
                                       leave_out_n_subjects=10, shuffle=True,
                                       res_handler=None,
                                       save_res=True, epochs=None, batch_size=32,
                                       validation_split=.0, patience=15,
+                                      verbose='auto', finetune=False,
+                                      finetune_split=5,
                                       **classifier_kwargs):
     db = HDF5Dataset(db_filename)
     all_subj = db.get_subject_group()
@@ -339,19 +253,86 @@ def make_cross_subject_classification(db_filename, classifier_type,
         if shuffle:
             np.random.shuffle(train_ind)
         db.close()
-        res_handler = process_run(_one_cross_fold,
-                                  args=(train_ind, test_ind, y, db),
-                                  kwargs=dict(label_encoder=label_encoder,
-                                              res_handler=res_handler, save_res=save_res,
-                                              classifier_type=classifier_type,
-                                              epochs=epochs,
-                                              batch_size=batch_size,
-                                              validation_split=validation_split,
-                                              patience=patience,
-                                              **classifier_kwargs))
+
+        clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
+                              len(label_encoder.classes_), **classifier_kwargs)
+
+        all_subj = db.get_subject_group()
+
+        if epochs is None:
+            x_train = db.get_data(train_ind)
+            y_train = y[train_ind]
+            clf.fit(x_train, y_train)
+        else:
+            if validation_split > 0:
+                # # subject level
+                # tr, val = _get_train_val_ind(validation_split, all_subj[train_ind])
+
+                # epoch level
+                tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
+                                                      db.get_epoch_group()[train_ind])
+
+                orig_val_mask = db.get_orig_mask()[train_ind[val]]
+                orig_val_ind = train_ind[val][orig_val_mask]
+
+                train_tf_ds = get_tf_dataset(db, y, train_ind[tr]).batch(batch_size)
+                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+                val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
+                val_tf_ds = val_tf_ds.cache()
+                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
+                        patience=patience, verbose=verbose)
+            else:
+                tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
+                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+                clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
+
+        if isinstance(clf, TFBaseNet) and finetune:
+            cp_file = clf.save_weights()
+        else:
+            cp_file = None
+            finetune = False
+
+        # test subjects individually - check network generalization capability
+        for subj in np.unique(all_subj[test_ind]):
+            print(f'Subject{subj}')
+            test_subj_ind = mask_to_ind(subj == all_subj)
+
+            if not finetune:
+                orig_test_mask = db.get_orig_mask()[test_subj_ind]
+                orig_test_ind = test_subj_ind[orig_test_mask]
+
+                x_test = db.get_data(orig_test_ind)
+                y_test = y[orig_test_ind]
+                acc = test_classifier(clf, x_test, y_test, label_encoder)
+
+                if res_handler is not None:
+                    res_handler.add({'Subject': [f'Subject{subj}'],
+                                     'Left out subjects': [np.unique(all_subj[test_ind])],
+                                     'Accuracy': [acc]})
+
+            else:
+                cross_acc = train_test_subject_data(db, test_subj_ind, classifier_type,
+                                                    n_splits=finetune_split, shuffle=shuffle,
+                                                    epochs=epochs, label_encoder=label_encoder,
+                                                    batch_size=batch_size,
+                                                    validation_split=validation_split,
+                                                    patience=patience, verbose=verbose,
+                                                    weight_file=cp_file, **classifier_kwargs)
+                if res_handler is not None:
+                    res_handler.add({'Subject': [f'Subject{subj}'],
+                                     'Left out subjects': [np.unique(all_subj[test_ind])],
+                                     'Accuracy list': [cross_acc],
+                                     'Std of Avg. Acc': [np.std(cross_acc)],
+                                     'Avg. Acc': [np.mean(cross_acc)]})
+
+            if save_res and res_handler is not None:
+                res_handler.save()
 
     if res_handler is not None:
-        res_handler.print_db_res(col='Accuracy')
+        if finetune:
+            res_handler.print_db_res()
+        else:
+            res_handler.print_db_res(col='Accuracy')
 
 
 def test_db_cross_subject(
@@ -369,6 +350,8 @@ def test_db_cross_subject(
         leave_out_n_subjects=10,
         classifier_type=ClassifierType.EEG_NET,
         classifier_kwargs=None,
+        finetune=False,
+        finetune_split=5,
         db_file='tmp/database.hdf5', log_file='tmp/out.csv', base_dir='.',
         save_res=True,
         fast_load=True,
@@ -387,9 +370,14 @@ def test_db_cross_subject(
                       augment_data=augment_data)
     fix_params.update(classifier_kwargs)
 
-    results = ResultHandler(fix_params,
-                            ['Subject', 'Left out subjects', 'Accuracy'],
-                            to_beginning=('Subject',), filename=log_file)
+    if finetune:
+        results = ResultHandler(fix_params,
+                                ['Subject', 'Left out subjects', 'Accuracy list', 'Std of Avg. Acc', 'Avg. Acc'],
+                                to_beginning=('Subject',), filename=log_file)
+    else:
+        results = ResultHandler(fix_params,
+                                ['Subject', 'Left out subjects', 'Accuracy'],
+                                to_beginning=('Subject',), filename=log_file)
 
     generate_db(db_name, db_file, feature_type,
                 epoch_tmin, epoch_tmax,
@@ -409,4 +397,6 @@ def test_db_cross_subject(
                                       leave_out_n_subjects=leave_out_n_subjects,
                                       res_handler=results,
                                       save_res=save_res,
+                                      finetune=finetune,
+                                      finetune_split=finetune_split,
                                       **classifier_kwargs)
