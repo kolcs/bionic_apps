@@ -328,6 +328,7 @@ def make_cross_subject_classification(db_filename, classifier_type,
             if save_res and res_handler is not None:
                 res_handler.save()
 
+    db.close()
     if res_handler is not None:
         if finetune:
             res_handler.print_db_res()
