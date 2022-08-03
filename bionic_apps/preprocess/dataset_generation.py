@@ -9,7 +9,7 @@ from psutil import cpu_count
 from .data_augmentation import do_augmentation
 from .io import DataLoader, SubjectHandle, get_epochs_from_raw, get_epochs_from_raw_annot
 from ..artifact_filtering.faster import ArtefactFilter
-from ..databases import Databases
+from ..databases import Databases, PutEMG
 from ..databases.coreg_mindrove import MindRoveCoreg
 from ..feature_extraction import FeatureType, generate_features
 from ..handlers.hdf5 import HDF5Dataset
@@ -49,7 +49,7 @@ def generate_subject_data(files, loader, subj, filter_params,
         else:
             raw = filter_mne_obj(raw, picks=ch_selection, **filter_params)
 
-    if isinstance(loader._db_type, MindRoveCoreg):
+    if isinstance(loader._db_type, (MindRoveCoreg, PutEMG)):
         ep_data, ep_labels, ep_min, _ = get_epochs_from_raw_annot(raw, return_min_max=True)
         assert window_length <= ep_min, f'The shortest epoch is {ep_min:.4f} sec long. ' \
                                         f'Can not make {window_length} sec long windows.'

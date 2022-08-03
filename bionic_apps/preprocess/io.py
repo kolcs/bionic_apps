@@ -6,7 +6,7 @@ import numpy as np
 
 from ..databases import Databases, get_eeg_db_name_by_filename, Physionet, TTK_DB, \
     PilotDB_ParadigmA, PilotDB_ParadigmB, GameDB, Game_ParadigmC, Game_ParadigmD, ParadigmC, EmotivParC, \
-    BciCompIV2a, BciCompIV2b, BciCompIV1, Giga, REST
+    BciCompIV2a, BciCompIV2b, BciCompIV1, Giga, REST, PutEMG
 from ..databases.coreg_mindrove import MindRoveCoreg
 from ..handlers.gui import select_files_in_explorer
 from ..utils import standardize_eeg_channel_names, init_base_config
@@ -142,7 +142,7 @@ def get_epochs_from_raw_annot(raw, drop_labels=('Idle', 'Rest'), return_min_max=
         max_len = duration if duration > max_len else max_len
 
         tr_start = raw.annotations.onset[i]
-        tr_end = tr_start + duration
+        tr_end = min(tr_start + duration, raw.times[-1])
 
         ep = raw.copy()
         ep.crop(tr_start, tr_end)
@@ -263,6 +263,8 @@ class DataLoader:
             self.use_giga(config_ver)
         elif db_name == Databases.MINDROVE_COREG:
             self.use_mindrove_coreg(config_ver)
+        elif db_name == Databases.PUTEMG:
+            self.use_putemg(config_ver)
 
         else:
             raise NotImplementedError('Database processor for {} db is not implemented'.format(db_name))
@@ -340,6 +342,9 @@ class DataLoader:
         self._use_db(MindRoveCoreg(config_ver))
         return self
 
+    def use_putemg(self, config_ver=-1):
+        self._use_db(PutEMG(config_ver))
+
     def validate_make_binary_classification_use(self):
         self._validate_db_type()
         if type(self._db_type) is Physionet and not self._db_type.CONFIG_VER == 1:
@@ -380,7 +385,7 @@ class DataLoader:
         return self._db_type.COMMAND_CONV
 
     def _get_exp_num(self):
-        if type(self._db_type) in [Physionet, BciCompIV1, BciCompIV2a, BciCompIV2b, Giga, MindRoveCoreg]:
+        if hasattr(self._db_type, 'SUBJECT_NUM'):
             exp_num = self._db_type.SUBJECT_NUM
         elif type(self._db_type) in [TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB, Game_ParadigmC, Game_ParadigmD,
                                      ParadigmC, EmotivParC, GameDB]:
@@ -539,7 +544,7 @@ class DataLoader:
             if hasattr(self._db_type, 'CONFIG_VER') and self._db_type.CONFIG_VER >= 1:
                 if type(self._db_type) in [Physionet, TTK_DB, PilotDB_ParadigmA, PilotDB_ParadigmB,
                                            Game_ParadigmC, Game_ParadigmD, BciCompIV2a, BciCompIV2b,
-                                           BciCompIV1, Giga, MindRoveCoreg]:
+                                           BciCompIV1, Giga, MindRoveCoreg, PutEMG]:
                     file_names = sorted(self._data_path.rglob(self._get_subj_pattern(subj)))
                     assert len(file_names) > 0, f'No files were found. Try to set CONFIG_VER=0 ' \
                                                 f'for {type(self._db_type).__name__} or download the latest database.'

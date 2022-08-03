@@ -4,6 +4,7 @@ from pathlib import Path
 from .coreg_mindrove import MindRoveCoreg
 from .eeg.offline import *
 from .eeg.online_braindriver import *
+from .emg import PutEMG
 
 
 # db selection options
@@ -23,6 +24,7 @@ class Databases(Enum):
     GIGA = 'giga'
 
     MINDROVE_COREG = 'mindrove'
+    PUTEMG = 'putemg'
 
 
 def get_eeg_db_name_by_filename(filename):
@@ -51,6 +53,8 @@ def get_eeg_db_name_by_filename(filename):
         db_name = Databases.GIGA
     elif MindRoveCoreg().DIR in filename:
         db_name = Databases.MINDROVE_COREG
+    elif PutEMG().DIR in filename:
+        db_name = Databases.PUTEMG
     else:
         raise ValueError('No database defined with path {}'.format(filename))
     return db_name
