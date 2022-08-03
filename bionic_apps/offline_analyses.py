@@ -196,6 +196,7 @@ def test_db_within_subject(
         save_res=True,
         fast_load=True, subjects='all',
         augment_data=False,
+        db_generation='auto',
         hpc_check_point=None
 ):
     if classifier_kwargs is None:
@@ -226,7 +227,8 @@ def test_db_within_subject(
                 subject_handle=subject_handle,
                 base_dir=base_dir, fast_load=fast_load,
                 subjects=subjects,
-                augment_data=augment_data)
+                augment_data=augment_data,
+                mode=db_generation)
 
     make_within_subject_classification(subjects, db_file, classifier_type,
                                        classifier_kwargs=classifier_kwargs,
@@ -357,7 +359,8 @@ def test_db_cross_subject(
         save_res=True,
         fast_load=True,
         subjects='all',
-        augment_data=False
+        augment_data=False,
+        db_generation='auto'
 ):
     if classifier_kwargs is None:
         classifier_kwargs = {}
@@ -392,7 +395,8 @@ def test_db_cross_subject(
                 subject_handle=subject_handle,
                 base_dir=base_dir, fast_load=fast_load,
                 subjects=subjects,
-                augment_data=augment_data)
+                augment_data=augment_data,
+                mode=db_generation)
 
     make_cross_subject_classification(db_file, classifier_type,
                                       leave_out_n_subjects=leave_out_n_subjects,
