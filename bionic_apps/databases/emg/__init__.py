@@ -6,4 +6,4 @@ class PutEMG:
 
         self.FILE_PATH = 'subject{subj}_raw.fif'
         self.SUBJECT_NUM = 87
-        self.DROP_SUBJECTS = []
+        self.DROP_SUBJECTS = [43, 59, 63, 80]
