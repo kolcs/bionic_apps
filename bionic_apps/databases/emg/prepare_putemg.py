@@ -19,8 +19,12 @@ LABEL_CONVERTER = {
     9: ['pinch thumb-small']
 }
 
+BASE_PATH = 'Data-HDF5'
+FILE_PATTERN = '*repeats_long*.hdf5'
+LABEL_NUM = 5
 
-def get_annotated_raw(file, plot=False):
+
+def get_annotated_raw(file, limit, plot=False):
     df = pd.read_hdf(file, sep=',', encoding='utf8')
     emg_cols = [col for col in df if 'EMG' in col]
 
@@ -38,6 +42,11 @@ def get_annotated_raw(file, plot=False):
     duration = tr_end / FS - onset
     ep_labels = np.array([LABEL_CONVERTER[int(lab)] for lab in task_numbers[tr_start]]).ravel()
 
+    label_limit = [np.sum(label == ep_labels) == limit for label in np.unique(ep_labels) if
+                   label not in ['Rest', 'Idle']]
+    if not all(label_limit):
+        print(f'\nSome of the labels in {file} does not reach the minimum label limit.\n')
+
     raw = _create_raw(data.T,
                       ch_names=emg_cols,
                       ch_types=['emg'] * len(emg_cols),
@@ -52,19 +61,19 @@ def get_annotated_raw(file, plot=False):
 
 
 def main():
-    base_dir = Path('Data-HDF5')
+    base_dir = Path(BASE_PATH)
 
     if not base_dir.exists():
         from unittest.mock import patch
         import sys
-        testargs = [f"{__file__}", 'emg_gestures', 'data-hdf5']
+        testargs = [f"{__file__}", 'emg_gestures', str(BASE_PATH).lower()]
         with patch.object(sys, 'argv', testargs):
             putemg_download.main()
 
-    files = sorted(base_dir.glob('*repeats_long*.hdf5'))
+    files = sorted(base_dir.glob(FILE_PATTERN))
     for j, file in enumerate(files):
         print(f'Progress: {j * 100. / len(files):.2f} %')
-        raw = get_annotated_raw(file, plot=False)
+        raw = get_annotated_raw(file, LABEL_NUM, plot=False)
         file = str(base_dir.joinpath(f'subject{j:03d}_raw.fif'))
         raw.save(file, overwrite=True)
 

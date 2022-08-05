@@ -7,8 +7,10 @@ from sys import platform
 
 import numpy as np
 from joblib.externals.loky import get_reusable_executor
+from mne.io import read_raw
 
 from .databases import REST, CALM, ACTIVE
+from .handlers import select_folder_in_explorer
 
 # config options
 CONFIG_FILE = 'bionic_apps.cfg'
@@ -264,3 +266,16 @@ def cleanup_after(func):
         return ans
 
     return wrap
+
+
+def check_label_nums(limit=5, ignore=('Rest', 'Idle')):
+    folder = select_folder_in_explorer('Select folder for label check!',
+                                       'Label check')
+    file_type = input('Type search pattern: ')
+    path = Path(folder)
+    for i, files in enumerate(path.rglob(f'*{file_type}')):
+        raw = read_raw(files)
+        labels = raw.annotations.description
+        label_limit = [np.sum(label == labels) < limit for label in np.unique(labels) if label not in ignore]
+        if any(label_limit):
+            print(f'\nSome of the labels for subject{i} does not reach the minimum label limit.\n')
