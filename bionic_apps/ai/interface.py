@@ -106,7 +106,7 @@ class SaveAndRestoreBestModel(keras.callbacks.Callback):
                 self._max_acc = val_acc
                 self.best_weights = self.model.get_weights()
 
-        elif val_loss < self._min_loss and val_acc > self._max_acc:
+        elif val_loss < self._min_loss and val_acc >= self._max_acc:
             self.epoch = epoch
             self._min_loss = val_loss
             self._max_acc = val_acc
