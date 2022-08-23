@@ -1,5 +1,3 @@
-import numpy as np
-
 from bionic_apps.ai import ClassifierType
 from bionic_apps.databases import Databases
 from bionic_apps.feature_extraction import FeatureType
@@ -9,7 +7,10 @@ from bionic_apps.preprocess.io import SubjectHandle
 LOG_DIR = 'bci_tests/eeg_net'
 TEST_NAME = 'window_inv'
 
-hpc_submit_script = f'gpu1_lowpri.sh'
+# HPC params:
+partition = 'gpu'  # ['cpu', 'cpu_lowpriority', 'gpu', 'gpu_long', 'gpu_lowpriority']
+gpu_type = 3  # [1, 2, 3]
+cpu_cores = 6
 
 test_func = test_db_within_subject
 
