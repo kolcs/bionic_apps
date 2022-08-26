@@ -199,7 +199,7 @@ def online_faster_bad_components(ica, epochs, ica_scores, thres=3, use_metrics=N
 
 
 def find_outliers(X, threshold=3.0, max_iter=2):
-    my_mask = np.zeros(len(X), dtype=np.bool)
+    my_mask = np.zeros(len(X), dtype=bool)
     for _ in range(max_iter):
         X = np.ma.masked_array(X, my_mask)
         this_z = np.abs(zscore(X))
@@ -483,7 +483,12 @@ def run_faster(epochs, thresholds=None, copy=True, apply_frequency_filter=True,
         ica = mne.preprocessing.ICA(max_iter="auto")
         ica.fit(epochs)
 
-        eog_inds, _ = ica.find_bads_eog(epochs, ch_name='Fp1', threshold=thresholds[2], verbose=verbose)
+        try:
+            eog_inds, _ = ica.find_bads_eog(epochs, threshold=thresholds[2],
+                                            measure='zscore', verbose=verbose)
+        except RuntimeError:
+            eog_inds, _ = ica.find_bads_eog(epochs, ch_name='Fp1', threshold=thresholds[2],
+                                            measure='zscore', verbose=verbose)
         bad_components, ica_scores = faster_bad_components(ica, epochs, verbose=verbose, thres=thresholds[2])
         bad_components = np.unique(np.append(bad_components, eog_inds))
         epochs = ica.apply(epochs, exclude=bad_components)
