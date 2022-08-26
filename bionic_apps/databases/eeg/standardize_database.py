@@ -101,7 +101,7 @@ def convert_bcicompIV2a():
         raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
 
         # correcting eeg channel names
-        raw.rename_channels(lambda x: x.strip('EEG-'))
+        raw.rename_channels(lambda x: x.strip('EEG-') if x.startswith('EEG-') else x)
         new_map = {str(i): ch for i, ch in enumerate(['Fc3', 'Fc1', 'FCz', 'Fc2', 'Fc4', 'C5', 'C1', 'C2', 'C6',
                                                       'Cp3', 'Cp1', 'CPz', 'Cp2', 'Cp4', 'P1', 'P2', 'POz'])}
         raw.rename_channels(new_map)
@@ -130,11 +130,11 @@ def convert_bcicompIV2a():
 def convert_bcicompIV2b():
     loader = DataLoader(BASE_PATH, use_drop_subject_list=False).use_bci_comp_4_2b()
     path = loader.get_data_path()
-    files = sorted(path.rglob('*{}'.format('.gdf')))
+    files = sorted(path.rglob('*.gdf'))
     for i, filename in enumerate(files):
         subj = i + 1
         raw = mne.io.read_raw(filename, preload=True, eog=(-3, -2, -1))  # eog channel index
-        raw.rename_channels(lambda x: x.strip('EEG:'))
+        raw.rename_channels(lambda x: x.strip('EEG:') if x.startswith('EEG:') else x)
         if i % 5 < 3:
             pass
         else:
