@@ -155,6 +155,7 @@ def start_brain_driver_control_system(feature_type, classifier_type,
         else:
             classifier.fit(x, y, epochs=epochs, batch_size=batch_size)
 
+    database.close()
     parent_conn, child_conn = Pipe()
     if use_game_logger and is_platform('windows'):
         GameLogger(annotator='bv_rcc', data_loader=loader, connection=child_conn).start()
