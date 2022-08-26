@@ -37,11 +37,18 @@ def generate_subject_data(files, loader, subj, filter_params,
             mne.channels.make_eeg_layout(raw.info)
         except RuntimeError:  # if no channel positions are available create them from standard positions
             montage = mne.channels.make_standard_montage('standard_1005')  # 'standard_1020'
+            no_position = [ch for ch in raw.copy().pick_types(eeg=True).ch_names if ch not in montage.ch_names]
             raw.set_montage(montage, on_missing='warn')
+            if artifact_filter is not None and not isinstance(loader._db_type, (MindRoveCoreg, PutEMG)):
+                raw = raw.pick(None, exclude=no_position)
+                print(f'The following channels are dropped: {no_position}')
 
     if filter_params is not None:
         if ch_selection == 'all':
             pick_list = ['eeg', 'emg', 'eog']
+            assert all(p in pick_list for p in filter_params), f'Expected keys are {pick_list} got' \
+                                                               f'dictionary with {list(filter_params)} ' \
+                                                               f'keys instead.'
             for pick, fpars in filter_params.items():
                 assert pick in pick_list, f'filter_params are not defined well. ' \
                                           f'Keys must be in {pick_list}. Got {filter_params}'
