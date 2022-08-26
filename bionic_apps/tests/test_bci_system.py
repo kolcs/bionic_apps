@@ -5,6 +5,7 @@ from pathlib import Path
 from sklearn.ensemble import ExtraTreesClassifier
 
 from bionic_apps.ai import ClassifierType
+from bionic_apps.databases import Databases
 from bionic_apps.external_connections.lsl.DataSender import run as send_online_data
 from bionic_apps.feature_extraction import FeatureType, get_hugines_transfromer
 from bionic_apps.feature_extraction import eeg_bands
@@ -24,12 +25,17 @@ class TestOfflineBciSystem(unittest.TestCase):
     def _run_eegdb_within_subj_test(self, **kwargs):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                test_db_within_subject(db_name,
-                                       window_len=2, window_step=1,
-                                       do_artefact_rejection=True,
-                                       fast_load=True, log_file='out.csv',
-                                       subjects=2,
-                                       **kwargs)
+                params = dict(window_len=2, window_step=1,
+                              do_artefact_rejection=True,
+                              fast_load=True, log_file='out.csv',
+                              subjects=2)
+                if db_name in [Databases.PUTEMG, Databases.MINDROVE_COREG]:
+                    params.update(dict(window_len=.25, window_step=.01,
+                                       ch_selection='emg')
+                                  )
+                params.update(kwargs)
+                test_db_within_subject(db_name, **params,
+                                       db_generation='sequential')
 
     def test_eegdb_within_subj_multi_svm(self):
         band = eeg_bands['range40'].copy()
@@ -61,12 +67,18 @@ class TestOfflineBciSystem(unittest.TestCase):
     def _run_eegdb_cross_subj_test(self, **kwargs):
         for db_name in AVAILABLE_DBS:
             with self.subTest(f'Database: {db_name.name}'):
-                test_db_cross_subject(db_name,
-                                      window_len=2, window_step=1,
-                                      do_artefact_rejection=True,
-                                      fast_load=True, log_file='out.csv',
-                                      subjects=5, leave_out_n_subjects=2,
-                                      **kwargs)
+                params = dict(window_len=2, window_step=1,
+                              do_artefact_rejection=True,
+                              fast_load=True, log_file='out.csv',
+                              subjects=5, leave_out_n_subjects=2)
+
+                if db_name in [Databases.PUTEMG, Databases.MINDROVE_COREG]:
+                    params.update(dict(window_len=.25, window_step=.01,
+                                       ch_selection='emg')
+                                  )
+                params.update(kwargs)
+                test_db_cross_subject(db_name, **params,
+                                      db_generation='sequential')
 
     def test_eegdb_cross_subj_eegnet_no_val(self):
         kwargs = dict(
