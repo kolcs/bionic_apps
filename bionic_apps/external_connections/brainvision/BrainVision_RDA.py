@@ -27,10 +27,10 @@ class Marker:
 
 # Helper function for receiving whole message
 def recv_data(connection, requested_size):
-    return_stream = ''
+    return_stream = b''
     while len(return_stream) < requested_size:
         data_bytes = connection.recv(requested_size - len(return_stream))
-        if data_bytes == '':
+        if data_bytes == b'':
             raise RuntimeError("Connection broken")
         return_stream += data_bytes
 
@@ -40,16 +40,7 @@ def recv_data(connection, requested_size):
 # Helper function for splitting a raw array of
 # zero terminated strings (C) into an array of python strings
 def split_string(raw):
-    string_list = []
-    s = ""
-    for i in range(len(raw)):
-        if raw[i] != '\x00':
-            s = s + raw[i]
-        else:
-            string_list.append(s)
-            s = ""
-
-    return string_list
+    return raw.decode('utf8').split('\x00')
 
 
 # Helper function for extracting eeg properties from a raw data array
