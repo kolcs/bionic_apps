@@ -40,68 +40,6 @@ class CNN(TFBaseNet):
         x = keras.layers.Dense(self._output_shape, activation='softmax', name='predictions')(x)
         return input_tensor, x
 
-
-#  https://github.com/vlawhern/arl-eegmodels
-class EEGNet(TFBaseNet):
-
-    def __init__(self, input_shape, classes, dropout_rate=0.5, kernel_length=.5, f1=8,
-                 d=2, f2=16, norm_rate=0.25, dropout_type='Dropout', save_path='tf_log/'):
-        self.dropout_rate = dropout_rate
-        if dropout_type == 'SpatialDropout2D':
-            dropout_type = tf.keras.layers.SpatialDropout2D
-        elif dropout_type == 'Dropout':
-            dropout_type = tf.keras.layers.Dropout
-        else:
-            raise ValueError('dropoutType must be one of SpatialDropout2D '
-                             'or Dropout, passed as a string.')
-        self.dropout_type = dropout_type
-        if isinstance(kernel_length, float) and kernel_length < 1:
-            self.kernel_length = int(input_shape[-1] * kernel_length)
-        else:
-            self.kernel_length = kernel_length
-        self.f1 = f1
-        self.d = d
-        self.f2 = f2
-        self.norm_rate = norm_rate
-        super(EEGNet, self).__init__(input_shape, classes, save_path)
-
-    def _build_graph(self):
-        input_tensor = keras.layers.Input(shape=self._input_shape)
-        x = input_tensor
-
-        channels = self._input_shape[0]
-        samples = self._input_shape[1]
-
-        if len(self._input_shape) == 2:
-            x = keras.layers.Lambda(lambda tens: tf.expand_dims(tens, axis=-1))(x)
-
-        block1 = tf.keras.layers.Conv2D(self.f1, (1, self.kernel_length), padding='same',
-                                        input_shape=(channels, samples, 1),
-                                        use_bias=False)(x)
-        block1 = tf.keras.layers.BatchNormalization()(block1)
-        block1 = tf.keras.layers.DepthwiseConv2D((channels, 1), use_bias=False,
-                                                 depth_multiplier=self.d,
-                                                 depthwise_constraint=tf.keras.constraints.max_norm(1.))(block1)
-        block1 = tf.keras.layers.BatchNormalization()(block1)
-        block1 = tf.keras.layers.Activation('elu')(block1)
-        block1 = tf.keras.layers.AveragePooling2D((1, 4))(block1)
-        block1 = self.dropout_type(self.dropout_rate)(block1)
-
-        block2 = tf.keras.layers.SeparableConv2D(self.f2, (1, 16),
-                                                 use_bias=False, padding='same')(block1)
-        block2 = tf.keras.layers.BatchNormalization()(block2)
-        block2 = tf.keras.layers.Activation('elu')(block2)
-        block2 = tf.keras.layers.AveragePooling2D((1, 8))(block2)
-        block2 = self.dropout_type(self.dropout_rate)(block2)
-
-        flatten = tf.keras.layers.Flatten(name='flatten')(block2)
-
-        dense = tf.keras.layers.Dense(self._output_shape, name='dense',
-                                      kernel_constraint=tf.keras.constraints.max_norm(self.norm_rate))(flatten)
-        softmax = tf.keras.layers.Activation('softmax', name='softmax')(dense)
-
-        return input_tensor, softmax
-
     # def _create_model(self, input_tensor, outputs):
     #     lr_schedule = tf.keras.optimizers.schedules.InverseTimeDecay(
     #         0.001,
@@ -390,6 +328,6 @@ class PCNN(TFBaseNet):
 
 
 if __name__ == '__main__':
-    nn = EEGNet((64, 128), 2)
+    nn = QNet(None, (64, 128), 2)
     nn.summary()
     # keras.utils.plot_model(nn, "model.png", show_shapes=True)

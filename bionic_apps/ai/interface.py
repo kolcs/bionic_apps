@@ -188,6 +188,7 @@ def _reinitialize_model(model):
                                 keras.layers.Lambda,
                                 keras.layers.Activation,
                                 keras.layers.AveragePooling2D,
+                                keras.layers.MaxPooling2D,
                                 keras.layers.Dropout,
                                 keras.layers.Flatten,
                                 )):
