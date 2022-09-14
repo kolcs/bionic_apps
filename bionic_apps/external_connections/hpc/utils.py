@@ -44,16 +44,22 @@ def _gen_hpc_save_path(log_path, tried_scratches=()):
     user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
     scratch_list = np.arange(1, 5)
     np.random.shuffle(scratch_list)
+    base_path = Path()
     scratch = 0
     for scratch in scratch_list:
         if scratch in tried_scratches:
             continue
-        if Path(f'/scratch{scratch}').exists():
-            break
+        base_path = Path(f'/scratch{scratch}')
+        if base_path.exists():
+            base_path = base_path.joinpath(user)
+            try:
+                base_path.mkdir(exist_ok=True)
+                break
+            except PermissionError:
+                pass
         tried_scratches += (scratch,)
     if len(tried_scratches) == 4:
         raise EnvironmentError('Out of resource.')
-    base_path = Path(f'/scratch{scratch}').joinpath(user)
     _cleanup_files_older_than(base_path)
     return base_path.joinpath(log_path), scratch, tried_scratches
 
