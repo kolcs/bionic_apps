@@ -16,8 +16,9 @@ def _select_fft(x, i):
 
 class VotingSVM(ClassifierInterface, ClassifierMixin):
 
-    def __init__(self, norm=StandardScaler):
+    def __init__(self, norm=StandardScaler, voting='soft'):
         self.norm = norm
+        self.voting = voting
         self._model = None
 
     def fit(self, x, y=None, **kwargs):
@@ -25,7 +26,7 @@ class VotingSVM(ClassifierInterface, ClassifierMixin):
         inner_clfs = [(f'unit{i}', make_pipeline(FunctionTransformer(_select_fft, kw_args={'i': i}),
                                                  self.norm(), SVC(probability=True)))
                       for i in range(n_svms)]
-        self._model = VotingClassifier(inner_clfs, voting='soft', n_jobs=len(inner_clfs)) \
+        self._model = VotingClassifier(inner_clfs, voting=self.voting, n_jobs=len(inner_clfs)) \
             if len(inner_clfs) > 1 else inner_clfs[0][1]
         self._model.fit(x, y)
 
