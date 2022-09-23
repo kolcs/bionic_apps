@@ -206,6 +206,77 @@ class ShallowConvNet(TFBaseNet):
         return input_tensor, softmax
 
 
+# https://github.com/rootskar/EEGMotorImagery/blob/master/EEGModels.py
+class EEGNetFusion(TFBaseNet):
+
+    def __init__(self, input_shape, classes, dropout_rate=0.5, kernel_length=.5,
+                 f1_1=8, f1_2=16, f1_3=32,
+                 f2_1=16, f2_2=32, f2_3=64,
+                 d1=2, d2=2, d3=2,
+                 norm_rate=0.25, dropout_type='Dropout', save_path='tf_log/'):
+        self.dropout_rate = dropout_rate
+        if dropout_type == 'SpatialDropout2D':
+            dropout_type = keras.layers.SpatialDropout2D
+        elif dropout_type == 'Dropout':
+            dropout_type = keras.layers.Dropout
+        else:
+            raise ValueError('dropoutType must be one of SpatialDropout2D '
+                             'or Dropout, passed as a string.')
+        self.dropout_type = dropout_type
+        if isinstance(kernel_length, float) and kernel_length < 1:
+            self.kernel_length = int(input_shape[-1] * kernel_length)
+        else:
+            self.kernel_length = kernel_length
+        self.f11 = f1_1
+        self.f12 = f1_2
+        self.f13 = f1_3
+        self.f21 = f2_1
+        self.f22 = f2_2
+        self.f23 = f2_3
+        self.d1 = d1
+        self.d2 = d2
+        self.d3 = d3
+        self.norm_rate = norm_rate
+        super(EEGNetFusion, self).__init__(input_shape, classes, save_path)
+
+    def _build_graph(self):
+        input_tensor = keras.layers.Input(shape=self._input_shape)
+        x = input_tensor
+
+        channels = self._input_shape[0]
+        samples = self._input_shape[1]
+
+        if len(self._input_shape) == 2:
+            x = keras.layers.Lambda(lambda tens: tf.expand_dims(tens, axis=-1))(x)
+
+        branch1 = keras.layers.Conv2D(self.f11, (1, self.kernel_length), padding='same',
+                                      input_shape=(channels, samples, 1),
+                                      use_bias=False)(x)
+        branch1 = keras.layers.BatchNormalization()(branch1)
+        branch1 = keras.layers.DepthwiseConv2D((channels, 1), use_bias=False,
+                                               depth_multiplier=self.d1,
+                                               depthwise_constraint=keras.constraints.max_norm(1.))(branch1)
+        branch1 = keras.layers.BatchNormalization()(branch1)
+        branch1 = keras.layers.Activation('elu')(branch1)
+        branch1 = keras.layers.AveragePooling2D((1, 4))(branch1)
+        branch1 = self.dropout_type(self.dropout_rate)(branch1)
+
+        branch1 = keras.layers.SeparableConv2D(self.f21, (1, 16),
+                                               use_bias=False, padding='same')(branch1)
+        branch1 = keras.layers.BatchNormalization()(branch1)
+        branch1 = keras.layers.Activation('elu')(branch1)
+        branch1 = keras.layers.AveragePooling2D((1, 8))(branch1)
+        branch1 = self.dropout_type(self.dropout_rate)(branch1)
+
+        flatten = keras.layers.Flatten(name='flatten')(branch1)
+
+        dense = keras.layers.Dense(self._output_shape, name='dense',
+                                   kernel_constraint=keras.constraints.max_norm(self.norm_rate))(flatten)
+        softmax = keras.layers.Activation('softmax', name='softmax')(dense)
+
+        return input_tensor, softmax
+
+
 if __name__ == '__main__':
     nn = ShallowConvNet((63, 128), 2)
     nn.summary()
