@@ -3,7 +3,8 @@ from .feature_extraction import FeatureType
 
 
 def validate_feature_classifier_pair(feature_type, classifier_type):
-    if classifier_type in [ClassifierType.EEG_NET, ClassifierType.DEEP_CONV_NET, ClassifierType.SHALLOW_CONV_NET]:
+    if classifier_type in [ClassifierType.EEG_NET, ClassifierType.DEEP_CONV_NET, ClassifierType.SHALLOW_CONV_NET,
+                           ClassifierType.EEG_NET_FUSION, ClassifierType.MI_EEGNET]:
         feature_type = FeatureType.RAW
     elif classifier_type is ClassifierType.VOTING_SVM and \
             feature_type in [FeatureType.AVG_FFT_POWER, FeatureType.FFT_RANGE, FeatureType.MULTI_AVG_FFT_POW]:

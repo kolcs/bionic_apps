@@ -149,7 +149,7 @@ def start_brain_driver_control_system(feature_type, classifier_type,
         x = database.get_data(subj_ind)
         y = y_all[subj_ind]
         classifier = init_classifier(classifier_type, x[0].shape, len(le.classes_),
-                                     **classifier_kwargs)
+                                     fs=database.get_fs(), **classifier_kwargs)
         if epochs is None:
             classifier.fit(x, y)
         else:

@@ -2,7 +2,7 @@ from enum import Enum, auto
 
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-from .keras_networks import EEGNet, DeepConvNet, ShallowConvNet
+from .keras_networks import EEGNet, DeepConvNet, ShallowConvNet, EEGNetFusion, MI_EEGNet
 from .kolcs_neural_networks import VGG, VggType, DenseNet, DenseNetType, CascadeConvRecNet, BasicNet
 from .sklearn_classifiers import VotingSVM, get_ensemble_clf
 
@@ -27,6 +27,8 @@ class ClassifierType(Enum):
     EEG_NET = auto()
     DEEP_CONV_NET = auto()
     SHALLOW_CONV_NET = auto()
+    EEG_NET_FUSION = auto()
+    MI_EEGNET = auto()
 
 
 def init_classifier(classifier_type, input_shape, classes,
@@ -57,6 +59,10 @@ def init_classifier(classifier_type, input_shape, classes,
         classifier = DeepConvNet(input_shape, classes, save_path=save_path, **kwargs)
     elif classifier_type is ClassifierType.SHALLOW_CONV_NET:
         classifier = ShallowConvNet(input_shape, classes, save_path=save_path, **kwargs)
+    elif classifier_type is ClassifierType.EEG_NET_FUSION:
+        classifier = EEGNetFusion(input_shape, classes, fs=fs, save_path=save_path, **kwargs)
+    elif classifier_type is ClassifierType.MI_EEGNET:
+        classifier = MI_EEGNet(input_shape, classes, fs=fs, save_path=save_path, **kwargs)
     elif classifier_type is ClassifierType.USER_DEFINED:
         assert classifier is not None, f'classifier must be defined!'
     else:

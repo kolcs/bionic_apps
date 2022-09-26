@@ -66,7 +66,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
         y_test = y[orig_test_ind]
 
         clf = init_classifier(classifier_type, db.get_data(subj_ind[0]).shape, len(label_encoder.classes_),
-                              **classifier_kwargs)
+                              fs=db.get_fs(), **classifier_kwargs)
 
         if isinstance(clf, TFBaseNet) and weight_file is not None:
             clf.load_weights(weight_file)
@@ -257,7 +257,8 @@ def make_cross_subject_classification(db_filename, classifier_type,
         db.close()
 
         clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
-                              len(label_encoder.classes_), **classifier_kwargs)
+                              len(label_encoder.classes_),
+                              fs=db.get_fs(), **classifier_kwargs)
 
         all_subj = db.get_subject_group()
 
