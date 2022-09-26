@@ -30,7 +30,7 @@ class ClassifierType(Enum):
 
 
 def init_classifier(classifier_type, input_shape, classes,
-                    *, classifier=None, save_path='tf_log/', **kwargs):
+                    *, fs=None, classifier=None, save_path='tf_log/', **kwargs):
     if classifier_type is ClassifierType.VOTING_SVM:
         classifier = VotingSVM(**kwargs)
     elif classifier_type is ClassifierType.ENSEMBLE:
@@ -52,7 +52,7 @@ def init_classifier(classifier_type, input_shape, classes,
     elif classifier_type is ClassifierType.KOLCS_NET:
         classifier = BasicNet(input_shape, classes)
     elif classifier_type is ClassifierType.EEG_NET:
-        classifier = EEGNet(input_shape, classes, save_path=save_path, **kwargs)
+        classifier = EEGNet(input_shape, classes, fs=fs, save_path=save_path, **kwargs)
     elif classifier_type is ClassifierType.DEEP_CONV_NET:
         classifier = DeepConvNet(input_shape, classes, save_path=save_path, **kwargs)
     elif classifier_type is ClassifierType.SHALLOW_CONV_NET:

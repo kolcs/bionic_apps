@@ -8,7 +8,8 @@ from bionic_apps.ai.interface import TFBaseNet
 class EEGNet(TFBaseNet):
 
     def __init__(self, input_shape, classes, dropout_rate=0.5, kernel_length=.5, f1=8,
-                 d=2, f2=16, norm_rate=0.25, dropout_type='Dropout', save_path='tf_log/'):
+                 d=2, f2=16, norm_rate=0.25, dropout_type='Dropout', fs=None, save_path='tf_log/'):
+        assert fs is not None, 'Sampling frequency is required, but not defined!'
         self.dropout_rate = dropout_rate
         if dropout_type == 'SpatialDropout2D':
             dropout_type = keras.layers.SpatialDropout2D
@@ -19,7 +20,7 @@ class EEGNet(TFBaseNet):
                              'or Dropout, passed as a string.')
         self.dropout_type = dropout_type
         if isinstance(kernel_length, float) and kernel_length < 1:
-            self.kernel_length = int(input_shape[-1] * kernel_length)
+            self.kernel_length = int(fs * kernel_length)
         else:
             self.kernel_length = kernel_length
         self.f1 = f1
@@ -38,6 +39,7 @@ class EEGNet(TFBaseNet):
         if len(self._input_shape) == 2:
             x = keras.layers.Lambda(lambda tens: tf.expand_dims(tens, axis=-1))(x)
 
+        assert self.kernel_length <= samples, 'Kernel is bigger than input samples of the graph.'
         block1 = keras.layers.Conv2D(self.f1, (1, self.kernel_length), padding='same',
                                      input_shape=(channels, samples, 1),
                                      use_bias=False)(x)
