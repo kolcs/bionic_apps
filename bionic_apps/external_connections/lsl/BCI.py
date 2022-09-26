@@ -53,12 +53,13 @@ class SignalReceiver:
 
 class DSP(SignalReceiver):
 
-    def __init__(self, use_filter=False, order=5, l_freq=1, h_freq=None):
+    def __init__(self, use_filter=False, order=5, l_freq=1, h_freq=None, scale=1e-6):
         super(DSP, self).__init__()
-        self._eeg = list()
+        self._eeg = None
         self._filt_eeg = list()  # change it to deque + copy()?
         self._timestamp = list()
         self._filter_signal = use_filter
+        self._scale = scale
 
         if use_filter:
             if h_freq is None:
@@ -77,10 +78,16 @@ class DSP(SignalReceiver):
         if len(timestamps) == 0:
             return None, None
 
+        eeg_samples = np.array(eeg_samples) * self._scale
+
         if self._filter_signal:
             eeg_samples, self._zi = signal.sosfilt(self._sos, eeg_samples, axis=0, zi=self._zi)
 
-        self._eeg.extend(eeg_samples)
+        if self._eeg is None:
+            self._eeg = eeg_samples
+        else:
+            self._eeg = np.vstack((self._eeg, eeg_samples))
+        # self._eeg.vstack(eeg_samples)
         self._timestamp.extend(timestamps)
         win = int(self.fs * window_length)
         timestamp = self._timestamp[-win:]

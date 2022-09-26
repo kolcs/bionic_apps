@@ -104,6 +104,7 @@ def run(filenames, get_labels=False, eeg_type='', use_artificial_data=False, hos
             data, ev, _ = get_data_with_labels(raw)
         else:
             data = raw.get_data()
+        data *= 1e6
 
     if add_extra_data:
         d = data
