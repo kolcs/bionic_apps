@@ -3,7 +3,7 @@ from sys import argv
 
 import numpy as np
 
-from preprocess import save_to_json
+from bionic_apps.utils import save_to_json
 
 TRACK_LENGTH = 500.0  # m
 RADIUS_VALUE = 17.829999923706056
