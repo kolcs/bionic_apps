@@ -128,6 +128,64 @@ class SaveAndRestoreBestModel(keras.callbacks.Callback):
         self.model.set_weights(self.best_weights)
 
 
+class SwitchMonitoredEarlyStopping(keras.callbacks.EarlyStopping):
+    # monitor, best, wait, monitor_op
+
+    def __init__(self, give_up=100, min_delta=0, patience=0,
+                 verbose=0, mode='auto', baseline=None, restore_best_weights=False):
+        super(SwitchMonitoredEarlyStopping, self).__init__('val_loss', min_delta, patience, verbose, mode,
+                                                           baseline, restore_best_weights)
+        self.init_value = None
+        self.reached_init = False
+        self.give_up = give_up
+        self.g_ind = 0
+
+    def on_epoch_end(self, epoch, logs=None):
+        current = self.get_monitor_value(logs)
+        if current is None:
+            return
+        if self.restore_best_weights and self.best_weights is None:
+            # Restore the weights after first epoch if no progress is ever made.
+            self.best_weights = self.model.get_weights()
+
+        self.wait += 1
+        if self._is_improvement(current, self.best):
+            self.best = current
+            self.best_epoch = epoch
+            if self.restore_best_weights:
+                self.best_weights = self.model.get_weights()
+            # Only restart wait if we beat both the baseline and our previous best.
+            if self.baseline is None or self._is_improvement(current, self.baseline):
+                self.wait = 0
+
+        if epoch == 0:
+            self.init_value = current
+        elif not self.reached_init:
+            if self._is_improvement(current, self.init_value):
+                self.reached_init = True
+            else:
+                self.g_ind += 1
+                self.wait = 0
+
+        # Only check after the first epoch.
+        if (self.wait >= self.patience and epoch > 0) or self.g_ind > self.give_up:
+            if self.wait >= self.patience and self.monitor == 'val_loss':
+                # monitor, best, wait, monitor_op
+                self.wait = 0
+                self.monitor = 'val_accuracy'
+                self.monitor_op = np.greater
+                self.best = self._get_monitor_value(logs)
+            else:
+                self.stopped_epoch = epoch
+                self.model.stop_training = True
+                if self.restore_best_weights and self.best_weights is not None:
+                    if self.verbose > 0:
+                        keras.utis.io_utils.print_msg(
+                            'Restoring model weights from the end of the best epoch: '
+                            f'{self.best_epoch + 1}.')
+                    self.model.set_weights(self.best_weights)
+
+
 def _reset_weights(model):
     # https://github.com/keras-team/keras/issues/341
     for layer in model.layers:
