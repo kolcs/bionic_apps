@@ -160,6 +160,7 @@ class GameLogger(Process):
         """ Thread function for self._player """
         self._init_connection_handler()
         self._init_annotator()
+        print('Connection established...')
         while True:
             try:
                 data = self._sock.recv(BUFFER_SIZE)
