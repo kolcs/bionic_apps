@@ -7,6 +7,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from time import sleep
 
 import numpy as np
 
@@ -227,6 +228,7 @@ def start_test(module='example_params',
         cmd = f'sbatch {submit_script}'
         cmd += f' {__file__} {module} {package} {i}'
         ans = subprocess.check_output(cmd, shell=True)
+        sleep(.2)
         job_list += ans.decode('utf-8').strip('\n').strip('\r').strip('Submitted batch job') + ' '
     print(job_list)
     job_file = Path(par_module.LOG_DIR).joinpath(par_module.TEST_NAME, 'hpc_jobs.txt')
