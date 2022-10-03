@@ -35,13 +35,20 @@ class Player(GameControl, Thread):
 
 class MasterPlayer(Player):
 
+    def __init__(self, player_num, game_log_conn, reaction_time=1.0, *, daemon=True):
+        super(MasterPlayer, self).__init__(player_num, game_log_conn, reaction_time,
+                                           daemon=daemon)
+        self._prev_sig = -1
+
     def _control_protocol(self):
         assert self._game_log_conn is not None, 'GameLogger connection must be defined for MasterPlayer!'
         # exp_sig = self._game_logger.get_expected_signal(self.player_num)
         self._game_log_conn.send(['exp_sig', self.player_num])
         exp_sig = self._game_log_conn.recv()
-        cmd = ControlCommand(exp_sig)
-        self.control_game(cmd)
+        if exp_sig != self._prev_sig:
+            cmd = ControlCommand(exp_sig)
+            self.control_game(cmd)
+        self._prev_sig = exp_sig
 
 
 class RandomPlayer(Player):
