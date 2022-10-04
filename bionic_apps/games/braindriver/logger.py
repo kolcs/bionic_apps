@@ -9,6 +9,7 @@ from multiprocessing import Process
 
 from .commands import ControlCommand
 from ...external_connections.brainvision import RemoteControlClient
+from ...handlers.gui import show_message
 
 UDP_IP = '127.0.0.1'
 UDP_PORT = 8053
@@ -72,6 +73,14 @@ class GameLogger(Process):
             rcc.open_recorder()
             rcc.check_impedance()
             self._annotator = rcc
+        if isinstance(self._annotator, RemoteControlClient):
+            show_message(
+                'Before starting the game:\n'
+                '1) Check Impedance\n'
+                '2) Start recording\n'
+                '3) Save file\n'
+                '4) press OK'
+            )
 
     def _init_game(self):
         # game_time, p1_prog, p1_exp_sig, p2_prog, p2_exp_sig, p3_prog, p3_exp_sig, p4_prog, p4_exp_sig
@@ -160,7 +169,7 @@ class GameLogger(Process):
         """ Thread function for self._player """
         self._init_connection_handler()
         self._init_annotator()
-        print('Connection established...')
+        print('Ready to start!')
         while True:
             try:
                 data = self._sock.recv(BUFFER_SIZE)

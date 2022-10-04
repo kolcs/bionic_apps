@@ -23,7 +23,7 @@ def generate_subject_data(files, loader, subj, filter_params,
                           epoch_tmin, epoch_tmax, window_length, window_step,
                           artifact_filter=None, balance_data=True,
                           binarize_labels=False, augment_data=False,
-                          ch_selection=None):
+                          ch_selection=None, online_game_rec=False):
     print(f'\nSubject{subj}')
     raws = [mne.io.read_raw(file) for file in files]
     raw = mne.io.concatenate_raws(raws)
@@ -55,7 +55,22 @@ def generate_subject_data(files, loader, subj, filter_params,
                 raw = filter_mne_obj(raw, picks=pick, **fpars)
         else:
             raw = filter_mne_obj(raw, picks=ch_selection, **filter_params)
-
+    if online_game_rec:
+        # todo: crop to training sessions
+        # modify duration according to trigger length
+        # drop first epoch - initial segment
+        # crop to min length segment
+        # process epochs
+        duration = []
+        onset = raw.annotations.onset
+        for i in range(len(raw.annotations.onset) - 1):
+            duration.append(onset[i + 1] - onset[i])
+        duration.append(.02)
+        raw.annotations.duration = duration
+        
+        min_len = raw.annotations.onset[1] - .5
+        raw.crop(tmin=min_len)
+        ep_data, ep_labels = get_epochs_from_raw_annot(raw)
     if isinstance(loader._db_type, (MindRoveCoreg, PutEMG)):
         ep_data, ep_labels, ep_min, _ = get_epochs_from_raw_annot(raw, return_min_max=True)
         assert window_length <= ep_min, f'The shortest epoch is {ep_min:.4f} sec long. ' \
