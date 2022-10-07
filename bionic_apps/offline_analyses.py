@@ -361,7 +361,8 @@ def test_db_cross_subject(
         fast_load=True,
         subjects='all',
         augment_data=False,
-        db_generation='auto'
+        db_generation='auto',
+        hpc_check_point=None,
 ):
     if classifier_kwargs is None:
         classifier_kwargs = {}

@@ -19,7 +19,7 @@ JOB_INFO = 'Submitted batch jobs:\n'
 
 GPU_TYPES = {
     1: 'gpu:v100:1',
-    2: 'gpu:v100:2',
+    2: 'gpu:v100:1',
     3: 'gpu:a100:1',
 }
 
@@ -171,6 +171,14 @@ def start_test(module='example_params',
         module = '.' + module
     par_module = importlib.import_module(module, package)
 
+    if par_module.partition.startswith('gpu'):
+        if par_module.gpu_type == 2 and par_module.partition in ['gpu_long', 'gpu_lowpriority']:
+            raise ValueError('GPU 2 partition is only available with timeout setup.'
+                             'Please set ``partition = \'gpu\'``')
+        elif par_module.gpu_type == 3 and par_module.partition == 'gpu_long':
+            raise ValueError('GPU 3 partition can not be used with ``partition '
+                             '= \'gpu_long\'``. Use \'gpu\' or \'gpu_lowpriority\' instead.')
+
     std_out = Path(par_module.LOG_DIR).joinpath('std', 'out')
     std_err = Path(par_module.LOG_DIR).joinpath('std', 'err')
     std_out.mkdir(parents=True, exist_ok=True)  # sdt out and error files
@@ -212,6 +220,8 @@ def start_test(module='example_params',
                 print(f'#SBATCH -p {par_module.partition}', end='\n')
             elif line.startswith('#SBATCH --gres='):
                 print(f'#SBATCH --gres={GPU_TYPES[par_module.gpu_type]}', end='\n')
+                if par_module.gpu_type == 2:
+                    print(f'#SBATCH --nodelist=neumann', end='\n')
             elif line.startswith('#SBATCH -c'):
                 print(f'#SBATCH -c {par_module.cpu_cores}', end='\n')
             elif line.startswith("#SBATCH -o"):
