@@ -35,7 +35,8 @@ default_kwargs = dict(
     # db_file='tmp/database.hdf5', log_file='out.csv', base_dir='.',
     save_res=True,
     fast_load=True, subjects='all',
-    augment_data=False
+    augment_data=False,
+    db_generation='sequential'
 )
 
 # generating test params here...
