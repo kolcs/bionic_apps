@@ -6,10 +6,12 @@ import shutil
 import subprocess
 import sys
 from datetime import datetime, timedelta
+from getpass import getpass
 from pathlib import Path
 from time import sleep
 
 import numpy as np
+import pexpect
 
 from bionic_apps.preprocess.io import DataLoader
 from bionic_apps.utils import load_from_json, save_to_json
@@ -70,6 +72,49 @@ def _check_param_in_func(par_name, func):
     assert par_name in pars, \
         f'{par_name} param is not in kwargs of {func.__name__}(). ' \
         f'kwargs are: {pars}'
+
+
+def ssh_and_cleanup(node=None, scratch=None):
+    if isinstance(node, str):
+        node = [node]
+    if node is None:
+        node = ['erdos', 'neumann', 'renyi', 'wald', 'lanczos']
+    elif not isinstance(node, (tuple, list)):
+        raise TypeError('node param can be str, tuple or list')
+
+    if isinstance(scratch, (int, str)):
+        scratch = [scratch]
+    if scratch is None:
+        scratch = ['/scratch1', '/scratch2', '/scratch3', '/scratch4']
+    elif not isinstance(scratch, (tuple, list)):
+        raise TypeError('node param can be str, tuple or list')
+    scratch = [f'/scratch{s}' if isinstance(s, int) else s for s in scratch]
+
+    user = subprocess.check_output('whoami').decode('utf-8').strip('\n')
+    pwd = getpass('HPC password: ')
+
+    for n in node:
+        ssh = pexpect.spawn(f'ssh {user}@{n}')
+        ssh.expect('Password:')
+        ssh.sendline(pwd)
+        i = ssh.expect(['[Pp]assword:', 'Permission denied', '[#\$] '])
+        while i == 0:
+            pwd = getpass('HPC password: ')
+            ssh.sendline(pwd)
+            i = ssh.expect(['[Pp]assword:', 'Permission denied', '[#\$] '])
+        if i == 1:
+            print('Permission denied on host. Can\'t login')
+            ssh.kill(0)
+            exit(12)
+        elif i == 2:
+            print(f'Login to {n}')
+
+        for s in scratch:
+            ssh.sendline(f'rm -r {s}/{user}')
+            ssh.expect('[#\$] ')
+
+        ssh.sendline('logout')
+        print('Cleanup finished. Logging out.')
 
 
 def run_with_checkpoint(test_func, log_path, subjects, tried_scratches=(), args=(), kwargs=None):
