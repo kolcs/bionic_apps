@@ -38,7 +38,9 @@ def get_tf_dataset(db, y, indexes):
 
     dataset = tf.data.Dataset.from_generator(
         generate_data,
-        output_types=(tf.float32, tf.int32),
-        output_shapes=(data_shape, label_shape)
+        output_signature=(
+            tf.TensorSpec(shape=data_shape, dtype=tf.float32),
+            tf.TensorSpec(shape=label_shape, dtype=tf.int32)
+        )
     )
     return dataset
