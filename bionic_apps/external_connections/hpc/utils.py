@@ -13,6 +13,7 @@ from time import sleep
 import numpy as np
 import pexpect
 
+from bionic_apps.offline_analyses import test_db_within_subject
 from bionic_apps.preprocess.io import DataLoader
 from bionic_apps.utils import load_from_json, save_to_json
 
@@ -110,11 +111,12 @@ def ssh_and_cleanup(node=None, scratch=None):
             print(f'Login to {n}')
 
         for s in scratch:
+            print(f'Cleaning {s}/{user}')
             ssh.sendline(f'rm -r {s}/{user}')
             ssh.expect('[#\$] ')
 
         ssh.sendline('logout')
-        print('Cleanup finished. Logging out.')
+        print('Cleanup finished. Logged out.')
 
 
 def run_with_checkpoint(test_func, log_path, subjects, tried_scratches=(), args=(), kwargs=None):
@@ -129,7 +131,10 @@ def run_with_checkpoint(test_func, log_path, subjects, tried_scratches=(), args=
 
     try:
         cp_info = load_from_json(cp_info['filename'])
-        subjects = [s for s in subjects if s > cp_info[PROCESSED_SUBJ]]
+        if test_func == test_db_within_subject:
+            subjects = [s for s in subjects if s > cp_info[PROCESSED_SUBJ]]
+        else:
+            subjects = 'all'
     except FileNotFoundError:
         cp_info[PROCESSED_SUBJ] = 0
         subjects = 'all'

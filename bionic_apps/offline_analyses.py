@@ -167,7 +167,7 @@ def make_within_subject_classification(subjects, db_filename, classifier_type, c
                 res_handler.save()
 
         if isinstance(hpc_check_point, dict):
-            from bionic_apps.external_connections.hpc.utils import PROCESSED_SUBJ
+            from .external_connections.hpc.utils import PROCESSED_SUBJ
             hpc_check_point[PROCESSED_SUBJ] = int(subj)
             save_to_json(hpc_check_point['filename'], hpc_check_point)
 
@@ -243,6 +243,7 @@ def make_cross_subject_classification(db_filename, classifier_type,
                                       validation_split=.0, patience=15,
                                       verbose='auto', finetune=False,
                                       finetune_split=5,
+                                      hpc_check_point=None,
                                       **classifier_kwargs):
     db = HDF5Dataset(db_filename)
     all_subj = db.get_subject_group()
@@ -250,7 +251,13 @@ def make_cross_subject_classification(db_filename, classifier_type,
     label_encoder = LabelEncoder().fit(y)
     y = label_encoder.transform(y)
 
+    if isinstance(hpc_check_point, dict):
+        from .external_connections.hpc.utils import PROCESSED_SUBJ
+
     for train_ind, test_ind in LeavePSubjectGroupsOutSequentially(leave_out_n_subjects).split(groups=all_subj):
+        if isinstance(hpc_check_point, dict) and \
+                all(s <= hpc_check_point[PROCESSED_SUBJ] for s in np.unique(all_subj[test_ind])):
+            continue
         print(f'Training on subjects: {np.unique(all_subj[train_ind])}')
         if shuffle:
             np.random.shuffle(train_ind)
@@ -297,6 +304,8 @@ def make_cross_subject_classification(db_filename, classifier_type,
 
         # test subjects individually - check network generalization capability
         for subj in np.unique(all_subj[test_ind]):
+            if isinstance(hpc_check_point, dict) and subj <= hpc_check_point[PROCESSED_SUBJ]:
+                continue
             print(f'Subject{subj}')
             test_subj_ind = mask_to_ind(subj == all_subj)
 
@@ -330,6 +339,10 @@ def make_cross_subject_classification(db_filename, classifier_type,
 
             if save_res and res_handler is not None:
                 res_handler.save()
+
+            if isinstance(hpc_check_point, dict):
+                hpc_check_point[PROCESSED_SUBJ] = int(subj)
+                save_to_json(hpc_check_point['filename'], hpc_check_point)
 
     db.close()
     if res_handler is not None:
@@ -406,4 +419,5 @@ def test_db_cross_subject(
                                       save_res=save_res,
                                       finetune=finetune,
                                       finetune_split=finetune_split,
+                                      hpc_check_point=hpc_check_point,
                                       **classifier_kwargs)
