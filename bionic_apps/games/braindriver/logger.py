@@ -96,6 +96,9 @@ class GameLogger(Process):
             if msg[0] == 'exp_sig':
                 ans = self.get_expected_signal(msg[1])
                 self._connection.send(ans)
+            elif msg[0] == 'prog':
+                ans = self.get_progress(msg[1])
+                self._connection.send(ans)
             elif msg[0] == 'log':
                 self.log_toggle_switch(msg[1])
             else:
