@@ -55,22 +55,7 @@ def generate_subject_data(files, loader, subj, filter_params,
                 raw = filter_mne_obj(raw, picks=pick, **fpars)
         else:
             raw = filter_mne_obj(raw, picks=ch_selection, **filter_params)
-    if online_game_rec:
-        # todo: crop to training sessions
-        # modify duration according to trigger length
-        # drop first epoch - initial segment
-        # crop to min length segment
-        # process epochs
-        duration = []
-        onset = raw.annotations.onset
-        for i in range(len(raw.annotations.onset) - 1):
-            duration.append(onset[i + 1] - onset[i])
-        duration.append(.02)
-        raw.annotations.duration = duration
-        
-        min_len = raw.annotations.onset[1] - .5
-        raw.crop(tmin=min_len)
-        ep_data, ep_labels = get_epochs_from_raw_annot(raw)
+
     if isinstance(loader._db_type, (MindRoveCoreg, PutEMG)):
         ep_data, ep_labels, ep_min, _ = get_epochs_from_raw_annot(raw, return_min_max=True)
         assert window_length <= ep_min, f'The shortest epoch is {ep_min:.4f} sec long. ' \
@@ -81,6 +66,15 @@ def generate_subject_data(files, loader, subj, filter_params,
         epochs = get_epochs_from_raw(raw, task_dict,
                                      epoch_tmin=epoch_tmin, epoch_tmax=epoch_tmax,
                                      event_id=event_id)
+        # tsks = task_dict.values()
+        # ep_mask = []
+        # if online_game_rec:
+        #     for i in range(len(raw.annotations) - 1):
+        #         if event_id.get(raw.annotations.description[i]) in tsks:
+        #             ep_len = raw.annotations.onset[i+1] - raw.annotations.onset[i]
+        #             keep = True if ep_len > epoch_tmax - epoch_tmin - .5 else False
+        #             ep_mask.append(keep)
+        #     epochs = epochs[ep_mask]
 
         if artifact_filter is not None:
             epochs = artifact_filter.offline_filter(epochs)
