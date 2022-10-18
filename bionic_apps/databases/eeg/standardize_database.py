@@ -8,8 +8,9 @@ from pymatreader import read_mat
 
 from bionic_apps.databases import Databases, get_eeg_db_name_by_filename
 from bionic_apps.databases.eeg.defaults import IMAGINED_MOVEMENT, BOTH_LEGS
-from bionic_apps.handlers.gui import select_folder_in_explorer
+from bionic_apps.handlers.gui import select_folder_in_explorer, select_files_in_explorer
 from bionic_apps.preprocess.io import DataLoader, get_epochs_from_raw
+from bionic_apps.utils import init_base_config
 
 BASE_PATH = '.'
 
@@ -457,6 +458,38 @@ def convert_game_par_c_and_d():
             session_num = drop_first + 5
             _save_sessions(subj, raw, start_mask, end_mask, loader.get_data_path(), session_num, drop_first,
                            plot=False)
+
+
+def _remove_triggers(raw, min_ep_dist=4, threshold=-.5):
+    onset, duration, description = [], [], []
+    for i in range(len(raw.annotations)):
+        if raw.annotations.description[i] in ['New Segment/', 'Response/R  1', 'Stimulus/S 16', 'Stimulus/S 12']:
+            onset.append(raw.annotations.onset[i])
+            duration.append(raw.annotations.duration[i])
+            description.append(raw.annotations.description[i])
+        elif raw.annotations.onset[i + 1] - raw.annotations.onset[i] > min_ep_dist + threshold:
+            onset.append(raw.annotations.onset[i])
+            duration.append(raw.annotations.duration[i])
+            description.append(raw.annotations.description[i])
+            assert i > 0, 'First trigger is not start trigger'
+            assert i < len(raw.annotations) - 1, 'Last trigger is not end trigger'
+
+    annotation = mne.Annotations(onset, duration, description, orig_time=raw.annotations.orig_time)
+    raw.set_annotations(annotation)
+    return raw
+
+
+def convert_game_paradigm():
+    files = list(select_files_in_explorer(init_base_config()))
+    raw = mne.io.concatenate_raws([mne.io.read_raw(file) for file in files])
+    raw = _remove_triggers(raw)
+    start_mask = (raw.annotations.description == 'Response/R  1') | (
+            raw.annotations.description == 'Stimulus/S 16')
+    end_mask = raw.annotations.description == 'Stimulus/S 12'
+    path = Path(files[0]).parent
+    subj = int(path.name.strip('pilot').strip('subject'))
+    _save_sessions(subj, raw, start_mask, end_mask, path.parent, np.sum(start_mask),
+                   drop_first=0, before_session=1.)
 
 
 if __name__ == '__main__':
