@@ -1,4 +1,4 @@
-import os
+from subprocess import Popen
 import socket
 import threading
 from time import sleep
@@ -16,10 +16,11 @@ ACQUISITION_SATE = 'AQ'
 ANS_WAITING_TIME = 0.1  # sec
 
 
-class RemoteControlClient(object):
-    def __init__(self, start_remote_control_server=True, print_received_messages=True):
-        if start_remote_control_server:
-            os.startfile(REMOTE_CONTROL_SERVER_PATH)
+class RemoteControlClient:
+    def __init__(self, rcs_process=None, print_received_messages=True):
+        if rcs_process is None:
+            rcs_process = Popen(REMOTE_CONTROL_SERVER_PATH)
+        self._rcs_process = rcs_process
 
         self._print_answers = print_received_messages
 
@@ -69,6 +70,7 @@ class RemoteControlClient(object):
     def __del__(self):
         self.stop_rec()
         self.close_recorder()
+        self.terminate_remote_control_server()
         self._sock.close()
 
     def ask_msg_protocol(self):
@@ -118,6 +120,9 @@ class RemoteControlClient(object):
 
     def send_annotation(self, annotation, ann_type='Stimulus'):
         self._send_message('AN:{};{}'.format(annotation, ann_type))
+
+    def terminate_remote_control_server(self):
+        self._rcs_process.terminate()
 
 
 if __name__ == '__main__':
