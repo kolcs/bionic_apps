@@ -69,6 +69,7 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                               fs=db.get_fs(), **classifier_kwargs)
 
         if isinstance(clf, TFBaseNet) and weight_file is not None:
+            print(f'Loading weights form {weight_file}')
             clf.load_weights(weight_file)
 
         if epochs is None:
@@ -92,14 +93,14 @@ def train_test_subject_data(db, subj_ind, classifier_type,
                 orig_val_ind = subj_ind[train_ind[val][orig_val_mask]]
 
                 train_tf_ds = get_tf_dataset(db, y_all, subj_ind[train_ind[tr]]).batch(batch_size)
-                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+                train_tf_ds = train_tf_ds.prefetch(tf_data.AUTOTUNE)
                 val_tf_ds = get_tf_dataset(db, y_all, orig_val_ind).batch(batch_size)
                 val_tf_ds = val_tf_ds.cache()
                 clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
                         patience=patience, verbose=verbose)
             else:
                 tf_dataset = get_tf_dataset(db, y_all, subj_ind[train_ind]).batch(batch_size)
-                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+                tf_dataset = tf_dataset.prefetch(tf_data.AUTOTUNE)
                 clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
             x_test = db.get_data(subj_ind[orig_test_ind])
             clf.evaluate(x_test, y_test)
@@ -286,14 +287,14 @@ def make_cross_subject_classification(db_filename, classifier_type,
                 orig_val_ind = train_ind[val][orig_val_mask]
 
                 train_tf_ds = get_tf_dataset(db, y, train_ind[tr]).batch(batch_size)
-                train_tf_ds = train_tf_ds.prefetch(tf_data.experimental.AUTOTUNE)
+                train_tf_ds = train_tf_ds.prefetch(tf_data.AUTOTUNE)
                 val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
                 val_tf_ds = val_tf_ds.cache()
                 clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
                         patience=patience, verbose=verbose)
             else:
                 tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
-                tf_dataset = tf_dataset.prefetch(tf_data.experimental.AUTOTUNE)
+                tf_dataset = tf_dataset.prefetch(tf_data.AUTOTUNE)
                 clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
 
         if isinstance(clf, TFBaseNet) and finetune:
