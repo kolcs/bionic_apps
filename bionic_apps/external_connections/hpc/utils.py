@@ -11,7 +11,6 @@ from pathlib import Path
 from time import sleep
 
 import numpy as np
-import pexpect
 
 from bionic_apps.offline_analyses import test_db_within_subject
 from bionic_apps.preprocess.io import DataLoader
@@ -76,6 +75,7 @@ def _check_param_in_func(par_name, func):
 
 
 def ssh_and_cleanup(node=None, scratch=None):
+    from pexpect import spawn
     if isinstance(node, str):
         node = [node]
     if node is None:
@@ -95,7 +95,7 @@ def ssh_and_cleanup(node=None, scratch=None):
     pwd = getpass('HPC password: ')
 
     for n in node:
-        ssh = pexpect.spawn(f'ssh {user}@{n}')
+        ssh = spawn(f'ssh {user}@{n}')
         ssh.expect('Password:')
         ssh.sendline(pwd)
         i = ssh.expect(['[Pp]assword:', 'Permission denied', '[#\$] '])
