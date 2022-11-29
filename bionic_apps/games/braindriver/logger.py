@@ -219,7 +219,7 @@ def setup_logger(logger_name, log_to_stream=True, log_file=None, log_dir='log/',
     log_to_stream : bool
         Log info to the stream.
     log_file : str
-        This string will be added to the filename. By default the filename contains
+        This string will be added to the filename. By default, the filename contains
         the creation time and the .log extension
     log_dir : str
         The path where to save the .log files.
