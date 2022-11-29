@@ -345,12 +345,12 @@ def make_cross_subject_classification(db_filename, classifier_type,
                 hpc_check_point[PROCESSED_SUBJ] = int(subj)
                 save_to_json(hpc_check_point['filename'], hpc_check_point)
 
+        if res_handler is not None:
+            if finetune:
+                res_handler.print_db_res()
+            else:
+                res_handler.print_db_res(col='Accuracy')
     db.close()
-    if res_handler is not None:
-        if finetune:
-            res_handler.print_db_res()
-        else:
-            res_handler.print_db_res(col='Accuracy')
 
 
 def test_db_cross_subject(
