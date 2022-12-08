@@ -575,7 +575,13 @@ def online_faster(data, bad_channels, ica, ica_scores, apply_frequency_filter=Tr
         data.interpolate_bads(reset_bads=True, verbose=verbose, mode='fast')
 
     if thresholds[1] > 0:
-        eog_inds, _ = ica.find_bads_eog(data, ch_name='Fp1', threshold=thresholds[1], verbose=verbose)
+        # eog_inds, _ = ica.find_bads_eog(data, ch_name='Fp1', threshold=thresholds[1], verbose=verbose)
+        try:
+            eog_inds, _ = ica.find_bads_eog(data, threshold=thresholds[1],
+                                            measure='zscore', verbose=verbose)
+        except RuntimeError:
+            eog_inds, _ = ica.find_bads_eog(data, ch_name='Fp1', threshold=thresholds[1],
+                                            measure='zscore', verbose=verbose)
         bad_components = online_faster_bad_components(ica, data, ica_scores, verbose=verbose)
         bad_components = np.unique(np.append(bad_components, eog_inds))
         ica.apply(data, exclude=bad_components)
