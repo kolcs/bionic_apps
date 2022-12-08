@@ -1,0 +1,9 @@
+###### Requirements without Version Specifiers ######
+tensorflow
+pandas
+pylsl
+psutil
+
+###### Requirements with Version Specifiers ######
+mne[hdf5] >= 1.0
+scikit-learn >= 1.0
