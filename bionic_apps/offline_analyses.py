@@ -146,35 +146,39 @@ def make_within_subject_classification(subjects, db_filename, classifier_type, c
         classifier_kwargs = {}
 
     db = HDF5Dataset(db_filename)
-    all_subj = db.get_subject_group()
 
-    for subj in _get_subject_list(subjects, all_subj):
-        print(f'Subject{subj}')
-        s_mask = subj == all_subj
-        if not any(s_mask):
-            print(f'Subject{subj} is not in processed database')
-            continue
+    try:
+        all_subj = db.get_subject_group()
 
-        subj_ind = mask_to_ind(s_mask)
-        cross_acc = train_test_subject_data(db, subj_ind, classifier_type, n_splits=n_splits,
-                                            shuffle=True, **classifier_kwargs)
+        for subj in _get_subject_list(subjects, all_subj):
+            print(f'Subject{subj}')
+            s_mask = subj == all_subj
+            if not any(s_mask):
+                print(f'Subject{subj} is not in processed database')
+                continue
+
+            subj_ind = mask_to_ind(s_mask)
+            cross_acc = train_test_subject_data(db, subj_ind, classifier_type, n_splits=n_splits,
+                                                shuffle=True, **classifier_kwargs)
+
+            if res_handler is not None:
+                res_handler.add({'Subject': [f'Subject{subj}'],
+                                 'Accuracy list': [cross_acc],
+                                 'Std of Avg. Acc': [np.std(cross_acc)],
+                                 'Avg. Acc': [np.mean(cross_acc)]})
+                if save_res:
+                    res_handler.save()
+
+            if isinstance(hpc_check_point, dict):
+                from .external_connections.hpc.utils import PROCESSED_SUBJ
+                hpc_check_point[PROCESSED_SUBJ] = int(subj)
+                save_to_json(hpc_check_point['filename'], hpc_check_point)
 
         if res_handler is not None:
-            res_handler.add({'Subject': [f'Subject{subj}'],
-                             'Accuracy list': [cross_acc],
-                             'Std of Avg. Acc': [np.std(cross_acc)],
-                             'Avg. Acc': [np.mean(cross_acc)]})
-            if save_res:
-                res_handler.save()
+            res_handler.print_db_res()
 
-        if isinstance(hpc_check_point, dict):
-            from .external_connections.hpc.utils import PROCESSED_SUBJ
-            hpc_check_point[PROCESSED_SUBJ] = int(subj)
-            save_to_json(hpc_check_point['filename'], hpc_check_point)
-
-    db.close()
-    if res_handler is not None:
-        res_handler.print_db_res()
+    finally:
+        db.close()
 
 
 def test_db_within_subject(
@@ -247,110 +251,113 @@ def make_cross_subject_classification(db_filename, classifier_type,
                                       hpc_check_point=None,
                                       **classifier_kwargs):
     db = HDF5Dataset(db_filename)
-    all_subj = db.get_subject_group()
-    y = db.get_y()
-    label_encoder = LabelEncoder().fit(y)
-    y = label_encoder.transform(y)
 
-    if isinstance(hpc_check_point, dict):
-        from .external_connections.hpc.utils import PROCESSED_SUBJ
-
-    for train_ind, test_ind in LeavePSubjectGroupsOutSequentially(leave_out_n_subjects).split(groups=all_subj):
-        if isinstance(hpc_check_point, dict) and \
-                all(s <= hpc_check_point[PROCESSED_SUBJ] for s in np.unique(all_subj[test_ind])):
-            continue
-        print(f'Training on subjects: {np.unique(all_subj[train_ind])}')
-        if shuffle:
-            np.random.shuffle(train_ind)
-        db.close()
-
-        clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
-                              len(label_encoder.classes_),
-                              fs=db.get_fs(), **classifier_kwargs)
-
+    try:
         all_subj = db.get_subject_group()
+        y = db.get_y()
+        label_encoder = LabelEncoder().fit(y)
+        y = label_encoder.transform(y)
 
-        if epochs is None:
-            x_train = db.get_data(train_ind)
-            y_train = y[train_ind]
-            clf.fit(x_train, y_train)
-        else:
-            if validation_split > 0:
-                # # subject level
-                # tr, val = _get_train_val_ind(validation_split, all_subj[train_ind])
+        if isinstance(hpc_check_point, dict):
+            from .external_connections.hpc.utils import PROCESSED_SUBJ
 
-                # epoch level
-                tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
-                                                      db.get_epoch_group()[train_ind])
-
-                orig_val_mask = db.get_orig_mask()[train_ind[val]]
-                orig_val_ind = train_ind[val][orig_val_mask]
-
-                train_tf_ds = get_tf_dataset(db, y, train_ind[tr]).batch(batch_size)
-                train_tf_ds = train_tf_ds.prefetch(tf_data.AUTOTUNE)
-                val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
-                val_tf_ds = val_tf_ds.cache()
-                clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
-                        patience=patience, verbose=verbose)
-            else:
-                tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
-                tf_dataset = tf_dataset.prefetch(tf_data.AUTOTUNE)
-                clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
-
-        if isinstance(clf, TFBaseNet) and finetune:
-            cp_file = clf.save_weights()
-        else:
-            cp_file = None
-            finetune = False
-
-        # test subjects individually - check network generalization capability
-        for subj in np.unique(all_subj[test_ind]):
-            if isinstance(hpc_check_point, dict) and subj <= hpc_check_point[PROCESSED_SUBJ]:
+        for train_ind, test_ind in LeavePSubjectGroupsOutSequentially(leave_out_n_subjects).split(groups=all_subj):
+            if isinstance(hpc_check_point, dict) and \
+                    all(s <= hpc_check_point[PROCESSED_SUBJ] for s in np.unique(all_subj[test_ind])):
                 continue
-            print(f'Subject{subj}')
-            test_subj_ind = mask_to_ind(subj == all_subj)
+            print(f'Training on subjects: {np.unique(all_subj[train_ind])}')
+            if shuffle:
+                np.random.shuffle(train_ind)
+            db.close()
 
-            if not finetune:
-                orig_test_mask = db.get_orig_mask()[test_subj_ind]
-                orig_test_ind = test_subj_ind[orig_test_mask]
+            clf = init_classifier(classifier_type, db.get_data(train_ind[0]).shape,
+                                  len(label_encoder.classes_),
+                                  fs=db.get_fs(), **classifier_kwargs)
 
-                x_test = db.get_data(orig_test_ind)
-                y_test = y[orig_test_ind]
-                acc = test_classifier(clf, x_test, y_test, label_encoder)
+            all_subj = db.get_subject_group()
 
-                if res_handler is not None:
-                    res_handler.add({'Subject': [f'Subject{subj}'],
-                                     'Left out subjects': [np.unique(all_subj[test_ind])],
-                                     'Accuracy': [acc]})
-
+            if epochs is None:
+                x_train = db.get_data(train_ind)
+                y_train = y[train_ind]
+                clf.fit(x_train, y_train)
             else:
-                cross_acc = train_test_subject_data(db, test_subj_ind, classifier_type,
-                                                    n_splits=finetune_split, shuffle=shuffle,
-                                                    epochs=epochs, label_encoder=label_encoder,
-                                                    batch_size=batch_size,
-                                                    validation_split=validation_split,
-                                                    patience=patience, verbose=verbose,
-                                                    weight_file=cp_file, **classifier_kwargs)
-                if res_handler is not None:
-                    res_handler.add({'Subject': [f'Subject{subj}'],
-                                     'Left out subjects': [np.unique(all_subj[test_ind])],
-                                     'Accuracy list': [cross_acc],
-                                     'Std of Avg. Acc': [np.std(cross_acc)],
-                                     'Avg. Acc': [np.mean(cross_acc)]})
+                if validation_split > 0:
+                    # # subject level
+                    # tr, val = _get_train_val_ind(validation_split, all_subj[train_ind])
 
-            if save_res and res_handler is not None:
-                res_handler.save()
+                    # epoch level
+                    tr, val = _get_balanced_train_val_ind(validation_split, y[train_ind],
+                                                          db.get_epoch_group()[train_ind])
 
-            if isinstance(hpc_check_point, dict):
-                hpc_check_point[PROCESSED_SUBJ] = int(subj)
-                save_to_json(hpc_check_point['filename'], hpc_check_point)
+                    orig_val_mask = db.get_orig_mask()[train_ind[val]]
+                    orig_val_ind = train_ind[val][orig_val_mask]
 
-        if res_handler is not None:
-            if finetune:
-                res_handler.print_db_res()
+                    train_tf_ds = get_tf_dataset(db, y, train_ind[tr]).batch(batch_size)
+                    train_tf_ds = train_tf_ds.prefetch(tf_data.AUTOTUNE)
+                    val_tf_ds = get_tf_dataset(db, y, orig_val_ind).batch(batch_size)
+                    val_tf_ds = val_tf_ds.cache()
+                    clf.fit(train_tf_ds, epochs=epochs, validation_data=val_tf_ds,
+                            patience=patience, verbose=verbose)
+                else:
+                    tf_dataset = get_tf_dataset(db, y, train_ind).batch(batch_size)
+                    tf_dataset = tf_dataset.prefetch(tf_data.AUTOTUNE)
+                    clf.fit(tf_dataset, epochs=epochs, verbose=verbose)
+
+            if isinstance(clf, TFBaseNet) and finetune:
+                cp_file = clf.save_weights()
             else:
-                res_handler.print_db_res(col='Accuracy')
-    db.close()
+                cp_file = None
+                finetune = False
+
+            # test subjects individually - check network generalization capability
+            for subj in np.unique(all_subj[test_ind]):
+                if isinstance(hpc_check_point, dict) and subj <= hpc_check_point[PROCESSED_SUBJ]:
+                    continue
+                print(f'Subject{subj}')
+                test_subj_ind = mask_to_ind(subj == all_subj)
+
+                if not finetune:
+                    orig_test_mask = db.get_orig_mask()[test_subj_ind]
+                    orig_test_ind = test_subj_ind[orig_test_mask]
+
+                    x_test = db.get_data(orig_test_ind)
+                    y_test = y[orig_test_ind]
+                    acc = test_classifier(clf, x_test, y_test, label_encoder)
+
+                    if res_handler is not None:
+                        res_handler.add({'Subject': [f'Subject{subj}'],
+                                         'Left out subjects': [np.unique(all_subj[test_ind])],
+                                         'Accuracy': [acc]})
+
+                else:
+                    cross_acc = train_test_subject_data(db, test_subj_ind, classifier_type,
+                                                        n_splits=finetune_split, shuffle=shuffle,
+                                                        epochs=epochs, label_encoder=label_encoder,
+                                                        batch_size=batch_size,
+                                                        validation_split=validation_split,
+                                                        patience=patience, verbose=verbose,
+                                                        weight_file=cp_file, **classifier_kwargs)
+                    if res_handler is not None:
+                        res_handler.add({'Subject': [f'Subject{subj}'],
+                                         'Left out subjects': [np.unique(all_subj[test_ind])],
+                                         'Accuracy list': [cross_acc],
+                                         'Std of Avg. Acc': [np.std(cross_acc)],
+                                         'Avg. Acc': [np.mean(cross_acc)]})
+
+                if save_res and res_handler is not None:
+                    res_handler.save()
+
+                if isinstance(hpc_check_point, dict):
+                    hpc_check_point[PROCESSED_SUBJ] = int(subj)
+                    save_to_json(hpc_check_point['filename'], hpc_check_point)
+
+            if res_handler is not None:
+                if finetune:
+                    res_handler.print_db_res()
+                else:
+                    res_handler.print_db_res(col='Accuracy')
+    finally:
+        db.close()
 
 
 def test_db_cross_subject(
