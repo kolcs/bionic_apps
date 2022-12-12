@@ -28,29 +28,70 @@ This project is originally designed for the BCI discipline of the Cybathlon comp
 
 ## Installation
 
-1. Download [miniconda](https://docs.conda.io/en/latest/miniconda.html) and install it.
-2. Create a new environment called ''bci'' with python > 3.7 and < 3.11
+1. Download git project
+2. Download [miniconda](https://docs.conda.io/en/latest/miniconda.html) and install it.
+3. Create a new environment called ''bci'' with python > 3.7 and < 3.11
 
    `conda create --name bci python=3.10`
 
-3. activate environment
+4. activate environment
 
    `conda activate bci`
 
-4. install requirements
+5. install requirements
 
    `pip install -r /path/to/requirements.txt`
+
+## Public Databases
+
+- [PhysioNet](https://physionet.org/content/eegmmidb/1.0.0/)
+- [Giga](http://gigadb.org/dataset/100542)
+- [BCI Competition IV 2a](https://www.bbci.de/competition/iv/)
+- [TTK](https://hdl.handle.net/21.15109/CONCORDA/UOQQVK)
 
 ## Usage
 
 Use examples can be found in folder `examples/`
 
-## Support
+## Citing
 
-If you have any problems you can contact:
+If you use this code in a scientific publication, please cite us as:
 
-- Csaba Köllőd: kollod.csaba@itk.ppke.hu
-- András Adolf: adolf.andras@itk.ppke.hu
+```
+@misc{kollod_closed_2022,
+   title = {Closed loop {BCI} System for Cybathlon 2020},
+   url = {http://arxiv.org/abs/2212.04172},
+   doi = {10.48550/arXiv.2212.04172},
+   number = {{arXiv}:2212.04172},
+   publisher = {{arXiv}},
+   author = {Köllőd, Csaba and Adolf, András and Márton, Gergely and 
+      Wahdow, Moutz and Fadel, Ward and Ulbert, István},
+   urldate = {2022-12-09},
+   date = {2022-12-08},
+   eprinttype = {arxiv},
+   eprint = {2212.04172 [cs, eess]},
+   keywords = {Computer Science - Human-Computer Interaction, Electrical 
+      Engineering and Systems Science - Signal Processing}
+}
+```
+
+as well as the [MNE-Python](https://mne.tools/) software that is used by bionic_apps:
+
+```
+@article{GramfortEtAl2013a,
+   title = {{{MEG}} and {{EEG}} Data Analysis with {{MNE}}-{{Python}}},
+   author = {Gramfort, Alexandre and Luessi, Martin and Larson, Eric and 
+      Engemann, Denis A. and Strohmeier, Daniel and Brodbeck, Christian and 
+      Goj, Roman and Jas, Mainak and Brooks, Teon and Parkkonen, Lauri and 
+      H{\"a}m{\"a}l{\"a}inen, Matti S.},
+   year = {2013},
+   volume = {7},
+   pages = {1--13},
+   doi = {10.3389/fnins.2013.00267},
+   journal = {Frontiers in Neuroscience},
+   number = {267}
+}
+```
 
 [//]: # (## Contributing)
 
@@ -72,11 +113,32 @@ If you have any problems you can contact:
 
 [//]: # ()
 
-[//]: # (## License)
+## Licensing
 
-[//]: # (For open source projects, say how it is licensed.)
+Bionic Applications is BSD-licenced (BSD-3-Clause):
 
-[//]: # ()
+> This software is OSI Certified Open Source Software. OSI Certified is a certification mark of the Open Source
+> Initiative.
+>
+>Copyright (c) 2019-2023, authors of Bionic Applications. All rights reserved.
+>
+>Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+> following conditions are met:
+> - Redistributions of source code must retain the above copyright notice, this list of conditions and the following
+    disclaimer.
+> - Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
+    disclaimer in the documentation and/or other materials provided with the distribution.
+> - Neither the names of bionic_apps authors nor the names of any contributors may be used to endorse or promote
+    products derived from this software without specific prior written permission.
+>
+> This software is provided by the copyright holders and contributors "as is" and any express or implied warranties,
+> including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are
+> disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental,
+> special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or
+> services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability,
+> whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of
+> this software, even if advised of the possibility of such damage.
+
 
 [//]: # (## Project status)
 
