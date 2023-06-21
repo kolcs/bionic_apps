@@ -74,6 +74,22 @@ If you use this code in a scientific publication, please cite us as:
       Engineering and Systems Science - Signal Processing}
 }
 ```
+and
+```
+@article{kollod_deep_2023,
+	title = {Deep Comparisons of Neural Networks from the {EEGNet} Family},
+	volume = {12},
+	rights = {http://creativecommons.org/licenses/by/3.0/},
+	issn = {2079-9292},
+	url = {https://www.mdpi.com/2079-9292/12/12/2743},
+	doi = {10.3390/electronics12122743},
+	pages = {2743},
+	number = {12},
+	journaltitle = {Electronics},
+	author = {Köllőd, Csaba Márton and Adolf, András and Iván, Kristóf and Márton, Gergely and Ulbert, István},
+	date = {2023-01},
+}
+```
 
 as well as the [MNE-Python](https://mne.tools/) software that is used by bionic_apps:
 
