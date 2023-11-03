@@ -58,20 +58,17 @@ Use examples can be found in folder `examples/`
 If you use this code in a scientific publication, please cite us as:
 
 ```
-@misc{kollod_closed_2022,
-   title = {Closed loop {BCI} System for Cybathlon 2020},
-   url = {http://arxiv.org/abs/2212.04172},
-   doi = {10.48550/arXiv.2212.04172},
-   number = {{arXiv}:2212.04172},
-   publisher = {{arXiv}},
-   author = {Köllőd, Csaba and Adolf, András and Márton, Gergely and 
-      Wahdow, Moutz and Fadel, Ward and Ulbert, István},
-   urldate = {2022-12-09},
-   date = {2022-12-08},
-   eprinttype = {arxiv},
-   eprint = {2212.04172 [cs, eess]},
-   keywords = {Computer Science - Human-Computer Interaction, Electrical 
-      Engineering and Systems Science - Signal Processing}
+@article{kollod_closed_2023,
+	title = {Closed loop {BCI} system for {Cybathlon} 2020},
+	volume = {10},
+	issn = {2326-263X},
+	doi = {10.1080/2326263X.2023.2254463},
+	number = {2-4},
+	journal = {Brain-Computer Interfaces},
+	author = {Köllőd, Csaba and Adolf, András and Márton, Gergely and Wahdow, Moutz and Fadel, Ward and Ulbert, István},
+	year = {2023},
+	keywords = {EEG, FFT, Normalization, SVM, — BCI},
+	pages = {114--128},
 }
 ```
 and
@@ -79,9 +76,7 @@ and
 @article{kollod_deep_2023,
 	title = {Deep Comparisons of Neural Networks from the {EEGNet} Family},
 	volume = {12},
-	rights = {http://creativecommons.org/licenses/by/3.0/},
 	issn = {2079-9292},
-	url = {https://www.mdpi.com/2079-9292/12/12/2743},
 	doi = {10.3390/electronics12122743},
 	pages = {2743},
 	number = {12},
