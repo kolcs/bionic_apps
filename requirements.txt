@@ -1,5 +1,5 @@
 ###### Requirements without Version Specifiers ######
-tensorflow
+tensorflow<2.11
 pandas
 pylsl
 psutil
