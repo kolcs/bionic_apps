@@ -131,7 +131,7 @@ Bionic Applications is BSD-licenced (BSD-3-Clause):
 > This software is OSI Certified Open Source Software. OSI Certified is a certification mark of the Open Source
 > Initiative.
 >
->Copyright (c) 2019-2023, authors of Bionic Applications. All rights reserved.
+>Copyright (c) 2019-2025, authors of Bionic Applications. All rights reserved.
 >
 >Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 > following conditions are met:
